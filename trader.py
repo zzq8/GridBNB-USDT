@@ -175,6 +175,18 @@ class GridTrader:
     
     def _get_lower_band(self):
         return self.base_price * (1 - self.grid_size / 100)
+
+    def _reset_extremes(self):
+        """
+        清空上一轮监测记录的最高价 / 最低价，防止残留值
+        引发虚假“反弹/回撤”判定
+        """
+        if self.highest is not None or self.lowest is not None:
+            self.logger.debug(
+                f"复位 high/low 变量 | highest={self.highest} lowest={self.lowest}"
+            )
+        self.highest = None
+        self.lowest = None
     
     async def _check_buy_signal(self):
         current_price = self.current_price
@@ -204,6 +216,7 @@ class GridTrader:
                 return True
         else:
             self.buying_or_selling = False    # 退出买入或卖出监测
+            self._reset_extremes()  # NEW
         return False
     
     async def _check_sell_signal(self):
@@ -241,7 +254,8 @@ class GridTrader:
                     return False
                 return True
         else:
-            self.buying_or_selling = False    # 退出买入或卖出监测
+            self.buying_or_selling = False
+            self._reset_extremes()
         return False
     
     async def _calculate_order_amount(self, order_type):
@@ -531,6 +545,8 @@ class GridTrader:
                     self.logger.info(f"订单已成交 | ID: {order_id}")
                     # 更新基准价
                     self.base_price = float(updated_order['price'])
+
+                    self._reset_extremes()  # NEW: 清空最高/最低监测
                     # 清除活跃订单状态
                     self.active_orders[side] = None
                     
@@ -592,6 +608,7 @@ class GridTrader:
                             self.logger.info(f"订单已经成交 | ID: {order_id}")
                             # 处理已成交的订单（与上面相同的逻辑）
                             self.base_price = float(check_order['price'])
+                            self._reset_extremes()  # NEW: 清空最高/最低监测
                             self.active_orders[side] = None
                             trade_info = {
                                 'timestamp': time.time(),
