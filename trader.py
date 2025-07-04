@@ -34,6 +34,7 @@ class GridTrader:
         self.last_trade_price = None
         self.price_history = []
         self.last_grid_adjust_time = time.time()
+        self.start_time = time.time()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.symbol_info = None
         self.monitored_orders = []
