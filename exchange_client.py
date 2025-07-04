@@ -109,87 +109,79 @@ class ExchangeClient:
             self.logger.error(f"获取行情失败: {str(e)}")
             self.logger.debug(f"请求参数: symbol={symbol}")
             raise
-    
+
     async def fetch_funding_balance(self):
-        """获取理财账户余额"""
+        """[已修复] 获取理财账户余额（支持分页）"""
         now = time.time()
-        
+
         # 如果缓存有效，直接返回缓存数据
         if now - self.funding_balance_cache['timestamp'] < self.cache_ttl:
             return self.funding_balance_cache['data']
-        
+
+        all_balances = {}
+        current_page = 1
+        size_per_page = 100  # 使用API允许的最大值以减少请求次数
+
         try:
-            # 使用新的Simple Earn API
-            result = await self.exchange.sapi_get_simple_earn_flexible_position()
-            self.logger.debug(f"理财账户原始数据: {result}")
-            balances = {}
-            
-            # 处理返回的数据结构
-            data = result.get('rows', []) if isinstance(result, dict) else result
-            
-            for item in data:
-                asset = item['asset']
-                amount = float(item.get('totalAmount', 0) or item.get('amount', 0))
-                balances[asset] = amount
-            
+            while True:
+                params = {'current': current_page, 'size': size_per_page}
+                # 使用Simple Earn API，并传入分页参数
+                result = await self.exchange.sapi_get_simple_earn_flexible_position(params)
+                self.logger.debug(f"理财账户原始数据 (Page {current_page}): {result}")
+
+                rows = result.get('rows', [])
+                if not rows:
+                    # 如果当前页没有数据，说明已经获取完毕
+                    break
+
+                for item in rows:
+                    asset = item['asset']
+                    amount = float(item.get('totalAmount', 0) or 0)
+                    if asset in all_balances:
+                        all_balances[asset] += amount
+                    else:
+                        all_balances[asset] = amount
+
+                # 如果当前页返回的记录数小于每页大小，说明是最后一页
+                if len(rows) < size_per_page:
+                    break
+
+                current_page += 1
+                await asyncio.sleep(0.1)  # 避免请求过于频繁
+
             # 只在余额发生显著变化时打印日志
-            if not self.funding_balance_cache.get('data'):
-                self.logger.info(f"理财账户余额: {balances}")
-            else:
-                # 检查是否有显著变化（超过0.1%）
-                old_balances = self.funding_balance_cache['data']
-                significant_change = False
-                for asset, amount in balances.items():
-                    old_amount = old_balances.get(asset, 0)
-                    if old_amount == 0:
-                        if amount != 0:
-                            significant_change = True
-                            break
-                    elif abs((amount - old_amount) / old_amount) > 0.001:  # 0.1%的变化
-                        significant_change = True
-                        break
-                
-                if significant_change:
-                    self.logger.info(f"理财账户余额更新: {balances}")
-            
+            old_balances = self.funding_balance_cache.get('data', {})
+            if all_balances != old_balances:
+                self.logger.info(f"理财账户余额更新: {all_balances}")
+
             # 更新缓存
             self.funding_balance_cache = {
                 'timestamp': now,
-                'data': balances
+                'data': all_balances
             }
-            
-            return balances
+
+            return all_balances
         except Exception as e:
             self.logger.error(f"获取理财账户余额失败: {str(e)}")
-            return {}
+            # 返回上一次的缓存（如果有）或空字典
+            return self.funding_balance_cache.get('data', {})
 
     async def fetch_balance(self, params=None):
-        """获取账户余额（含缓存机制）"""
+        """[已修复] 获取现货账户余额（含缓存机制），不再合并理财余额"""
         now = time.time()
         if now - self.balance_cache['timestamp'] < self.cache_ttl:
             return self.balance_cache['data']
-        
+
         try:
             params = params or {}
             params['timestamp'] = int(time.time() * 1000) + self.time_diff
             balance = await self.exchange.fetch_balance(params)
-            
-            # 获取理财账户余额
-            funding_balance = await self.fetch_funding_balance()
-            
-            # 合并现货和理财余额
-            for asset, amount in funding_balance.items():
-                if asset not in balance['total']:
-                    balance['total'][asset] = 0
-                if asset not in balance['free']:
-                    balance['free'][asset] = 0
-                balance['total'][asset] += amount
-            
-            self.logger.debug(f"账户余额概要: {balance['total']}")
+
+            self.logger.debug(f"现货账户余额概要: {balance.get('total', {})}")
             self.balance_cache = {'timestamp': now, 'data': balance}
             return balance
         except Exception as e:
-            self.logger.error(f"获取余额失败: {str(e)}")
+            self.logger.error(f"获取现货余额失败: {str(e)}")
             # 出错时不抛出异常，而是返回一个空的但结构完整的余额字典
             return {'free': {}, 'used': {}, 'total': {}}
     
