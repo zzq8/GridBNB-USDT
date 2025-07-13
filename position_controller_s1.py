@@ -3,6 +3,7 @@ import time
 import asyncio
 import logging
 import math # 需要 math 来处理精度
+from risk_manager import RiskState
 
 class PositionControllerS1:
     """
@@ -194,10 +195,13 @@ class PositionControllerS1:
             return False
 
 
-    async def check_and_execute(self):
+    async def check_and_execute(self, risk_state: RiskState = RiskState.ALLOW_ALL):
         """
         高频检查 S1 仓位控制条件并执行调仓。
         应在主交易循环中频繁调用。
+
+        Args:
+            risk_state: 当前的风控状态，决定允许执行的操作类型
         """
         # 0. 确保我们有当天的 S1 边界值
         if self.s1_daily_high is None or self.s1_daily_low is None:
@@ -253,10 +257,18 @@ class PositionControllerS1:
             else:
                 s1_action = 'NONE' # 重置
 
-        # 3. 如果触发，执行 S1 调仓
-        if s1_action != 'NONE' and s1_trade_amount_bnb > 1e-9: # 加个极小值判断
-            self.logger.info(f"S1: Condition met for {s1_action} adjustment.")
-            await self._execute_s1_adjustment(s1_action, s1_trade_amount_bnb)
+        # 3. 如果触发，并且风控允许，才执行 S1 调仓
+        if s1_action == 'SELL' and risk_state != RiskState.ALLOW_BUY_ONLY:
+            if s1_trade_amount_bnb > 1e-9:
+                self.logger.info(f"S1: Condition met for SELL adjustment.")
+                await self._execute_s1_adjustment('SELL', s1_trade_amount_bnb)
+        elif s1_action == 'BUY' and risk_state != RiskState.ALLOW_SELL_ONLY:
+            if s1_trade_amount_bnb > 1e-9:
+                self.logger.info(f"S1: Condition met for BUY adjustment.")
+                await self._execute_s1_adjustment('BUY', s1_trade_amount_bnb)
+        elif s1_action != 'NONE' and s1_trade_amount_bnb > 1e-9:
+            # 记录被风控阻止的操作
+            self.logger.info(f"S1: {s1_action} signal detected but blocked by risk control (state: {risk_state.name})")
             # 注意：这里不等待执行结果，执行函数内部处理日志和错误
             # 也不更新网格的 base_price
         # else:

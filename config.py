@@ -1,57 +1,134 @@
 import os
 from dotenv import load_dotenv
 import logging
+import json
+from pydantic_settings import BaseSettings
+from typing import Optional, Dict
+from pydantic import field_validator, ConfigDict, ConfigDict
 
 load_dotenv()
 
-SYMBOL = 'BNB/USDT'
-INITIAL_GRID = 2.0
-FLIP_THRESHOLD = lambda grid_size: (grid_size / 5) / 100  # 网格大小的1/5的1%
-POSITION_SCALE_FACTOR = 0.2  # 仓位调整系数（20%）
-MIN_TRADE_AMOUNT = 20.0  # 新下限
-MIN_POSITION_PERCENT = 0.05  # 最小交易比例（总资产的5%）
-MAX_POSITION_PERCENT = 0.15  # 最大交易比例（总资产的15%）
-COOLDOWN = 60
-SAFETY_MARGIN = 0.95
-MAX_DRAWDOWN = -0.15
-DAILY_LOSS_LIMIT = -0.05
-MAX_POSITION_RATIO = 0.9  # 最大仓位比例 (90%)，保留10%底仓
-MIN_POSITION_RATIO = 0.1  # 最小仓位比例 (10%)，底仓
-AUTO_ADJUST_BASE_PRICE = False  # 自动调整基准价开关，默认关闭
-PUSHPLUS_TOKEN = os.getenv('PUSHPLUS_TOKEN')
-PUSHPLUS_TIMEOUT = 5  # PushPlus请求超时时间（秒）
-LOG_LEVEL = logging.INFO  # 设置为INFO减少调试日志
-DEBUG_MODE = False  # 设置为True时显示详细日志
-API_TIMEOUT = 10000  # API超时时间（毫秒）
-RECV_WINDOW = 5000  # 接收窗口时间（毫秒）
-RISK_CHECK_INTERVAL = 300  # 5分钟检查一次风控
-try:
-    INITIAL_BASE_PRICE = float(os.getenv('INITIAL_BASE_PRICE', 0))
-except ValueError:
-    INITIAL_BASE_PRICE = 0
-    logging.warning("无效的INITIAL_BASE_PRICE配置，已重置为0")
-MAX_RETRIES = 5  # 最大重试次数
-RISK_FACTOR = 0.1    # 风险系数（10%）
-VOLATILITY_WINDOW = 24  # 波动率计算周期（小时）
+class Settings(BaseSettings):
+    """应用程序设置类，使用Pydantic进行类型验证和环境变量管理"""
 
-# 从环境变量读取初始本金，如果未设置或无效，默认为0
-try:
-    INITIAL_PRINCIPAL = float(os.getenv('INITIAL_PRINCIPAL', 0))
-    if INITIAL_PRINCIPAL <= 0:
-        logging.warning("INITIAL_PRINCIPAL 必须为正数，已重置为0")
-        INITIAL_PRINCIPAL = 0
-except ValueError:
-    INITIAL_PRINCIPAL = 0
-    logging.warning("无效的INITIAL_PRINCIPAL配置，已重置为0")
+    # --- 从 .env 文件读取的必需配置 ---
+    BINANCE_API_KEY: str = ""  # 添加默认值以便测试
+    BINANCE_API_SECRET: str = ""  # 添加默认值以便测试
+
+    # --- 策略核心配置 (从 .env 读取) ---
+    SYMBOLS: str = "BNB/USDT"  # 从 .env 读取交易对列表字符串
+
+    # 按交易对设置的初始参数 (JSON格式)
+    INITIAL_PARAMS_JSON: Dict[str, Dict[str, float]] = {}
+
+    INITIAL_GRID: float = 2.0  # 全局默认网格大小
+    MIN_TRADE_AMOUNT: float = 20.0
+
+    # --- 初始状态设置 (从 .env 读取) ---
+    INITIAL_PRINCIPAL: float = 0.0
+
+    # --- 可选配置 (从 .env 读取) ---
+    PUSHPLUS_TOKEN: Optional[str] = None
+    WEB_USER: Optional[str] = None
+    WEB_PASSWORD: Optional[str] = None
+    HTTP_PROXY: Optional[str] = None
+
+    # --- 理财精度配置 (从JSON字符串解析) ---
+    SAVINGS_PRECISIONS: Dict[str, int] = {'USDT': 2, 'BNB': 6, 'DEFAULT': 8}
+
+    @field_validator('INITIAL_PARAMS_JSON', mode='before')
+    @classmethod
+    def parse_initial_params(cls, value):
+        """解析按交易对设置的初始参数JSON字符串"""
+        if isinstance(value, str) and value:
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                raise ValueError("INITIAL_PARAMS_JSON 格式无效，必须是合法的JSON字符串。")
+        return value if value else {}  # 如果为空，返回空字典
+
+    @field_validator('SAVINGS_PRECISIONS', mode='before')
+    @classmethod
+    def parse_savings_precisions(cls, value):
+        """自定义验证器，用于将JSON字符串解析为字典"""
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                raise ValueError("SAVINGS_PRECISIONS 格式无效，必须是合法的JSON字符串。")
+        return value
+
+    # --- 固定配置 (不常修改，保留在代码中) ---
+    MIN_POSITION_PERCENT: float = 0.05
+    MAX_POSITION_PERCENT: float = 0.15
+    MAX_POSITION_RATIO: float = 0.9
+    MIN_POSITION_RATIO: float = 0.1
+    COOLDOWN: int = 60
+    SAFETY_MARGIN: float = 0.95
+    AUTO_ADJUST_BASE_PRICE: bool = False
+    PUSHPLUS_TIMEOUT: int = 5
+    LOG_LEVEL: int = logging.INFO
+    DEBUG_MODE: bool = False
+    API_TIMEOUT: int = 10000
+    RECV_WINDOW: int = 5000
+    RISK_CHECK_INTERVAL: int = 300
+    MAX_RETRIES: int = 5
+    RISK_FACTOR: float = 0.1
+    VOLATILITY_WINDOW: int = 52  # 52日窗口
+    VOLATILITY_EWMA_LAMBDA: float = 0.94  # EWMA衰减因子 (RiskMetrics标准)
+    VOLATILITY_HYBRID_WEIGHT: float = 0.7  # EWMA权重，传统波动率权重为0.3
+    POSITION_SCALE_FACTOR: float = 0.2
+
+    # 常量化魔术数字
+    SPOT_FUNDS_TARGET_RATIO: float = 0.16
+    MIN_BNB_TRANSFER: float = 0.01
+
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding='utf-8',
+        case_sensitive=True,
+        extra='ignore'  # 忽略额外的字段
+    )
+
+# 创建全局设置实例
+settings = Settings()
+
+# 提供一个解析后的列表，方便使用
+SYMBOLS_LIST = [s.strip() for s in settings.SYMBOLS.split(',') if s.strip()]
+
+# 保持向后兼容的常量定义
+SYMBOL = settings.SYMBOLS  # 保持兼容性，但现在是多个交易对的字符串
+INITIAL_GRID = settings.INITIAL_GRID
+FLIP_THRESHOLD = lambda grid_size: (grid_size / 5) / 100  # 网格大小的1/5的1%
+POSITION_SCALE_FACTOR = settings.POSITION_SCALE_FACTOR
+MIN_TRADE_AMOUNT = settings.MIN_TRADE_AMOUNT
+MIN_POSITION_PERCENT = settings.MIN_POSITION_PERCENT
+MAX_POSITION_PERCENT = settings.MAX_POSITION_PERCENT
+COOLDOWN = settings.COOLDOWN
+SAFETY_MARGIN = settings.SAFETY_MARGIN
+MAX_POSITION_RATIO = settings.MAX_POSITION_RATIO
+MIN_POSITION_RATIO = settings.MIN_POSITION_RATIO
+AUTO_ADJUST_BASE_PRICE = settings.AUTO_ADJUST_BASE_PRICE
+PUSHPLUS_TOKEN = settings.PUSHPLUS_TOKEN
+PUSHPLUS_TIMEOUT = settings.PUSHPLUS_TIMEOUT
+LOG_LEVEL = settings.LOG_LEVEL
+DEBUG_MODE = settings.DEBUG_MODE
+API_TIMEOUT = settings.API_TIMEOUT
+RECV_WINDOW = settings.RECV_WINDOW
+RISK_CHECK_INTERVAL = settings.RISK_CHECK_INTERVAL
+MAX_RETRIES = settings.MAX_RETRIES
+RISK_FACTOR = settings.RISK_FACTOR
+VOLATILITY_WINDOW = settings.VOLATILITY_WINDOW
+INITIAL_PRINCIPAL = settings.INITIAL_PRINCIPAL
 
 class TradingConfig:
+    """交易配置类，整合所有配置参数"""
+
     RISK_PARAMS = {
-        'max_drawdown': MAX_DRAWDOWN,
-        'daily_loss_limit': DAILY_LOSS_LIMIT,
-        'position_limit': MAX_POSITION_RATIO
+        'position_limit': settings.MAX_POSITION_RATIO
     }
     GRID_PARAMS = {
-        'initial': INITIAL_GRID,
+        'initial': settings.INITIAL_GRID,
         'min': 1.0,
         'max': 4.0,
         'volatility_threshold': {
@@ -79,40 +156,49 @@ class TradingConfig:
         # 定义一个默认间隔，以防波动率计算失败或未匹配到任何区间
         'default_interval_hours': 1.0
     }
-    
-    SYMBOL = SYMBOL
-    INITIAL_BASE_PRICE = INITIAL_BASE_PRICE
-    RISK_CHECK_INTERVAL = RISK_CHECK_INTERVAL
-    MAX_RETRIES = MAX_RETRIES
-    RISK_FACTOR = RISK_FACTOR
+
+    # 使用settings实例的属性
+    SYMBOLS = settings.SYMBOLS  # 现在使用SYMBOLS而不是SYMBOL
+    RISK_CHECK_INTERVAL = settings.RISK_CHECK_INTERVAL
+    MAX_RETRIES = settings.MAX_RETRIES
+    RISK_FACTOR = settings.RISK_FACTOR
     BASE_AMOUNT = 50.0  # 恢复原始基础金额（可调整）
-    MIN_TRADE_AMOUNT = MIN_TRADE_AMOUNT
-    MAX_POSITION_RATIO = MAX_POSITION_RATIO
-    MIN_POSITION_RATIO = MIN_POSITION_RATIO
-    VOLATILITY_WINDOW = VOLATILITY_WINDOW
-    INITIAL_GRID = INITIAL_GRID
-    POSITION_SCALE_FACTOR = POSITION_SCALE_FACTOR
-    COOLDOWN = COOLDOWN
-    SAFETY_MARGIN = SAFETY_MARGIN
-    API_TIMEOUT = API_TIMEOUT
-    RECV_WINDOW = RECV_WINDOW
-    MIN_POSITION_PERCENT = MIN_POSITION_PERCENT
-    MAX_POSITION_PERCENT = MAX_POSITION_PERCENT
-    # 添加初始本金到类属性
-    INITIAL_PRINCIPAL = INITIAL_PRINCIPAL
-    # 添加自动调整基准价开关
-    AUTO_ADJUST_BASE_PRICE = AUTO_ADJUST_BASE_PRICE
+    MIN_TRADE_AMOUNT = settings.MIN_TRADE_AMOUNT
+    MAX_POSITION_RATIO = settings.MAX_POSITION_RATIO
+    MIN_POSITION_RATIO = settings.MIN_POSITION_RATIO
+    VOLATILITY_WINDOW = settings.VOLATILITY_WINDOW
+    VOLATILITY_EWMA_LAMBDA = settings.VOLATILITY_EWMA_LAMBDA
+    VOLATILITY_HYBRID_WEIGHT = settings.VOLATILITY_HYBRID_WEIGHT
+    INITIAL_GRID = settings.INITIAL_GRID
+    POSITION_SCALE_FACTOR = settings.POSITION_SCALE_FACTOR
+    COOLDOWN = settings.COOLDOWN
+    SAFETY_MARGIN = settings.SAFETY_MARGIN
+    API_TIMEOUT = settings.API_TIMEOUT
+    RECV_WINDOW = settings.RECV_WINDOW
+    MIN_POSITION_PERCENT = settings.MIN_POSITION_PERCENT
+    MAX_POSITION_PERCENT = settings.MAX_POSITION_PERCENT
+    INITIAL_PRINCIPAL = settings.INITIAL_PRINCIPAL
+    AUTO_ADJUST_BASE_PRICE = settings.AUTO_ADJUST_BASE_PRICE
+
+    # 常量化的魔术数字
+    SPOT_FUNDS_TARGET_RATIO = settings.SPOT_FUNDS_TARGET_RATIO
+    MIN_BNB_TRANSFER = settings.MIN_BNB_TRANSFER
 
     def __init__(self):
         # 添加配置验证
         if self.MIN_POSITION_RATIO >= self.MAX_POSITION_RATIO:
             raise ValueError("底仓比例不能大于或等于最大仓位比例")
-        
+
         if self.GRID_PARAMS['min'] > self.GRID_PARAMS['max']:
             raise ValueError("网格最小值不能大于最大值")
-        
-        # 这里不再需要 self.SYMBOL = SYMBOL 等重复赋值语句
-        # 也不再需要 self.RISK_PARAMS = {...} 和 self.GRID_PARAMS = {...} 的重复定义
+
+        # API密钥验证已由Pydantic在settings实例化时自动完成
+
+        # 验证数值范围
+        if settings.INITIAL_PRINCIPAL < 0:
+            raise ValueError("INITIAL_PRINCIPAL不能为负数")
+
+        # INITIAL_BASE_PRICE已移除，现在使用INITIAL_PARAMS_JSON中的交易对特定配置
         
     # Removed unused update methods (update_risk_params, update_grid_params, 
     # update_symbol, update_initial_base_price, update_risk_check_interval, 

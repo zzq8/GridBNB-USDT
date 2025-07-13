@@ -6,6 +6,47 @@ import logging
 from datetime import datetime
 import psutil
 import time
+import base64
+from functools import wraps
+from config import settings
+
+def auth_required(func):
+    """基础认证装饰器"""
+    @wraps(func)
+    async def wrapper(request):
+        # 如果没有设置认证信息，则跳过认证
+        if not settings.WEB_USER or not settings.WEB_PASSWORD:
+            return await func(request)
+
+        auth_header = request.headers.get('Authorization')
+
+        if auth_header is None:
+            return web.Response(
+                status=401,
+                headers={'WWW-Authenticate': 'Basic realm="GridBNB Trading Bot"'},
+                text="需要认证"
+            )
+
+        try:
+            auth_type, auth_token = auth_header.split(' ', 1)
+            if auth_type.lower() != 'basic':
+                raise ValueError("只支持Basic认证")
+
+            decoded_token = base64.b64decode(auth_token).decode('utf-8')
+            user, password = decoded_token.split(':', 1)
+
+            if user == settings.WEB_USER and password == settings.WEB_PASSWORD:
+                return await func(request)
+        except Exception as e:
+            logging.warning(f"认证失败: {e}")
+
+        return web.Response(
+            status=401,
+            headers={'WWW-Authenticate': 'Basic realm="GridBNB Trading Bot"'},
+            text="认证失败"
+        )
+
+    return wrapper
 
 class IPLogger:
     def __init__(self):
@@ -65,25 +106,30 @@ async def _read_log_content():
     lines.reverse()
     return '\n'.join(lines)
 
+@auth_required
 async def handle_log(request):
     try:
         # 记录IP访问
         ip = request.remote
         request.app['ip_logger'].add_record(ip, request.path)
-        
+
         # 获取系统资源状态
         system_stats = get_system_stats()
-        
+
+        # 获取交易对列表，用于生成下拉菜单
+        traders_dict = request.app['traders']
+        symbols_list = list(traders_dict.keys())
+
         # 读取日志内容
         content = await _read_log_content()
         if content is None:
             return web.Response(text="日志文件不存在", status=404)
-            
+
         html = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <title>网格交易监控系统</title>
+            <title>多币种网格交易监控</title>
             <meta charset="utf-8">
             <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
             <style>
@@ -118,8 +164,14 @@ async def handle_log(request):
         </head>
         <body class="bg-gray-100">
             <div class="container mx-auto px-4 py-8">
-                <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">网格交易监控系统</h1>
-                
+                <div class="flex justify-center items-center mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">多币种网格交易监控</h1>
+                    <!-- 新增交易对选择器 -->
+                    <select id="symbol-selector" class="ml-4 p-2 border rounded-md bg-white">
+                        <option value="">选择交易对...</option>
+                    </select>
+                </div>
+
                 <!-- 状态卡片 -->
                 <div class="grid-container mb-8">
                     <div class="card">
@@ -127,14 +179,14 @@ async def handle_log(request):
                         <div class="space-y-2">
                             <div class="flex justify-between">
                                 <span>交易对</span>
-                                <span class="status-value">{request.app['trader'].symbol}</span>
+                                <span class="status-value" id="symbol-display">--</span>
                             </div>
                             <div class="flex justify-between">
                                 <span>基准价格</span>
                                 <span class="status-value" id="base-price">--</span>
                             </div>
                             <div class="flex justify-between">
-                                <span>当前价格 (USDT)</span>
+                                <span id="current-price-label">当前价格</span>
                                 <span class="status-value" id="current-price">--</span>
                             </div>
                             <div class="flex justify-between pt-2 border-t mt-2">
@@ -182,19 +234,19 @@ async def handle_log(request):
                         <h2 class="text-lg font-semibold mb-4">资金状况</h2>
                         <div class="space-y-2">
                             <div class="flex justify-between">
-                                <span>总资产(USDT)</span>
+                                <span id="total-assets-label">总资产</span>
                                 <span class="status-value" id="total-assets">--</span>
                             </div>
                             <div class="flex justify-between">
-                                <span>USDT余额</span>
-                                <span class="status-value" id="usdt-balance">--</span>
+                                <span id="quote-balance-label">计价货币余额</span>
+                                <span class="status-value" id="quote-balance">--</span>
                             </div>
                             <div class="flex justify-between">
-                                <span>BNB余额</span>
-                                <span class="status-value" id="bnb-balance">--</span>
+                                <span id="base-balance-label">基础货币余额</span>
+                                <span class="status-value" id="base-balance">--</span>
                             </div>
                             <div class="flex justify-between">
-                                <span>总盈亏(USDT)</span>
+                                <span id="total-profit-label">总盈亏</span>
                                 <span class="status-value" id="total-profit">--</span>
                             </div>
                             <div class="flex justify-between">
@@ -283,22 +335,36 @@ async def handle_log(request):
             </div>
 
             <script>
+                const symbolSelector = document.getElementById('symbol-selector');
+                let currentSymbol = '';
+
+                // 动态更新页面标题
+                function updatePageTitle(symbol) {{
+                    document.title = `监控 - ${{symbol}}`;
+                }}
+
+                // 更新整个页面的状态
                 async function updateStatus() {{
+                    if (!currentSymbol) return;
                     try {{
-                        const response = await fetch('/api/status');
+                        const response = await fetch(`/api/status?symbol=${{currentSymbol}}`);
                         const data = await response.json();
-                        
+
                         if (data.error) {{
-                            console.error('获取状态失败:', data.error);
+                            console.error(`获取 ${{currentSymbol}} 状态失败:`, data.error);
                             return;
                         }}
+
+                        // 更新页面标题
+                        updatePageTitle(data.symbol || currentSymbol);
                         
                         // 更新基本信息
-                        document.querySelector('#base-price').textContent = 
-                            data.base_price ? data.base_price.toFixed(2) + ' USDT' : '--';
-                        
-                        // 更新当前价格
-                        document.querySelector('#current-price').textContent = 
+                        document.querySelector('#symbol-display').textContent = data.symbol || '--';
+                        document.querySelector('#base-price').textContent =
+                            data.base_price ? data.base_price.toFixed(2) + ' ' + (data.quote_asset || '') : '--';
+                        document.querySelector('#current-price-label').textContent =
+                            `当前价格 (${{data.quote_asset || ''}})`;
+                        document.querySelector('#current-price').textContent =
                             data.current_price ? data.current_price.toFixed(2) : '--';
                         
                         // 更新 S1 信息和仓位
@@ -321,13 +387,25 @@ async def handle_log(request):
                         document.querySelector('#grid-lower-band').textContent =
                             data.grid_lower_band != null ? data.grid_lower_band.toFixed(2) : '--';
                         
-                        // 更新资金状况
-                        document.querySelector('#total-assets').textContent = 
-                            data.total_assets ? data.total_assets.toFixed(2) + ' USDT' : '--';
-                        document.querySelector('#usdt-balance').textContent = 
-                            data.usdt_balance != null ? data.usdt_balance.toFixed(2) : '--';
-                        document.querySelector('#bnb-balance').textContent = 
-                            data.bnb_balance != null ? data.bnb_balance.toFixed(4) : '--';
+                        // 更新资金状况标签和数据
+                        document.querySelector('#total-assets-label').textContent =
+                            `总资产(${{data.quote_asset || ''}})`;
+                        document.querySelector('#total-assets').textContent =
+                            data.total_assets ? data.total_assets.toFixed(2) + ' ' + (data.quote_asset || '') : '--';
+                        document.querySelector('#quote-balance-label').textContent =
+                            `${{data.quote_asset || '计价货币'}}余额`;
+                        document.querySelector('#quote-balance').textContent =
+                            data.quote_balance != null ? data.quote_balance.toFixed(2) : '--';
+                        document.querySelector('#base-balance-label').textContent =
+                            `${{data.base_asset || '基础货币'}}余额`;
+                        document.querySelector('#base-balance').textContent =
+                            data.base_balance != null ? data.base_balance.toFixed(4) : '--';
+                        document.querySelector('#total-profit-label').textContent =
+                            `总盈亏(${{data.quote_asset || ''}})`;
+
+                        // 更新目标委托金额
+                        document.querySelector('#target-order-amount').textContent =
+                            data.target_order_amount ? data.target_order_amount.toFixed(2) + ' ' + (data.quote_asset || '') : '--';
                         
                         // 更新盈亏信息
                         const totalProfitElement = document.querySelector('#total-profit');
@@ -351,24 +429,59 @@ async def handle_log(request):
                             </tr>
                         `; }}).join('');
                         
-                        // 更新目标委托金额
-                        document.querySelector('#target-order-amount').textContent = 
-                            data.target_order_amount ? data.target_order_amount.toFixed(2) + ' USDT' : '--';
+
                         
                         // 更新系统运行时间
                         document.querySelector('#system-uptime').textContent = data.uptime;
                         
-                        console.log('状态更新成功:', data);
+                        console.log(`状态更新成功: ${{currentSymbol}}`);
                     }} catch (error) {{
-                        console.error('更新状态失败:', error);
+                        console.error(`更新 ${{currentSymbol}} 状态失败:`, error);
                     }}
                 }}
 
-                // 每2秒更新一次状态
-                setInterval(updateStatus, 2000);
-                
-                // 页面加载时立即更新一次
-                updateStatus();
+                // 初始化函数
+                async function initialize() {{
+                    try {{
+                        const response = await fetch('/api/symbols');
+                        const data = await response.json();
+                        const symbols = data.symbols || [];
+
+                        if (symbols.length > 0) {{
+                            // 填充下拉菜单
+                            symbols.forEach(symbol => {{
+                                const option = document.createElement('option');
+                                option.value = symbol;
+                                option.textContent = symbol;
+                                symbolSelector.appendChild(option);
+                            }});
+
+                            // 设置初始选中的交易对
+                            currentSymbol = symbols[0];
+                            symbolSelector.value = currentSymbol;
+
+                            // 首次加载数据
+                            updateStatus();
+
+                            // 启动定时更新
+                            setInterval(updateStatus, 5000); // 5秒更新一次
+                        }} else {{
+                            document.body.innerHTML = '<h1 class="text-center text-2xl mt-12">没有正在运行的交易对。</h1>';
+                        }}
+                    }} catch(e) {{
+                         console.error("初始化失败:", e);
+                         document.body.innerHTML = '<h1 class="text-center text-2xl mt-12">无法连接到监控服务。</h1>';
+                    }}
+                }}
+
+                // 监听下拉菜单的变化事件
+                symbolSelector.addEventListener('change', (event) => {{
+                    currentSymbol = event.target.value;
+                    updateStatus(); // 立即更新
+                }});
+
+                // 页面加载时执行初始化
+                document.addEventListener('DOMContentLoaded', initialize);
             </script>
         </body>
         </html>
@@ -377,16 +490,24 @@ async def handle_log(request):
     except Exception as e:
         return web.Response(text=f"Error: {str(e)}", status=500)
 
+@auth_required
 async def handle_status(request):
     """处理状态API请求"""
     try:
-        trader = request.app['trader']
+        traders = request.app['traders']
+
+        # 从查询参数获取交易对，默认使用第一个
+        symbol = request.query.get('symbol')
+        if not symbol or symbol not in traders:
+            symbol = list(traders.keys())[0]  # 默认使用第一个交易对
+
+        trader = traders[symbol]
         s1_controller = trader.position_controller_s1 # 获取 S1 控制器实例
 
         # 获取交易所数据
         balance = await trader.exchange.fetch_balance()
         current_price = await trader._get_latest_price() or 0 # 提供默认值以防失败
-        
+
         # 获取理财账户余额
         funding_balance = await trader.exchange.fetch_funding_balance()
         
@@ -415,10 +536,21 @@ async def handle_status(request):
         minutes, seconds = divmod(remainder, 60)
         uptime_str = f"{days}天 {hours}小时 {minutes}分钟 {seconds}秒"
         
-        # 计算总资产
-        bnb_balance = float(balance['total'].get('BNB', 0))
-        usdt_balance = float(balance['total'].get('USDT', 0))
-        total_assets = usdt_balance + (bnb_balance * current_price)
+        # 使用trader中正确的方法获取总资产
+        total_assets = await trader._get_total_assets()
+
+        # 使用动态资产名称计算余额
+        base_asset = trader.base_asset
+        quote_asset = trader.quote_asset
+
+        # 合并计算用于显示的各项余额
+        spot_quote = float(balance.get('total', {}).get(quote_asset, 0))
+        funding_quote = float(funding_balance.get(quote_asset, 0))
+        display_quote_balance = spot_quote + funding_quote
+
+        spot_base = float(balance.get('total', {}).get(base_asset, 0))
+        funding_base = float(funding_balance.get(base_asset, 0))
+        display_base_balance = spot_base + funding_base
         
         # 计算总盈亏和盈亏率
         initial_principal = trader.config.INITIAL_PRINCIPAL
@@ -460,13 +592,16 @@ async def handle_status(request):
         
         # 构建响应数据
         status = {
+            "symbol": trader.symbol,  # 新增：交易对信息
+            "base_asset": base_asset,  # 新增：基础货币名称
+            "quote_asset": quote_asset,  # 新增：计价货币名称
             "base_price": trader.base_price,
             "current_price": current_price,
             "grid_size": grid_size_decimal,
             "threshold": threshold,
             "total_assets": total_assets,
-            "usdt_balance": usdt_balance,
-            "bnb_balance": bnb_balance,
+            "quote_balance": display_quote_balance,  # 使用动态计价货币余额
+            "base_balance": display_base_balance,    # 使用动态基础货币余额
             "target_order_amount": target_order_amount,
             "trade_history": trade_history or [],
             "last_trade_price": last_trade_price,
@@ -477,11 +612,10 @@ async def handle_status(request):
             "s1_daily_high": s1_high,
             "s1_daily_low": s1_low,
             "position_percentage": position_percentage,
-            # ---> 新增：添加上下轨到响应数据 <---
             "grid_upper_band": upper_band,
             "grid_lower_band": lower_band,
-            "uptime": uptime_str, # 添加运行时间字符串
-            "uptime_seconds": uptime_seconds # 添加运行时间秒数用于计算
+            "uptime": uptime_str,
+            "uptime_seconds": uptime_seconds
         }
         
         return web.json_response(status)
@@ -489,7 +623,18 @@ async def handle_status(request):
         logging.error(f"获取状态数据失败: {str(e)}", exc_info=True)
         return web.json_response({"error": str(e)}, status=500)
 
-async def start_web_server(trader):
+@auth_required
+async def handle_symbols(request):
+    """获取所有可用的交易对"""
+    try:
+        traders = request.app['traders']
+        symbols = list(traders.keys())
+        return web.json_response({"symbols": symbols})
+    except Exception as e:
+        logging.error(f"获取交易对列表失败: {str(e)}")
+        return web.json_response({"error": str(e)}, status=500)
+
+async def start_web_server(traders):
     app = web.Application()
     # 添加中间件处理无效请求
     @web.middleware
@@ -510,7 +655,7 @@ async def start_web_server(trader):
             )
     
     app.middlewares.append(error_middleware)
-    app['trader'] = trader
+    app['traders'] = traders  # 存储所有trader实例
     app['ip_logger'] = IPLogger()
     
     # 禁用访问日志
@@ -521,6 +666,7 @@ async def start_web_server(trader):
     app.router.add_get('/' + home_prefix, handle_log)
     app.router.add_get('/api/logs', handle_log_content)
     app.router.add_get('/api/status', handle_status)
+    app.router.add_get('/api/symbols', handle_symbols)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 58181)
@@ -532,6 +678,7 @@ async def start_web_server(trader):
     logging.info(f"- 本地访问: http://{local_ip}:58181/{home_prefix}")
     logging.info(f"- 局域网访问: http://0.0.0.0:58181/{home_prefix}")
 
+@auth_required
 async def handle_log_content(request):
     """只返回日志内容的API端点"""
     try:

@@ -1,7 +1,7 @@
 import ccxt.async_support as ccxt
 import os
 import logging
-from config import SYMBOL, DEBUG_MODE, API_TIMEOUT, RECV_WINDOW
+from config import SYMBOL, DEBUG_MODE, API_TIMEOUT, RECV_WINDOW, settings
 from datetime import datetime
 import time
 import asyncio
@@ -58,6 +58,55 @@ class ExchangeClient:
             error_msg = f"缺少环境变量: {', '.join(missing)}"
             self.logger.critical(error_msg)
             raise EnvironmentError(error_msg)
+
+    def _format_savings_amount(self, asset: str, amount: float) -> str:
+        """根据配置格式化理财产品的操作金额"""
+        # 从配置中获取该资产的理财精度，如果未指定，则使用默认精度
+        precision = settings.SAVINGS_PRECISIONS.get(asset, settings.SAVINGS_PRECISIONS['DEFAULT'])
+
+        # 使用 f-string 和获取到的精度来格式化
+        return f"{float(amount):.{precision}f}"
+
+    def _is_funding_balance_changed_significantly(
+        self, old_balances: dict, new_balances: dict, relative_threshold: float = 0.001
+    ) -> bool:
+        """
+        比较新旧理财余额，判断是否存在"重大变化"。
+        通过比较相对变化百分比，智能忽略微小利息，且无需为新币种单独配置。
+
+        Args:
+            old_balances: 上一次缓存的余额字典。
+            new_balances: 新获取的余额字典。
+            relative_threshold: 相对变化阈值 (例如: 0.001 表示 0.1%)。
+
+        Returns:
+            True 如果任何资产的变化超过阈值，否则 False。
+        """
+        # 如果新旧余额完全相同，直接返回False，这是最高效的检查
+        if new_balances == old_balances:
+            return False
+
+        # 获取所有涉及的资产（并集），以处理新增或移除的资产
+        all_assets = set(old_balances.keys()) | set(new_balances.keys())
+
+        for asset in all_assets:
+            old_amount = old_balances.get(asset, 0.0)
+            new_amount = new_balances.get(asset, 0.0)
+
+            # 如果旧余额为0，任何新增都视为重大变化
+            if old_amount == 0 and new_amount > 0:
+                return True
+
+            # 计算相对变化率
+            # 使用 max(old_amount, 1e-9) 避免除以零的错误
+            relative_change = abs(new_amount - old_amount) / max(old_amount, 1e-9)
+
+            # 如果任何一个资产的相对变化超过了阈值，就认为发生了重大变化
+            if relative_change > relative_threshold:
+                return True
+
+        # 如果所有资产的相对变化都未超过阈值，则认为没有重大变化
+        return False
 
     async def load_markets(self):
         try:
@@ -149,9 +198,9 @@ class ExchangeClient:
                 current_page += 1
                 await asyncio.sleep(0.1)  # 避免请求过于频繁
 
-            # 只在余额发生显著变化时打印日志
+            # 只在余额发生显著变化时打印日志（使用智能相对变化检测）
             old_balances = self.funding_balance_cache.get('data', {})
-            if all_balances != old_balances:
+            if self._is_funding_balance_changed_significantly(old_balances, all_balances):
                 self.logger.info(f"理财账户余额更新: {all_balances}")
 
             # 更新缓存
@@ -307,13 +356,8 @@ class ExchangeClient:
             # 获取产品ID
             product_id = await self.get_flexible_product_id(asset)
             
-            # 格式化金额，确保精度正确
-            if asset == 'USDT':
-                formatted_amount = "{:.2f}".format(float(amount))
-            elif asset == 'BNB':
-                formatted_amount = "{:.8f}".format(float(amount))
-            else:
-                formatted_amount = str(amount)
+            # 使用配置化的精度格式化金额
+            formatted_amount = self._format_savings_amount(asset, amount)
             
             params = {
                 'asset': asset,
@@ -341,13 +385,8 @@ class ExchangeClient:
             # 获取产品ID
             product_id = await self.get_flexible_product_id(asset)
             
-            # 格式化金额，确保精度正确
-            if asset == 'USDT':
-                formatted_amount = "{:.2f}".format(float(amount))  # USDT保留2位小数
-            elif asset == 'BNB':
-                formatted_amount = "{:.8f}".format(float(amount))  # BNB保留8位小数
-            else:
-                formatted_amount = str(amount)
+            # 使用配置化的精度格式化金额
+            formatted_amount = self._format_savings_amount(asset, amount)
             
             params = {
                 'asset': asset,

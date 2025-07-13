@@ -578,3 +578,654 @@ BNB: 0.4493
 2025-04-09 23:21:24 [GridTrader] INFO: 买入信号检查结果: 不满足条件
 2025-04-09 23:21:33 [ExchangeClient] INFO: 交易所连接已安全关闭
 2025-04-09 23:21:33 [root] INFO: 交易所连接已关闭
+2025-07-13 19:29:48 [root] INFO: ==================================================
+2025-07-13 19:29:48 [root] INFO: 网格交易系统启动
+2025-07-13 19:29:48 [root] INFO: ==================================================
+2025-07-13 19:29:48 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 19:29:48 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 19:29:48 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 19:29:48 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 19:29:50 [ExchangeClient] INFO: 时间同步完成 | 时差: 1185ms
+2025-07-13 19:29:54 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 19:29:57 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 648.4488637}
+2025-07-13 19:29:58 [GridTrader] INFO: 总资产: 815.73 USDT | 现货: 166.73 USDT (BNB: 0.1161, USDT: 86.57) | 理财: 649.00 USDT (BNB: 0.0008, USDT: 648.45)
+2025-07-13 19:29:58 [GridTrader] INFO: 从理财赎回USDT: 43.944553655280004
+2025-07-13 19:29:59 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 19:29:59 [ExchangeClient] INFO: 开始赎回: 43.94 USDT 到现货
+2025-07-13 19:30:00 [ExchangeClient] INFO: 划转成功: {'redeemId': '642223600', 'success': True}
+2025-07-13 19:30:00 [GridTrader] INFO: 已从理财赎回 43.94 USDT
+2025-07-13 19:30:00 [GridTrader] INFO: 从理财赎回BNB: 0.07294112107884405
+2025-07-13 19:30:01 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 19:30:01 [ExchangeClient] INFO: 开始赎回: 0.07294112 BNB 到现货
+2025-07-13 19:30:02 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:30:02 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:30:02 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 19:30:02 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 19:30:02 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 19:30:02 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 19:30:02 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 19:30:03 [root] INFO: 消息推送成功: 网格交易启动成功
+交易对: BNB/USDT
+基准价: 683.0 USDT
+网格大小: 2.0%
+触发阈值: 0.4% (网格大小的1/5)
+2025-07-13 19:30:03 [GridTrader] INFO: 市场当前价: 690.3500 | 价差: +1.08%
+2025-07-13 19:30:04 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 19:30:04 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 19:30:04 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 19:30:04 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 19:30:04 [root] INFO: Web服务已启动:
+2025-07-13 19:30:04 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 19:30:04 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 19:30:04 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 19:30:06 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.5088637}
+2025-07-13 19:30:07 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:30:14 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:30:22 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:30:29 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:30:37 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50890208}
+2025-07-13 19:30:39 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:30:46 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:30:53 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:31:00 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:31:10 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:31:17 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:31:25 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:31:32 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:31:40 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50894046}
+2025-07-13 19:31:41 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:31:49 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:31:57 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:32:04 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:32:14 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:32:21 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:32:28 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:32:36 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:32:44 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50897885}
+2025-07-13 19:32:45 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:32:52 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:33:00 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:33:07 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:33:15 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50901723}
+2025-07-13 19:33:17 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:33:24 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:33:31 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:33:37 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.67 USDT | 计算金额 (10%): 81.57 USDT
+2025-07-13 19:33:39 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:33:47 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:33:54 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:34:01 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:34:09 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:34:16 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50905561}
+2025-07-13 19:34:18 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:34:25 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:34:33 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:34:40 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:34:48 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:34:55 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:35:03 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:35:10 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:35:11 [ExchangeClient] ERROR: 获取行情失败: Session is closed
+2025-07-13 19:35:11 [GridTrader] ERROR: 获取最新价格失败: Session is closed
+2025-07-13 19:35:12 [ExchangeClient] INFO: 交易所连接已安全关闭
+2025-07-13 19:35:12 [root] INFO: 交易所连接已关闭
+2025-07-13 19:35:54 [root] INFO: ==================================================
+2025-07-13 19:35:54 [root] INFO: 网格交易系统启动
+2025-07-13 19:35:54 [root] INFO: ==================================================
+2025-07-13 19:35:54 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 19:35:54 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 19:35:54 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 19:35:54 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 19:35:54 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 19:35:56 [ExchangeClient] INFO: 时间同步完成 | 时差: 1175ms
+2025-07-13 19:36:00 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 19:36:03 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50909398}
+2025-07-13 19:36:04 [GridTrader] INFO: 总资产: 815.70 USDT | 现货: 210.64 USDT (BNB: 0.1161, USDT: 130.51) | 理财: 605.06 USDT (BNB: 0.0008, USDT: 604.51)
+2025-07-13 19:36:04 [GridTrader] INFO: 发现可划转USDT: 0.0002729488479928932
+2025-07-13 19:36:04 [GridTrader] INFO: 可划转USDT (0.00) 低于最小申购额 1.0 USDT，跳过申购
+2025-07-13 19:36:04 [GridTrader] INFO: 从理财赎回BNB: 0.07300535718131258
+2025-07-13 19:36:05 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 19:36:05 [ExchangeClient] INFO: 开始赎回: 0.07300536 BNB 到现货
+2025-07-13 19:36:06 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:36:06 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:36:06 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 19:36:06 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 19:36:06 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 19:36:06 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 19:36:06 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 19:36:07 [root] INFO: 消息推送成功: 网格交易启动成功
+交易对: BNB/USDT
+基准价: 683.0 USDT
+网格大小: 2.0%
+触发阈值: 0.4% (网格大小的1/5)
+2025-07-13 19:36:07 [GridTrader] INFO: 市场当前价: 690.0800 | 价差: +1.04%
+2025-07-13 19:36:08 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 19:36:08 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 19:36:08 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 19:36:08 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 19:36:08 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 19:36:08 [root] INFO: Web服务已启动:
+2025-07-13 19:36:08 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 19:36:08 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 19:36:08 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 19:36:09 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.70 USDT | 计算金额 (10%): 81.57 USDT
+2025-07-13 19:36:09 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:36:33 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50913236}
+2025-07-13 19:37:35 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50917074}
+2025-07-13 19:38:38 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50920912}
+2025-07-13 19:39:41 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50924749}
+2025-07-13 19:40:53 [root] INFO: ==================================================
+2025-07-13 19:40:53 [root] INFO: 网格交易系统启动
+2025-07-13 19:40:53 [root] INFO: ==================================================
+2025-07-13 19:40:53 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 19:40:53 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 19:40:53 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 19:40:53 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 19:40:53 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 19:40:55 [ExchangeClient] INFO: 时间同步完成 | 时差: 1165ms
+2025-07-13 19:41:00 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 19:41:02 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50928587}
+2025-07-13 19:41:03 [GridTrader] INFO: 总资产: 815.72 USDT | 现货: 210.67 USDT (BNB: 0.1161, USDT: 130.51) | 理财: 605.06 USDT (BNB: 0.0008, USDT: 604.51)
+2025-07-13 19:41:04 [GridTrader] INFO: 从理财赎回USDT: 0.003311812383998358
+2025-07-13 19:41:04 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 19:41:04 [ExchangeClient] INFO: 开始赎回: 0.00 USDT 到现货
+2025-07-13 19:41:05 [ExchangeClient] ERROR: 赎回失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 19:41:05 [GridTrader] ERROR: 从理财赎回USDT失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 19:41:05 [GridTrader] INFO: 从理财赎回BNB: 0.07295849413800777
+2025-07-13 19:41:06 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 19:41:06 [ExchangeClient] INFO: 开始赎回: 0.07295849 BNB 到现货
+2025-07-13 19:41:07 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:41:07 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:41:07 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 19:41:07 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 19:41:07 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 19:41:07 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 19:41:07 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 19:41:08 [root] INFO: 消息推送成功: 网格交易启动成功
+交易对: BNB/USDT
+基准价: 683.0 USDT
+网格大小: 2.0%
+触发阈值: 0.4% (网格大小的1/5)
+2025-07-13 19:41:08 [GridTrader] INFO: 市场当前价: 690.2900 | 价差: +1.07%
+2025-07-13 19:41:09 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 19:41:09 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 19:41:09 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 19:41:09 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 19:41:09 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 19:41:09 [root] INFO: Web服务已启动:
+2025-07-13 19:41:09 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 19:41:09 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 19:41:09 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 19:41:10 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.89%)，暂停新的卖出操作。
+2025-07-13 19:41:20 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.72 USDT | 计算金额 (10%): 81.57 USDT
+2025-07-13 19:41:33 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50932425}
+2025-07-13 19:42:34 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50936263}
+2025-07-13 19:43:37 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50940101}
+2025-07-13 19:44:41 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50943938}
+2025-07-13 19:45:44 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50947775}
+2025-07-13 19:46:45 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50951613}
+2025-07-13 19:47:16 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.5095545}
+2025-07-13 19:48:47 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50959289}
+2025-07-13 19:49:18 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50963132}
+2025-07-13 19:50:47 [root] INFO: ==================================================
+2025-07-13 19:50:47 [root] INFO: 网格交易系统启动
+2025-07-13 19:50:47 [root] INFO: ==================================================
+2025-07-13 19:50:47 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 19:50:47 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 19:50:47 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 19:50:47 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 19:50:47 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 19:50:48 [ExchangeClient] INFO: 时间同步完成 | 时差: 1164ms
+2025-07-13 19:50:52 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 19:50:54 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50966977}
+2025-07-13 19:50:55 [GridTrader] INFO: 总资产: 815.75 USDT | 现货: 210.69 USDT (BNB: 0.1161, USDT: 130.51) | 理财: 605.06 USDT (BNB: 0.0008, USDT: 604.51)
+2025-07-13 19:50:56 [GridTrader] INFO: 从理财赎回USDT: 0.007114350943993486
+2025-07-13 19:50:56 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 19:50:56 [ExchangeClient] INFO: 开始赎回: 0.01 USDT 到现货
+2025-07-13 19:50:58 [ExchangeClient] INFO: 划转成功: {'redeemId': '642238393', 'success': True}
+2025-07-13 19:50:58 [GridTrader] INFO: 已从理财赎回 0.01 USDT
+2025-07-13 19:50:58 [GridTrader] INFO: 从理财赎回BNB: 0.07290923463408643
+2025-07-13 19:50:58 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 19:50:58 [ExchangeClient] INFO: 开始赎回: 0.072909 BNB 到现货
+2025-07-13 19:50:59 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:50:59 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:50:59 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 19:50:59 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 19:50:59 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 19:50:59 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 19:50:59 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 19:51:00 [root] ERROR: 消息推送失败: 状态码=200, 响应={'code': 999, 'msg': '请勿频繁推送相同内容', 'data': None}
+2025-07-13 19:51:00 [GridTrader] INFO: 市场当前价: 690.4800 | 价差: +1.10%
+2025-07-13 19:51:01 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 19:51:01 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 19:51:01 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 19:51:01 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 19:51:01 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 19:51:01 [root] INFO: Web服务已启动:
+2025-07-13 19:51:01 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 19:51:01 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 19:51:02 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 19:51:03 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49966978}
+2025-07-13 19:51:04 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.90%)，暂停新的卖出操作。
+2025-07-13 19:51:34 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49970823}
+2025-07-13 19:51:51 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.75 USDT | 计算金额 (10%): 81.57 USDT
+2025-07-13 19:52:37 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49974669}
+2025-07-13 19:53:41 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49978515}
+2025-07-13 19:54:44 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49982361}
+2025-07-13 19:55:47 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49986207}
+2025-07-13 19:56:19 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49990053}
+2025-07-13 19:57:14 [root] INFO: ==================================================
+2025-07-13 19:57:14 [root] INFO: 网格交易系统启动
+2025-07-13 19:57:14 [root] INFO: ==================================================
+2025-07-13 19:57:14 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 19:57:14 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 19:57:14 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 19:57:14 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 19:57:14 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 19:57:15 [ExchangeClient] INFO: 时间同步完成 | 时差: 1153ms
+2025-07-13 19:57:19 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 19:57:21 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49993899}
+2025-07-13 19:57:22 [GridTrader] INFO: 总资产: 815.77 USDT | 现货: 210.72 USDT (BNB: 0.1161, USDT: 130.52) | 理财: 605.05 USDT (BNB: 0.0008, USDT: 604.50)
+2025-07-13 19:57:23 [GridTrader] INFO: 从理财赎回USDT: 0.0012726521600257001
+2025-07-13 19:57:23 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 19:57:23 [ExchangeClient] INFO: 开始赎回: 0.00 USDT 到现货
+2025-07-13 19:57:25 [ExchangeClient] ERROR: 赎回失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 19:57:25 [GridTrader] ERROR: 从理财赎回USDT失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 19:57:25 [GridTrader] INFO: 从理财赎回BNB: 0.07285778266988084
+2025-07-13 19:57:25 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 19:57:25 [ExchangeClient] INFO: 开始赎回: 0.072858 BNB 到现货
+2025-07-13 19:57:26 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:57:26 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:57:26 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 19:57:26 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 19:57:26 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 19:57:26 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 19:57:26 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 19:57:27 [root] ERROR: 消息推送失败: 状态码=200, 响应={'code': 999, 'msg': '请勿频繁推送相同内容', 'data': None}
+2025-07-13 19:57:27 [GridTrader] INFO: 市场当前价: 690.7000 | 价差: +1.13%
+2025-07-13 19:57:28 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 19:57:28 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 19:57:28 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 19:57:28 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 19:57:28 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 19:57:28 [root] INFO: Web服务已启动:
+2025-07-13 19:57:28 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 19:57:28 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 19:57:28 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 19:57:29 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.90%)，暂停新的卖出操作。
+2025-07-13 19:57:52 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.77 USDT | 计算金额 (10%): 81.58 USDT
+2025-07-13 19:58:21 [root] INFO: ==================================================
+2025-07-13 19:58:21 [root] INFO: 网格交易系统启动
+2025-07-13 19:58:21 [root] INFO: ==================================================
+2025-07-13 19:58:21 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 19:58:21 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 19:58:21 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 19:58:21 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 19:58:21 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 19:58:23 [ExchangeClient] INFO: 时间同步完成 | 时差: 1150ms
+2025-07-13 19:58:27 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 19:58:29 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.49997745}
+2025-07-13 19:58:30 [GridTrader] INFO: 总资产: 815.78 USDT | 现货: 210.73 USDT (BNB: 0.1161, USDT: 130.52) | 理财: 605.05 USDT (BNB: 0.0008, USDT: 604.50)
+2025-07-13 19:58:31 [GridTrader] INFO: 从理财赎回USDT: 0.002214084400009142
+2025-07-13 19:58:31 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 19:58:31 [ExchangeClient] INFO: 开始赎回: 0.00 USDT 到现货
+2025-07-13 19:58:33 [ExchangeClient] ERROR: 赎回失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 19:58:33 [GridTrader] ERROR: 从理财赎回USDT失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 19:58:33 [GridTrader] INFO: 从理财赎回BNB: 0.07284273077365182
+2025-07-13 19:58:33 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 19:58:33 [ExchangeClient] INFO: 开始赎回: 0.072843 BNB 到现货
+2025-07-13 19:58:34 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:58:34 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 19:58:34 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 19:58:34 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 19:58:34 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 19:58:34 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 19:58:34 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 19:58:35 [root] ERROR: 消息推送失败: 状态码=200, 响应={'code': 999, 'msg': '请勿频繁推送相同内容', 'data': None}
+2025-07-13 19:58:35 [GridTrader] INFO: 市场当前价: 690.7500 | 价差: +1.13%
+2025-07-13 19:58:36 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 19:58:36 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 19:58:36 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 19:58:36 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 19:58:36 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 19:58:36 [root] INFO: Web服务已启动:
+2025-07-13 19:58:36 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 19:58:36 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 19:58:36 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 19:58:37 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.90%)，暂停新的卖出操作。
+2025-07-13 19:58:51 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.78 USDT | 计算金额 (10%): 81.58 USDT
+2025-07-13 19:59:31 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50001591}
+2025-07-13 20:01:08 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50005437}
+2025-07-13 20:01:39 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50009284}
+2025-07-13 20:02:42 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50013131}
+2025-07-13 20:03:44 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50016981}
+2025-07-13 20:04:47 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50020831}
+2025-07-13 20:05:51 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50024682}
+2025-07-13 20:06:23 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50028532}
+2025-07-13 20:07:26 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50032382}
+2025-07-13 20:08:29 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50036233}
+2025-07-13 20:09:32 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50040084}
+2025-07-13 20:09:53 [root] INFO: ==================================================
+2025-07-13 20:09:53 [root] INFO: 网格交易系统启动
+2025-07-13 20:09:53 [root] INFO: ==================================================
+2025-07-13 20:09:53 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 20:09:54 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 20:09:54 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 20:09:54 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 20:09:54 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 20:09:55 [ExchangeClient] INFO: 时间同步完成 | 时差: 1138ms
+2025-07-13 20:09:59 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 20:10:01 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.50040084}
+2025-07-13 20:10:03 [GridTrader] INFO: 总资产: 815.94 USDT | 现货: 210.89 USDT (BNB: 0.1161, USDT: 130.52) | 理财: 605.05 USDT (BNB: 0.0008, USDT: 604.50)
+2025-07-13 20:10:03 [GridTrader] INFO: 从理财赎回USDT: 0.028095517264006276
+2025-07-13 20:10:04 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 20:10:04 [ExchangeClient] INFO: 开始赎回: 0.03 USDT 到现货
+2025-07-13 20:10:05 [ExchangeClient] INFO: 划转成功: {'redeemId': '642252008', 'success': True}
+2025-07-13 20:10:05 [GridTrader] INFO: 已从理财赎回 0.03 USDT
+2025-07-13 20:10:05 [GridTrader] INFO: 从理财赎回BNB: 0.07250336681687543
+2025-07-13 20:10:05 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 20:10:05 [ExchangeClient] INFO: 开始赎回: 0.072503 BNB 到现货
+2025-07-13 20:10:07 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 20:10:07 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 20:10:07 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 20:10:07 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 20:10:07 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 20:10:07 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 20:10:07 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 20:10:07 [root] ERROR: 消息推送失败: 状态码=200, 响应={'code': 999, 'msg': '请勿频繁推送相同内容', 'data': None}
+2025-07-13 20:10:08 [GridTrader] INFO: 市场当前价: 692.1200 | 价差: +1.34%
+2025-07-13 20:10:08 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 20:10:08 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 20:10:08 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 20:10:08 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 20:10:08 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 20:10:08 [root] INFO: Web服务已启动:
+2025-07-13 20:10:08 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 20:10:08 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 20:10:09 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 20:10:11 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47040085}
+2025-07-13 20:10:12 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.92%)，暂停新的卖出操作。
+2025-07-13 20:10:42 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47043936}
+2025-07-13 20:10:51 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.94 USDT | 计算金额 (10%): 81.59 USDT
+2025-07-13 20:11:45 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47047787}
+2025-07-13 20:12:48 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47051637}
+2025-07-13 20:13:20 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47055489}
+2025-07-13 20:14:23 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47059343}
+2025-07-13 20:15:26 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47063196}
+2025-07-13 20:16:29 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.4706705}
+2025-07-13 20:17:32 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47070905}
+2025-07-13 20:18:35 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47074762}
+2025-07-13 20:19:38 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47078623}
+2025-07-13 20:19:58 [root] INFO: ==================================================
+2025-07-13 20:19:58 [root] INFO: 网格交易系统启动
+2025-07-13 20:19:58 [root] INFO: ==================================================
+2025-07-13 20:19:58 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 20:19:58 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 20:19:58 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 20:19:58 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 20:19:58 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 20:20:00 [ExchangeClient] INFO: 时间同步完成 | 时差: 1101ms
+2025-07-13 20:20:03 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 20:20:06 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47078623}
+2025-07-13 20:20:07 [GridTrader] INFO: 总资产: 815.97 USDT | 现货: 210.95 USDT (BNB: 0.1161, USDT: 130.55) | 理财: 605.02 USDT (BNB: 0.0008, USDT: 604.47)
+2025-07-13 20:20:07 [GridTrader] INFO: 从理财赎回USDT: 0.0022724056800313974
+2025-07-13 20:20:08 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 20:20:08 [ExchangeClient] INFO: 开始赎回: 0.00 USDT 到现货
+2025-07-13 20:20:09 [ExchangeClient] ERROR: 赎回失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 20:20:09 [GridTrader] ERROR: 从理财赎回USDT失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 20:20:09 [GridTrader] INFO: 从理财赎回BNB: 0.0724494638075829
+2025-07-13 20:20:10 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 20:20:10 [ExchangeClient] INFO: 开始赎回: 0.072449 BNB 到现货
+2025-07-13 20:20:11 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 20:20:11 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 20:20:11 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 20:20:11 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 20:20:11 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 20:20:11 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 20:20:11 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 20:20:11 [root] ERROR: 消息推送失败: 状态码=200, 响应={'code': 999, 'msg': '请勿频繁推送相同内容', 'data': None}
+2025-07-13 20:20:12 [GridTrader] INFO: 市场当前价: 692.3400 | 价差: +1.37%
+2025-07-13 20:20:12 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 20:20:12 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 20:20:12 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 20:20:12 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 20:20:12 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 20:20:12 [root] INFO: Web服务已启动:
+2025-07-13 20:20:12 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 20:20:12 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 20:20:13 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 20:20:14 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.92%)，暂停新的卖出操作。
+2025-07-13 20:20:51 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.97 USDT | 计算金额 (10%): 81.60 USDT
+2025-07-13 20:30:26 [root] INFO: ==================================================
+2025-07-13 20:30:26 [root] INFO: 网格交易系统启动
+2025-07-13 20:30:26 [root] INFO: ==================================================
+2025-07-13 20:30:26 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 20:30:26 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 20:30:26 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 20:30:26 [GridTrader] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 20:30:26 [GridTrader] INFO: 正在加载市场数据...
+2025-07-13 20:30:28 [ExchangeClient] INFO: 时间同步完成 | 时差: 1097ms
+2025-07-13 20:30:32 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 20:30:34 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47121087}
+2025-07-13 20:30:36 [GridTrader] INFO: 总资产: 815.96 USDT | 现货: 210.94 USDT (BNB: 0.1161, USDT: 130.55) | 理财: 605.02 USDT (BNB: 0.0008, USDT: 604.47)
+2025-07-13 20:30:36 [GridTrader] INFO: 从理财赎回USDT: 0.0015921251680026671
+2025-07-13 20:30:37 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 20:30:37 [ExchangeClient] INFO: 开始赎回: 0.00 USDT 到现货
+2025-07-13 20:30:38 [ExchangeClient] ERROR: 赎回失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 20:30:38 [GridTrader] ERROR: 从理财赎回USDT失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 20:30:38 [GridTrader] INFO: 从理财赎回BNB: 0.0724593761394
+2025-07-13 20:30:38 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 20:30:38 [ExchangeClient] INFO: 开始赎回: 0.072459 BNB 到现货
+2025-07-13 20:30:39 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 20:30:39 [GridTrader] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 20:30:39 [GridTrader] INFO: 资金分配完成
+USDT: 735.02
+BNB: 0.1169
+2025-07-13 20:30:39 [GridTrader] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 20:30:39 [GridTrader] INFO: 使用加载的基准价: 683.0
+2025-07-13 20:30:39 [GridTrader] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 20:30:39 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 20:30:40 [root] ERROR: 消息推送失败: 状态码=200, 响应={'code': 999, 'msg': '请勿频繁推送相同内容', 'data': None}
+2025-07-13 20:30:41 [GridTrader] INFO: 市场当前价: 692.3200 | 价差: +1.36%
+2025-07-13 20:30:41 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 20:30:41 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 20:30:41 [OrderTracker] INFO: 已将 28 条交易记录保存到 D:\GridBNB-USDT\data\trade_history.json
+2025-07-13 20:30:41 [GridTrader] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 20:30:41 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 20:30:41 [root] INFO: Web服务已启动:
+2025-07-13 20:30:41 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 20:30:41 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 20:30:42 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 20:30:43 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.92%)，暂停新的卖出操作。
+2025-07-13 20:30:51 [GridTrader] INFO: 目标订单金额计算 | 总资产: 815.96 USDT | 计算金额 (10%): 81.60 USDT
+2025-07-13 22:17:21 [root] INFO: ==================================================
+2025-07-13 22:17:21 [root] INFO: 多币种网格交易系统启动
+2025-07-13 22:17:21 [root] INFO: 待运行交易对: ['BNB/USDT']
+2025-07-13 22:17:21 [root] INFO: ==================================================
+2025-07-13 22:17:21 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 22:17:24 [ExchangeClient] INFO: 时间同步完成 | 时差: 972ms
+2025-07-13 22:17:29 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 22:17:29 [root] INFO: 市场数据加载完成，开始创建交易器实例...
+2025-07-13 22:17:29 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 22:17:29 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 22:17:29 [GridTrader[BNB/USDT]] INFO: 未找到状态文件，将使用默认配置启动。
+2025-07-13 22:17:29 [GridTrader[BNB/USDT]] INFO: 正在加载市场数据...
+2025-07-13 22:17:30 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47535571}
+2025-07-13 22:17:31 [GridTrader[BNB/USDT]] INFO: 总资产: 815.98 USDT | 现货: 210.95 USDT (BNB: 0.1161, USDT: 130.55) | 理财: 605.02 USDT (BNB: 0.0008, USDT: 604.48)
+2025-07-13 22:17:31 [GridTrader[BNB/USDT]] INFO: 从理财赎回USDT: 0.00431291257601174
+2025-07-13 22:17:32 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 22:17:32 [ExchangeClient] INFO: 开始赎回: 0.00 USDT 到现货
+2025-07-13 22:17:33 [ExchangeClient] ERROR: 赎回失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 22:17:33 [GridTrader[BNB/USDT]] ERROR: 从理财赎回USDT失败: binance {"code":-1102,"msg":"Mandatory parameter 'amount' was not sent, was empty/null, or malformed."}
+2025-07-13 22:17:33 [GridTrader[BNB/USDT]] INFO: 从理财赎回BNB: 0.07243334758437943
+2025-07-13 22:17:34 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 22:17:34 [ExchangeClient] INFO: 开始赎回: 0.072433 BNB 到现货
+2025-07-13 22:17:35 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 22:17:35 [GridTrader[BNB/USDT]] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 22:17:35 [GridTrader[BNB/USDT]] INFO: 资金分配完成
+USDT: 735.03
+BNB: 0.1169
+2025-07-13 22:17:35 [GridTrader[BNB/USDT]] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 22:17:35 [GridTrader[BNB/USDT]] INFO: 交易对 BNB/USDT 未在INITIAL_PARAMS_JSON中指定初始基准价
+2025-07-13 22:17:35 [GridTrader[BNB/USDT]] INFO: 使用实时价格作为基准价: 692.5
+2025-07-13 22:17:35 [GridTrader[BNB/USDT]] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 692.5
+2025-07-13 22:17:35 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 22:17:36 [root] INFO: 消息推送成功: 网格交易启动成功
+交易对: BNB/USDT
+基准价: 692.5 USDT
+网格大小: 2.0%
+触发阈值: 0.4% (网格大小的1/5)
+2025-07-13 22:17:36 [GridTrader[BNB/USDT]] INFO: 市场当前价: 692.5000 | 价差: +0.00%
+2025-07-13 22:17:36 [GridTrader[BNB/USDT]] ERROR: 同步最近成交失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:17:36 [root] INFO: 启动Web服务器监控 1 个交易对...
+2025-07-13 22:17:36 [root] INFO: 开始并发运行 1 个交易对...
+2025-07-13 22:17:36 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 22:17:36 [root] INFO: Web服务已启动:
+2025-07-13 22:17:36 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 22:17:36 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 22:17:37 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 22:17:38 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.92%)，暂停新的卖出操作。
+2025-07-13 22:17:39 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:17:45 [GridTrader[BNB/USDT]] INFO: 目标订单金额计算 | 总资产: 815.98 USDT | 计算金额 (10%): 81.60 USDT
+2025-07-13 22:17:46 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:17:53 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:18:02 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:18:09 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:18:16 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:18:23 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:18:32 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:18:39 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:18:46 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:18:53 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:19:00 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:19:07 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:19:14 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:19:21 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:19:28 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:19:43 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:19:52 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:19:59 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:20:08 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:20:15 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:20:22 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:20:28 [GridTrader[BNB/USDT]] ERROR: 计算波动率失败: 'TradingConfig' object has no attribute 'SYMBOL'
+2025-07-13 22:20:35 [ExchangeClient] INFO: 交易所连接已安全关闭
+2025-07-13 22:20:35 [root] INFO: 共享的交易所连接已安全关闭
+2025-07-13 22:20:35 [root] INFO: 所有交易任务已结束。程序即将退出。
+2025-07-13 22:35:43 [root] INFO: ==================================================
+2025-07-13 22:35:43 [root] INFO: 多币种网格交易系统启动
+2025-07-13 22:35:43 [root] INFO: 待运行交易对: ['BNB/USDT']
+2025-07-13 22:35:43 [root] INFO: ==================================================
+2025-07-13 22:35:43 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 22:35:46 [ExchangeClient] INFO: 时间同步完成 | 时差: 952ms
+2025-07-13 22:35:50 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 22:35:50 [root] INFO: 市场数据加载完成，开始创建交易器实例...
+2025-07-13 22:35:50 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 22:35:50 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 22:35:50 [GridTrader[BNB/USDT]] INFO: 成功从文件加载状态。基准价: 0.00, 网格: 2.00%, EWMA已初始化: True
+2025-07-13 22:35:50 [GridTrader[BNB/USDT]] INFO: 正在加载市场数据...
+2025-07-13 22:35:51 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.47606411}
+2025-07-13 22:35:52 [GridTrader[BNB/USDT]] INFO: 总资产: 816.12 USDT | 现货: 211.09 USDT (BNB: 0.1161, USDT: 130.55) | 理财: 605.03 USDT (BNB: 0.0008, USDT: 604.48)
+2025-07-13 22:35:53 [GridTrader[BNB/USDT]] INFO: 从理财赎回USDT: 0.026498832480029932
+2025-07-13 22:35:53 [ExchangeClient] INFO: 找到USDT活期理财产品: USDT001
+2025-07-13 22:35:53 [ExchangeClient] INFO: 开始赎回: 0.03 USDT 到现货
+2025-07-13 22:35:55 [ExchangeClient] INFO: 划转成功: {'redeemId': '642377860', 'success': True}
+2025-07-13 22:35:55 [GridTrader[BNB/USDT]] INFO: 已从理财赎回 0.03 USDT
+2025-07-13 22:35:55 [GridTrader[BNB/USDT]] INFO: 从理财赎回BNB: 0.07214455818408307
+2025-07-13 22:35:55 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 22:35:55 [ExchangeClient] INFO: 开始赎回: 0.072145 BNB 到现货
+2025-07-13 22:35:56 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 22:35:56 [GridTrader[BNB/USDT]] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 22:35:56 [GridTrader[BNB/USDT]] INFO: 资金分配完成
+USDT: 735.03
+BNB: 0.1169
+2025-07-13 22:35:56 [GridTrader[BNB/USDT]] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 22:35:56 [GridTrader[BNB/USDT]] INFO: 交易对 BNB/USDT 未在INITIAL_PARAMS_JSON中指定初始基准价
+2025-07-13 22:35:57 [GridTrader[BNB/USDT]] INFO: 使用实时价格作为基准价: 693.6
+2025-07-13 22:35:57 [GridTrader[BNB/USDT]] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 693.6
+2025-07-13 22:35:57 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 22:35:57 [root] INFO: 消息推送成功: 网格交易启动成功
+交易对: BNB/USDT
+基准价: 693.6 USDT
+网格大小: 2.0%
+触发阈值: 0.4% (网格大小的1/5)
+2025-07-13 22:35:58 [GridTrader[BNB/USDT]] INFO: 市场当前价: 693.5900 | 价差: -0.00%
+2025-07-13 22:35:58 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 22:35:58 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 22:35:58 [OrderTracker] INFO: 已将 28 条交易记录保存到 d:\GridBNB-USDT\data\trade_history.json
+2025-07-13 22:35:58 [GridTrader[BNB/USDT]] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 22:35:58 [root] INFO: 启动Web服务器监控 1 个交易对...
+2025-07-13 22:35:58 [root] INFO: 开始并发运行 1 个交易对...
+2025-07-13 22:35:58 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 22:35:58 [root] INFO: Web服务已启动:
+2025-07-13 22:35:58 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 22:35:58 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 22:35:59 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 22:36:01 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.44606412}
+2025-07-13 22:36:02 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.94%)，暂停新的卖出操作。
+2025-07-13 22:36:21 [GridTrader[BNB/USDT]] INFO: 目标订单金额计算 | 总资产: 816.12 USDT | 计算金额 (10%): 81.61 USDT
+2025-07-13 22:50:12 [ExchangeClient] INFO: 交易所连接已安全关闭
+2025-07-13 22:50:12 [root] INFO: 共享的交易所连接已安全关闭
+2025-07-13 22:50:12 [root] INFO: 所有交易任务已结束。程序即将退出。
+2025-07-13 22:50:25 [root] INFO: ==================================================
+2025-07-13 22:50:25 [root] INFO: 多币种网格交易系统启动
+2025-07-13 22:50:25 [root] INFO: 待运行交易对: ['BNB/USDT']
+2025-07-13 22:50:25 [root] INFO: ==================================================
+2025-07-13 22:50:25 [ExchangeClient] INFO: 交易所客户端初始化完成
+2025-07-13 22:50:27 [ExchangeClient] INFO: 时间同步完成 | 时差: 901ms
+2025-07-13 22:50:31 [ExchangeClient] INFO: 市场数据加载成功 | 交易对: BNB/USDT
+2025-07-13 22:50:31 [root] INFO: 市场数据加载完成，开始创建交易器实例...
+2025-07-13 22:50:31 [OrderTracker] INFO: 加载了 28 条历史交易记录
+2025-07-13 22:50:31 [PositionControllerS1] INFO: S1 Position Controller initialized. Lookback=52 days, Sell Target=50.0%, Buy Target=70.0%.
+2025-07-13 22:50:31 [GridTrader[BNB/USDT]] INFO: 成功从文件加载状态。基准价: 683.00, 网格: 2.00%, EWMA已初始化: True
+2025-07-13 22:50:31 [GridTrader[BNB/USDT]] INFO: 正在加载市场数据...
+2025-07-13 22:50:32 [ExchangeClient] INFO: 理财账户余额更新: {'BNB': 0.00079212, 'USDT': 604.44665837}
+2025-07-13 22:50:34 [GridTrader[BNB/USDT]] INFO: 总资产: 815.90 USDT | 现货: 210.90 USDT (BNB: 0.1161, USDT: 130.58) | 理财: 604.99 USDT (BNB: 0.0008, USDT: 604.45)
+2025-07-13 22:50:34 [GridTrader[BNB/USDT]] INFO: 发现可划转USDT: 0.038759618511960525
+2025-07-13 22:50:34 [GridTrader[BNB/USDT]] INFO: 可划转USDT (0.04) 低于最小申购额 1.0，跳过申购
+2025-07-13 22:50:34 [GridTrader[BNB/USDT]] INFO: 从理财赎回BNB: 0.07261071382750907
+2025-07-13 22:50:35 [ExchangeClient] INFO: 找到BNB活期理财产品: BNB001
+2025-07-13 22:50:35 [ExchangeClient] INFO: 开始赎回: 0.072611 BNB 到现货
+2025-07-13 22:50:36 [ExchangeClient] ERROR: 赎回失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 22:50:36 [GridTrader[BNB/USDT]] ERROR: 从理财赎回BNB失败: binance {"code":-6006,"msg":"redeem amount error"}
+2025-07-13 22:50:36 [GridTrader[BNB/USDT]] INFO: 资金分配完成
+USDT: 735.03
+BNB: 0.1169
+2025-07-13 22:50:36 [GridTrader[BNB/USDT]] INFO: 交易对精度: 数量 0.001, 价格 0.01
+2025-07-13 22:50:36 [GridTrader[BNB/USDT]] INFO: 使用配置的基准价: 683.0
+2025-07-13 22:50:36 [GridTrader[BNB/USDT]] INFO: 初始化完成 | 交易对: BNB/USDT | 基准价: 683.0
+2025-07-13 22:50:36 [root] INFO: 正在发送推送通知: 交易信号通知
+2025-07-13 22:50:37 [root] ERROR: 消息推送失败: 状态码=200, 响应={'code': 999, 'msg': '请勿频繁推送相同内容', 'data': None}
+2025-07-13 22:50:37 [GridTrader[BNB/USDT]] INFO: 市场当前价: 691.6300 | 价差: +1.26%
+2025-07-13 22:50:38 [ExchangeClient] INFO: 成功获取 50 条最近成交记录 for BNB/USDT
+2025-07-13 22:50:38 [OrderTracker] INFO: 交易历史备份成功
+2025-07-13 22:50:38 [OrderTracker] INFO: 已将 28 条交易记录保存到 d:\GridBNB-USDT\data\trade_history.json
+2025-07-13 22:50:38 [GridTrader[BNB/USDT]] INFO: 启动同步：本地历史共 28 条记录
+2025-07-13 22:50:38 [root] INFO: 启动Web服务器监控 1 个交易对...
+2025-07-13 22:50:38 [root] INFO: 开始并发运行 1 个交易对...
+2025-07-13 22:50:38 [PositionControllerS1] INFO: S1: Time to update daily high/low levels...
+2025-07-13 22:50:38 [root] INFO: Web服务已启动:
+2025-07-13 22:50:38 [root] INFO: - 本地访问: http://localhost:58181/
+2025-07-13 22:50:38 [root] INFO: - 局域网访问: http://0.0.0.0:58181/
+2025-07-13 22:50:38 [PositionControllerS1] INFO: S1 Levels Updated: High=697.7300, Low=601.2500
+2025-07-13 22:50:39 [AdvancedRiskManager] WARNING: 底仓保护触发 (9.91%)，暂停新的卖出操作。
+2025-07-13 22:50:51 [GridTrader[BNB/USDT]] INFO: 目标订单金额计算 | 总资产: 815.90 USDT | 计算金额 (10%): 81.59 USDT
+2025-07-13 22:51:20 [ExchangeClient] INFO: 交易所连接已安全关闭
+2025-07-13 22:51:20 [root] INFO: 共享的交易所连接已安全关闭
+2025-07-13 22:51:20 [root] INFO: 所有交易任务已结束。程序即将退出。

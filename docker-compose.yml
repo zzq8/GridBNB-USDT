@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # GridBNB 交易机器人服务
   gridbnb-bot:
     build:
       context: .
@@ -8,8 +9,46 @@ services:
     container_name: gridbnb-bot
     restart: always
     env_file:
-      - .env # 引用 .env 文件
+      - .env
+    # 内部端口，不直接暴露给外部
+    expose:
+      - "58181"
+    # 可选：保留直接访问端口用于调试
     ports:
-      - "8080:58181" # 如果需要开放端口，请根据需要修改
+      - "8080:58181"
     volumes:
       - ./:/app
+      - ./data:/app/data  # 持久化数据目录
+    networks:
+      - gridbnb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:58181/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx 反向代理服务
+  nginx:
+    image: nginx:alpine
+    container_name: gridbnb-nginx
+    restart: always
+    ports:
+      - "80:80"  # 外部访问端口
+      - "443:443"  # 为将来的HTTPS准备
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - gridbnb-bot
+    networks:
+      - gridbnb-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 定义网络
+networks:
+  gridbnb-network:
+    driver: bridge
