@@ -56,7 +56,19 @@ else
     echo "✅ 代码更新完成"
 fi
 
-# 5. 验证配置文件
+# 5. 恢复本地修改 (如果有暂存)
+if [ "$STASHED" = true ]; then
+    echo -e "${YELLOW}🔄 恢复本地个性化修改...${NC}"
+    if git stash pop; then
+        echo "✅ 本地修改已恢复"
+    else
+        echo -e "${YELLOW}⚠️  恢复本地修改时出现冲突，请手动解决${NC}"
+        echo "💡 查看冲突: git status"
+        echo "💡 解决后继续: git add . && git stash drop"
+    fi
+fi
+
+# 6. 验证配置文件
 echo -e "${YELLOW}🔧 验证配置文件...${NC}"
 if [ -f ".env" ]; then
     echo "✅ .env配置文件完好无损"
@@ -65,7 +77,7 @@ else
     exit 1
 fi
 
-# 6. 重新构建并启动服务
+# 7. 重新构建并启动服务
 echo -e "${YELLOW}🐳 重新构建并启动Docker服务...${NC}"
 docker-compose down
 echo "✅ 服务已停止"
@@ -73,11 +85,11 @@ echo "✅ 服务已停止"
 docker-compose up -d --build
 echo "✅ 服务重新构建并启动"
 
-# 7. 等待服务启动
+# 8. 等待服务启动
 echo -e "${YELLOW}⏳ 等待服务启动...${NC}"
 sleep 15
 
-# 8. 检查服务状态
+# 9. 检查服务状态
 echo -e "${YELLOW}🔍 检查服务状态...${NC}"
 if docker-compose ps | grep -q "Up"; then
     echo "✅ 服务运行正常"
@@ -96,12 +108,6 @@ else
     echo -e "${RED}❌ 服务启动异常，请检查日志${NC}"
     echo "查看日志命令: docker-compose logs"
     exit 1
-fi
-
-# 9. 清理Git暂存 (如果有)
-if [ "$STASHED" = true ]; then
-    echo -e "${YELLOW}🧹 清理Git暂存...${NC}"
-    echo "💡 本地修改已暂存，如需恢复请运行: git stash pop"
 fi
 
 # 10. 显示更新结果
