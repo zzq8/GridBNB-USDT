@@ -1,7 +1,7 @@
 import ccxt.async_support as ccxt
 import os
 import logging
-from config import SYMBOL, DEBUG_MODE, API_TIMEOUT, RECV_WINDOW, settings
+from config import DEBUG_MODE, API_TIMEOUT, RECV_WINDOW, settings
 from datetime import datetime
 import time
 import asyncio
@@ -119,8 +119,7 @@ class ExchangeClient:
                 try:
                     await self.exchange.load_markets()
                     self.markets_loaded = True
-                    market = self.exchange.market(SYMBOL)
-                    self.logger.info(f"市场数据加载成功 | 交易对: {SYMBOL}")
+                    self.logger.info(f"所有市场数据加载成功")
                     return True
                 except Exception as e:
                     if i == max_retries - 1:
