@@ -528,61 +528,68 @@ class GridTrader:
 
         while True:
             try:
-                # 初始化检查
+                # ------------------------------------------------------------------
+                # 阶段一：初始化与状态更新
+                # ------------------------------------------------------------------
                 if not self.initialized:
                     await self.initialize()
-                    # 初始化S1策略的每日高低点
-                    await self.position_controller_s1.update_daily_s1_levels()
 
-                # --- 新逻辑开始 ---
-
-                # 1. 获取当前状态
-                await self.position_controller_s1.update_daily_s1_levels() # 更新S1高低点
+                # 获取最新的价格，这是后续所有决策的基础
                 current_price = await self._get_latest_price()
                 if not current_price:
                     await asyncio.sleep(5)
                     continue
                 self.current_price = current_price
 
-                # 2. 【核心】首先获取唯一的风控许可
+                # --- 核心理念：维护任务与交易任务分离 ---
+
+                # ------------------------------------------------------------------
+                # 阶段二：周期性维护模块 (始终运行，保证机器人认知更新)
+                # ------------------------------------------------------------------
+
+                # 1. 更新S1策略的每日高低点
+                await self.position_controller_s1.update_daily_s1_levels()
+
+                # 2. 检查是否需要调整网格大小 (包含波动率计算)
+                # 这个任务现在独立运行，不再被交易状态阻塞
+                dynamic_interval_seconds = await self._calculate_dynamic_interval_seconds()
+                if time.time() - self.last_grid_adjust_time > dynamic_interval_seconds:
+                    self.logger.info(
+                        f"维护时间到达，准备更新波动率并调整网格 (间隔: {dynamic_interval_seconds / 3600:.2f} 小时).")
+                    # adjust_grid_size 内部会调用 _calculate_volatility
+                    await self.adjust_grid_size()
+                    self.last_grid_adjust_time = time.time() # 更新时间戳
+
+                # ------------------------------------------------------------------
+                # 阶段三：交易决策模块 (根据风控和市场信号执行)
+                # ------------------------------------------------------------------
+
+                # 1. 【核心】首先获取唯一的风控许可
                 risk_state = await self.risk_manager.check_position_limits()
 
-                trade_executed_this_loop = False # 标记本轮循环是否已执行交易
+                # 2. 定义标志位，确保一轮循环只做一次主网格交易
+                trade_executed_this_loop = False
 
-                # 3. 卖出逻辑判断
-                # 只有在风控状态不是"只准买入"的情况下，才去检查和执行卖出信号
+                # 3. 卖出逻辑：只有在风控允许的情况下，才去检查信号
                 if risk_state != RiskState.ALLOW_BUY_ONLY:
                     sell_signal = await self._check_signal_with_retry(self._check_sell_signal, "卖出检测")
                     if sell_signal:
-                        # execute_order返回成交的订单字典或False
                         if await self.execute_order('sell'):
                             trade_executed_this_loop = True
 
-                # 4. 买入逻辑判断
-                # 如果本轮没有执行过卖出，并且风控状态不是"只准卖出"，才去检查和执行买入
+                # 4. 买入逻辑：如果没卖出，且风控允许，才去检查买入信号
                 if not trade_executed_this_loop and risk_state != RiskState.ALLOW_SELL_ONLY:
                     buy_signal = await self._check_signal_with_retry(self._check_buy_signal, "买入检测")
                     if buy_signal:
                         if await self.execute_order('buy'):
                             trade_executed_this_loop = True
 
-                # 5. 日常维护任务
-                # 只有在本轮循环没有发生任何主网格交易的情况下，才执行这些辅助任务
+                # 5. S1辅助策略：它也是一种交易，但独立于主网格
+                # 只有在本轮没有发生主网格交易时才考虑执行S1，避免冲突
                 if not trade_executed_this_loop:
-                    # 运行S1辅助仓位管理策略
                     await self.position_controller_s1.check_and_execute(risk_state)
 
-                    # 检查是否需要调整网格大小
-                    dynamic_interval_seconds = await self._calculate_dynamic_interval_seconds()
-                    if time.time() - self.last_grid_adjust_time > dynamic_interval_seconds:
-                        # 增加一个判断：只有当价格在网格内时，才进行常规的网格大小调整
-                        if not self.is_monitoring_buy and not self.is_monitoring_sell:
-                            self.logger.info(
-                                f"时间到了，准备调整网格大小 (间隔: {dynamic_interval_seconds / 3600:.2f} 小时).")
-                            await self.adjust_grid_size()
-                            self.last_grid_adjust_time = time.time()
-
-                # --- 新逻辑结束 ---
+                # --- 逻辑执行完毕 ---
 
                 # 循环成功，重置错误计数器
                 consecutive_errors = 0
