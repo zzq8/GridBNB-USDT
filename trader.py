@@ -788,11 +788,13 @@ class GridTrader:
                         self.logger.warning(f"卖出余额不足，第 {retry_count + 1} 次尝试中止")
                         return False
 
+                # 为了日志记录，将字符串类型的 amount 临时转为浮点数
+                log_display_amount = float(amount)
                 self.logger.info(
                     f"尝试第 {retry_count + 1}/{max_retries} 次 {side} 单 | "
                     f"价格: {order_price} | "
                     f"金额: {amount_quote:.2f} {self.quote_asset} | "
-                    f"数量: {amount:.8f} {self.base_asset}"
+                    f"数量: {log_display_amount:.8f} {self.base_asset}"
                 )
 
                 # 创建订单
