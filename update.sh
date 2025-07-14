@@ -54,6 +54,11 @@ else
     git pull origin main
     UPDATE_NEEDED=true
     echo "✅ 代码更新完成"
+
+    # 自动恢复update.sh的执行权限
+    echo -e "${YELLOW}🔧 恢复update.sh执行权限...${NC}"
+    chmod +x update.sh
+    echo "✅ update.sh执行权限已恢复"
 fi
 
 # 5. 恢复本地修改 (如果有暂存)
