@@ -523,79 +523,89 @@ class GridTrader:
             return default_interval_hours * 3600
 
     async def main_loop(self):
-        consecutive_errors = 0  # 连续失败计数器
-        max_consecutive_errors = 5  # 最大连续失败次数
+        consecutive_errors = 0
+        max_consecutive_errors = 5
 
         while True:
             try:
+                # 初始化检查
                 if not self.initialized:
                     await self.initialize()
+                    # 初始化S1策略的每日高低点
                     await self.position_controller_s1.update_daily_s1_levels()
 
-                # 保留S1水平更新
-                await self.position_controller_s1.update_daily_s1_levels()
+                # --- 新逻辑开始 ---
 
-                # 获取当前价格
+                # 1. 获取当前状态
+                await self.position_controller_s1.update_daily_s1_levels() # 更新S1高低点
                 current_price = await self._get_latest_price()
                 if not current_price:
                     await asyncio.sleep(5)
                     continue
                 self.current_price = current_price
 
-                # 获取风控状态，供后续所有逻辑使用
+                # 2. 【核心】首先获取唯一的风控许可
                 risk_state = await self.risk_manager.check_position_limits()
 
-                # 检查买入卖出信号并根据风控状态执行
-                sell_signal = await self._check_signal_with_retry(self._check_sell_signal, "卖出检测")
-                # 只有在信号触发且风控状态不禁止卖出时，才执行卖出
-                if sell_signal and risk_state != RiskState.ALLOW_BUY_ONLY:
-                    await self.execute_order('sell')
-                else:
+                trade_executed_this_loop = False # 标记本轮循环是否已执行交易
+
+                # 3. 卖出逻辑判断
+                # 只有在风控状态不是"只准买入"的情况下，才去检查和执行卖出信号
+                if risk_state != RiskState.ALLOW_BUY_ONLY:
+                    sell_signal = await self._check_signal_with_retry(self._check_sell_signal, "卖出检测")
+                    if sell_signal:
+                        # execute_order返回成交的订单字典或False
+                        if await self.execute_order('sell'):
+                            trade_executed_this_loop = True
+
+                # 4. 买入逻辑判断
+                # 如果本轮没有执行过卖出，并且风控状态不是"只准卖出"，才去检查和执行买入
+                if not trade_executed_this_loop and risk_state != RiskState.ALLOW_SELL_ONLY:
                     buy_signal = await self._check_signal_with_retry(self._check_buy_signal, "买入检测")
-                    # 只有在信号触发且风控状态不禁止买入时，才执行买入
-                    if buy_signal and risk_state != RiskState.ALLOW_SELL_ONLY:
-                        await self.execute_order('buy')
-                    else:
-                        # 只有在没有交易信号时才执行其他操作
+                    if buy_signal:
+                        if await self.execute_order('buy'):
+                            trade_executed_this_loop = True
 
-                        # 将风控状态传递给 S1 策略
-                        await self.position_controller_s1.check_and_execute(risk_state)
+                # 5. 日常维护任务
+                # 只有在本轮循环没有发生任何主网格交易的情况下，才执行这些辅助任务
+                if not trade_executed_this_loop:
+                    # 运行S1辅助仓位管理策略
+                    await self.position_controller_s1.check_and_execute(risk_state)
 
-                        # 如果时间到了并且不在买入或卖出调整网格大小
-                        dynamic_interval_seconds = await self._calculate_dynamic_interval_seconds()
-                        if time.time() - self.last_grid_adjust_time > dynamic_interval_seconds and not (self.is_monitoring_buy or self.is_monitoring_sell):
+                    # 检查是否需要调整网格大小
+                    dynamic_interval_seconds = await self._calculate_dynamic_interval_seconds()
+                    if time.time() - self.last_grid_adjust_time > dynamic_interval_seconds:
+                        # 增加一个判断：只有当价格在网格内时，才进行常规的网格大小调整
+                        if not self.is_monitoring_buy and not self.is_monitoring_sell:
                             self.logger.info(
-                                f"时间到了，准备调整网格大小 (间隔: {dynamic_interval_seconds / 3600} 小时).")
+                                f"时间到了，准备调整网格大小 (间隔: {dynamic_interval_seconds / 3600:.2f} 小时).")
                             await self.adjust_grid_size()
                             self.last_grid_adjust_time = time.time()
 
-                # 如果循环成功完成一次，重置错误计数器
+                # --- 新逻辑结束 ---
+
+                # 循环成功，重置错误计数器
                 consecutive_errors = 0
-                await asyncio.sleep(5)
+                await asyncio.sleep(5)  # 主循环的固定休眠时间
 
             except Exception as e:
-                consecutive_errors += 1  # 错误发生，计数器+1
+                consecutive_errors += 1
                 self.logger.error(f"主循环发生错误 (第{consecutive_errors}次连续失败): {e}", exc_info=True)
 
                 if consecutive_errors >= max_consecutive_errors:
-                    # 达到最大连续失败次数，发送致命错误通知并退出
                     fatal_msg = (
                         f"交易对[{self.symbol}]连续失败 {max_consecutive_errors} 次，任务已自动停止！\n"
                         f"最后一次错误: {str(e)}"
                     )
                     self.logger.critical(fatal_msg)
-
-                    # 增强的紧急通知
                     try:
                         from helpers import send_pushplus_message
                         send_pushplus_message(fatal_msg, f"!!!系统致命错误 - {self.symbol}!!!")
                     except Exception as notify_error:
                         self.logger.error(f"发送紧急通知失败: {notify_error}")
+                    break # 退出循环，结束此交易对的任务
 
-                    # 此处不再关闭连接，交由main.py统一处理
-                    break  # 退出循环，此任务将结束
-
-                await asyncio.sleep(30)  # 等待后重试
+                await asyncio.sleep(30) # 发生错误后等待30秒重试
 
     async def _check_signal_with_retry(self, check_func, check_name, max_retries=3, retry_delay=2):
         """带重试机制的信号检测函数
