@@ -1115,15 +1115,16 @@ class GridTrader:
 
     async def _calculate_volatility(self):
         """
-        计算改进的混合波动率：52日传统波动率 + EWMA波动率
-        使用日K线数据计算52日年化波动率，结合EWMA提供敏感性
+        计算改进的混合波动率：7天4小时线传统波动率 + EWMA波动率
+        使用4小时K线数据计算7天年化波动率，结合EWMA提供敏感性
+        更短的时间窗口让机器人更敏感地响应短期市场变化
         """
         try:
-            # 获取52日K线数据 (使用日K线更稳定)
+            # 获取7天4小时K线数据 (7天 * 6根4小时K线 = 42根)
             klines = await self.exchange.fetch_ohlcv(
                 self.symbol,
-                timeframe='1d',  # 改为日K线
-                limit=self.config.VOLATILITY_WINDOW  # 52日
+                timeframe='4h',  # 从'1d'改为'4h'
+                limit=42         # 7天 * 6根4小时K线 = 42
             )
 
             if not klines or len(klines) < 2:
@@ -1134,7 +1135,7 @@ class GridTrader:
             prices = [float(k[4]) for k in klines]
             current_price = prices[-1]
 
-            # 计算52日传统波动率
+            # 计算7天传统波动率
             traditional_volatility = self._calculate_traditional_volatility(prices)
 
             # 计算EWMA波动率
@@ -1163,8 +1164,8 @@ class GridTrader:
 
     def _calculate_traditional_volatility(self, prices):
         """
-        计算传统的52日年化波动率
-        使用对数收益率的标准差
+        计算传统的7天年化波动率
+        使用对数收益率的标准差，基于4小时数据
         """
         if len(prices) < 2:
             return 0.2
@@ -1172,8 +1173,9 @@ class GridTrader:
         # 计算对数收益率
         returns = np.diff(np.log(prices))
 
-        # 计算年化波动率 (日数据，所以乘以sqrt(365))
-        volatility = np.std(returns) * np.sqrt(365)  # 365个交易日
+        # 计算年化波动率 (4小时数据，所以乘以sqrt(365*6))
+        # 一年有365天，每天6根4小时K线，共2190根
+        volatility = np.std(returns) * np.sqrt(365 * 6)  # 年化因子
 
         return volatility
 
