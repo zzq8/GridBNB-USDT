@@ -202,9 +202,9 @@ chmod +x update.sh
 ```
 
 **更新脚本功能**:
-- ✅ 自动备份 `.env` 配置文件
+- ✅ 检测代码是否有更新
 - ✅ 拉取 GitHub 最新代码
-- ✅ 保持现有配置不变
+- ✅ 自动处理本地修改冲突
 - ✅ 重新构建并重启 Docker 容器
 - ✅ 验证服务运行状态
 - ✅ 显示更新结果和访问信息
@@ -219,21 +219,17 @@ chmod +x update.sh
 如果需要手动控制更新过程：
 
 ```bash
-# 1. 备份配置
-cp .env .env.backup
-
-# 2. 拉取最新代码
+# 1. 拉取最新代码
 git pull origin main
 
-# 3. 恢复配置
-cp .env.backup .env && rm .env.backup
-
-# 4. 重启服务
+# 2. 重启服务
 docker-compose up -d --build
 
-# 5. 检查状态
+# 3. 检查状态
 docker-compose ps
 ```
+
+**注意**: `.env` 配置文件不会被 Git 更新影响，因为它在 `.gitignore` 中被忽略。
 
 ## �📊 监控和日志
 

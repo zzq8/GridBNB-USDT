@@ -22,13 +22,16 @@ fi
 
 echo -e "${YELLOW}📋 当前目录: $(pwd)${NC}"
 
-# 2. 备份配置文件
-echo -e "${YELLOW}💾 备份配置文件...${NC}"
-cp .env .env.backup
-echo "✅ .env文件已备份为 .env.backup"
+# 2. 检查配置文件
+echo -e "${YELLOW}🔍 检查配置文件...${NC}"
+if [ ! -f ".env" ]; then
+    echo -e "${RED}❌ 错误: .env文件不存在，请先配置${NC}"
+    exit 1
+fi
+echo "✅ .env配置文件存在"
 
 # 3. 检查Git状态
-echo -e "${YELLOW}🔍 检查Git状态...${NC}"
+echo -e "${YELLOW}📋 检查Git状态...${NC}"
 if [ -n "$(git status --porcelain)" ]; then
     echo -e "${YELLOW}⚠️  检测到本地修改，将暂存这些更改${NC}"
     git stash push -m "Auto stash before update $(date)"
@@ -53,13 +56,13 @@ else
     echo "✅ 代码更新完成"
 fi
 
-# 5. 恢复配置文件
-echo -e "${YELLOW}🔧 恢复配置文件...${NC}"
-if [ -f ".env.backup" ]; then
-    cp .env.backup .env
-    echo "✅ 配置文件已恢复"
+# 5. 验证配置文件
+echo -e "${YELLOW}🔧 验证配置文件...${NC}"
+if [ -f ".env" ]; then
+    echo "✅ .env配置文件完好无损"
 else
-    echo -e "${RED}❌ 备份文件不存在，请检查.env配置${NC}"
+    echo -e "${RED}❌ 错误: .env文件丢失${NC}"
+    exit 1
 fi
 
 # 6. 重新构建并启动服务
@@ -95,10 +98,11 @@ else
     exit 1
 fi
 
-# 9. 清理备份文件
-echo -e "${YELLOW}🧹 清理临时文件...${NC}"
-rm -f .env.backup
-echo "✅ 临时文件已清理"
+# 9. 清理Git暂存 (如果有)
+if [ "$STASHED" = true ]; then
+    echo -e "${YELLOW}🧹 清理Git暂存...${NC}"
+    echo "💡 本地修改已暂存，如需恢复请运行: git stash pop"
+fi
 
 # 10. 显示更新结果
 echo ""
@@ -111,14 +115,11 @@ else
     echo "ℹ️  代码已是最新版本，仅重启了服务"
 fi
 
-echo "✅ 配置文件保持不变"
+echo "✅ .env配置文件未受影响"
 echo "✅ Docker服务已重启"
 echo "✅ 服务运行正常"
 
-if [ "$STASHED" = true ]; then
-    echo ""
-    echo -e "${YELLOW}💡 提示: 本地修改已暂存，如需恢复请运行: git stash pop${NC}"
-fi
+
 
 echo ""
 echo "🌐 访问地址:"
