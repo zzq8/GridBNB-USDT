@@ -341,74 +341,90 @@ class GridTrader:
 
     async def _check_buy_signal(self):
         current_price = self.current_price
-        if current_price <= self._get_lower_band():
-            self.buying_or_selling = True  # 进入买入或卖出监测
-            # 记录最低价
-            new_lowest = current_price if self.lowest is None else min(self.lowest, current_price)
-            # 只在最低价更新时打印日志
-            if new_lowest != self.lowest:
-                self.lowest = new_lowest
+        initial_lower_band = self._get_lower_band()
+
+        if current_price <= initial_lower_band:
+            # --- START OF CORRECTION ---
+            self.buying_or_selling = True
+
+            old_lowest = self.lowest if self.lowest is not None else float('inf')
+
+            # 正确的逻辑：self.lowest 只能减小，不能增加
+            self.lowest = current_price if self.lowest is None else min(self.lowest, current_price)
+
+            # 只有在最低价确实被刷新(降低)时，才打印日志
+            if self.lowest < old_lowest:
+                threshold = FLIP_THRESHOLD(self.grid_size)
                 self.logger.info(
                     f"买入监测 | "
                     f"当前价: {current_price:.2f} | "
-                    f"触发价: {self._get_lower_band():.5f} | "
-                    f"最低价: {self.lowest:.2f} | "
-                    f"网格下限: {self._get_lower_band():.2f} | "
-                    f"反弹阈值: {FLIP_THRESHOLD(self.grid_size) * 100:.2f}%"
+                    f"触发价: {initial_lower_band:.5f} | "
+                    f"最低价: {self.lowest:.2f} (已更新) | "
+                    f"反弹阈值: {threshold * 100:.2f}%"
                 )
+            # --- END OF CORRECTION ---
+
+            # 触发买入的逻辑保持不变
             threshold = FLIP_THRESHOLD(self.grid_size)
-            # 从最低价反弹指定比例时触发买入
             if self.lowest and current_price >= self.lowest * (1 + threshold):
-                self.buying_or_selling = False  # 不在买入或卖出
+                self.buying_or_selling = False # 准备交易，退出监测
                 self.logger.info(
                     f"触发买入信号 | 当前价: {current_price:.2f} | 已反弹: {(current_price / self.lowest - 1) * 100:.2f}%")
-                # 检查买入余额是否充足
                 if not await self.check_buy_balance(current_price):
                     return False
                 return True
         else:
-            self.buying_or_selling = False  # 退出买入或卖出监测
-            self._reset_extremes()  # NEW
+            # 只有当价格回升，并且我们之前正处于"买入监测"状态时，才重置
+            if self.buying_or_selling:
+                self.logger.info(f"价格已回升至 {current_price:.2f}，高于下轨 {initial_lower_band:.2f}。重置买入监测状态。")
+                self.buying_or_selling = False
+                self._reset_extremes()
+
         return False
 
     async def _check_sell_signal(self):
         current_price = self.current_price
-        initial_upper_band = self._get_upper_band()  # 初始上轨价格
+        initial_upper_band = self._get_upper_band()
 
         if current_price >= initial_upper_band:
-            self.buying_or_selling = True  # 进入买入或卖出监测
-            # 记录最高价
-            new_highest = current_price if self.highest is None else max(self.highest, current_price)
-            threshold = FLIP_THRESHOLD(self.grid_size)
+            # --- START OF CORRECTION ---
+            # 无论如何，先进入监测状态
+            self.buying_or_selling = True
 
-            # 计算动态触发价格 (基于最高价的回调阈值)
-            dynamic_trigger_price = new_highest * (1 - threshold) if new_highest is not None else initial_upper_band
+            # 使用一个临时变量来记录旧的最高价，方便对比
+            old_highest = self.highest if self.highest is not None else 0.0
 
-            # 只在最高价更新时打印日志
-            if new_highest != self.highest:
-                self.highest = new_highest
-                # 重新计算动态触发价，基于更新后的最高价
+            # 正确的逻辑：self.highest 只能增加，不能减少
+            self.highest = current_price if self.highest is None else max(self.highest, current_price)
+
+            # 只有在最高价确实被刷新(提高)时，才打印日志
+            if self.highest > old_highest:
+                threshold = FLIP_THRESHOLD(self.grid_size)
                 dynamic_trigger_price = self.highest * (1 - threshold)
-
                 self.logger.info(
                     f"卖出监测 | "
                     f"当前价: {current_price:.2f} | "
                     f"触发价(动态): {dynamic_trigger_price:.5f} | "
-                    f"最高价: {self.highest:.2f}"
+                    f"最高价: {self.highest:.2f} (已更新)"
                 )
+            # --- END OF CORRECTION ---
 
-            # 从最高价下跌指定比例时触发卖出
+            # 触发卖出的逻辑保持不变
+            threshold = FLIP_THRESHOLD(self.grid_size)
             if self.highest and current_price <= self.highest * (1 - threshold):
-                self.buying_or_selling = False  # 不在买入或卖出
+                self.buying_or_selling = False  # 准备交易，退出监测
                 self.logger.info(
                     f"触发卖出信号 | 当前价: {current_price:.2f} | 目标价: {self.highest * (1 - threshold):.5f} | 已下跌: {(1 - current_price / self.highest) * 100:.2f}%")
-                # 检查卖出余额是否充足
                 if not await self.check_sell_balance():
                     return False
                 return True
         else:
-            self.buying_or_selling = False
-            self._reset_extremes()
+            # 只有当价格回落，并且我们之前正处于"卖出监测"状态时，才意味着本次机会结束，可以重置了
+            if self.buying_or_selling:
+                self.logger.info(f"价格已回落至 {current_price:.2f}，低于上轨 {initial_upper_band:.2f}。重置卖出监测状态。")
+                self.buying_or_selling = False
+                self._reset_extremes()
+
         return False
 
     async def _calculate_order_amount(self, order_type):
