@@ -184,7 +184,58 @@ HTTP_PROXY="http://127.0.0.1:7890"
 - 📱 **响应式设计**: 支持手机和平板访问
 - 🔐 **安全认证**: 可选的用户名密码保护
 
-## 📊 监控和日志
+## � 更新和维护
+
+### 一键更新脚本 (Ubuntu/Linux)
+
+为已部署的Ubuntu服务器提供简单的一键更新解决方案：
+
+```bash
+# 进入项目目录
+cd GridBNB-USDT
+
+# 给脚本执行权限 (首次使用)
+chmod +x update.sh
+
+# 执行一键更新
+./update.sh
+```
+
+**更新脚本功能**:
+- ✅ 自动备份 `.env` 配置文件
+- ✅ 拉取 GitHub 最新代码
+- ✅ 保持现有配置不变
+- ✅ 重新构建并重启 Docker 容器
+- ✅ 验证服务运行状态
+- ✅ 显示更新结果和访问信息
+
+**适用场景**:
+- Ubuntu/Linux 服务器环境
+- 已通过 Docker 部署的系统
+- 需要保持配置文件不变的更新
+
+### 手动更新方式
+
+如果需要手动控制更新过程：
+
+```bash
+# 1. 备份配置
+cp .env .env.backup
+
+# 2. 拉取最新代码
+git pull origin main
+
+# 3. 恢复配置
+cp .env.backup .env && rm .env.backup
+
+# 4. 重启服务
+docker-compose up -d --build
+
+# 5. 检查状态
+docker-compose ps
+```
+
+## �📊 监控和日志
 
 ### 日志文件
 - **应用日志**: `trading_system.log`
