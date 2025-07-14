@@ -82,7 +82,10 @@ class GridTrader:
         }
         self.funding_cache_ttl = 60  # 理财余额缓存60秒
         self.position_controller_s1 = PositionControllerS1(self)
-        self.buying_or_selling = False  # 不在等待买入或卖出
+
+        # 独立的监测状态变量，避免买入和卖出监测相互干扰
+        self.is_monitoring_buy = False   # 是否在监测买入机会
+        self.is_monitoring_sell = False  # 是否在监测卖出机会
 
         # 状态持久化相关 - 状态文件名与交易对挂钩
         state_filename = f"trader_state_{self.symbol.replace('/', '_')}.json"
@@ -100,10 +103,13 @@ class GridTrader:
                 'last_trade_time': self.last_trade_time,
                 'last_trade_price': self.last_trade_price,
                 'timestamp': time.time(),
-                # 新增EWMA波动率状态
+                # EWMA波动率状态
                 'ewma_volatility': self.ewma_volatility,
                 'last_price': self.last_price,
-                'ewma_initialized': self.ewma_initialized
+                'ewma_initialized': self.ewma_initialized,
+                # 独立监测状态
+                'is_monitoring_buy': self.is_monitoring_buy,
+                'is_monitoring_sell': self.is_monitoring_sell
             }
             # 确保 data 目录存在
             os.makedirs(os.path.dirname(self.state_file_path), exist_ok=True)
@@ -160,9 +166,18 @@ class GridTrader:
             if saved_ewma_initialized is not None:
                 self.ewma_initialized = bool(saved_ewma_initialized)
 
+            # 加载独立监测状态
+            saved_is_monitoring_buy = state.get('is_monitoring_buy')
+            if saved_is_monitoring_buy is not None:
+                self.is_monitoring_buy = bool(saved_is_monitoring_buy)
+
+            saved_is_monitoring_sell = state.get('is_monitoring_sell')
+            if saved_is_monitoring_sell is not None:
+                self.is_monitoring_sell = bool(saved_is_monitoring_sell)
+
             self.logger.info(
                 f"成功从文件加载状态。基准价: {self.base_price:.2f}, 网格: {self.grid_size:.2f}%, "
-                f"EWMA已初始化: {self.ewma_initialized}"
+                f"EWMA已初始化: {self.ewma_initialized}, 监测状态: 买入={self.is_monitoring_buy}, 卖出={self.is_monitoring_sell}"
             )
         except Exception as e:
             self.logger.error(f"加载核心状态失败，将使用默认值: {e}")
@@ -345,7 +360,7 @@ class GridTrader:
 
         if current_price <= initial_lower_band:
             # --- START OF CORRECTION ---
-            self.buying_or_selling = True
+            self.is_monitoring_buy = True
 
             old_lowest = self.lowest if self.lowest is not None else float('inf')
 
@@ -367,7 +382,7 @@ class GridTrader:
             # 触发买入的逻辑保持不变
             threshold = FLIP_THRESHOLD(self.grid_size)
             if self.lowest and current_price >= self.lowest * (1 + threshold):
-                self.buying_or_selling = False # 准备交易，退出监测
+                self.is_monitoring_buy = False # 准备交易，退出监测
                 self.logger.info(
                     f"触发买入信号 | 当前价: {current_price:.2f} | 已反弹: {(current_price / self.lowest - 1) * 100:.2f}%")
                 if not await self.check_buy_balance(current_price):
@@ -375,9 +390,9 @@ class GridTrader:
                 return True
         else:
             # 只有当价格回升，并且我们之前正处于"买入监测"状态时，才重置
-            if self.buying_or_selling:
+            if self.is_monitoring_buy:
                 self.logger.info(f"价格已回升至 {current_price:.2f}，高于下轨 {initial_lower_band:.2f}。重置买入监测状态。")
-                self.buying_or_selling = False
+                self.is_monitoring_buy = False
                 self._reset_extremes()
 
         return False
@@ -389,7 +404,7 @@ class GridTrader:
         if current_price >= initial_upper_band:
             # --- START OF CORRECTION ---
             # 无论如何，先进入监测状态
-            self.buying_or_selling = True
+            self.is_monitoring_sell = True
 
             # 使用一个临时变量来记录旧的最高价，方便对比
             old_highest = self.highest if self.highest is not None else 0.0
@@ -412,7 +427,7 @@ class GridTrader:
             # 触发卖出的逻辑保持不变
             threshold = FLIP_THRESHOLD(self.grid_size)
             if self.highest and current_price <= self.highest * (1 - threshold):
-                self.buying_or_selling = False  # 准备交易，退出监测
+                self.is_monitoring_sell = False  # 准备交易，退出监测
                 self.logger.info(
                     f"触发卖出信号 | 当前价: {current_price:.2f} | 目标价: {self.highest * (1 - threshold):.5f} | 已下跌: {(1 - current_price / self.highest) * 100:.2f}%")
                 if not await self.check_sell_balance():
@@ -420,9 +435,9 @@ class GridTrader:
                 return True
         else:
             # 只有当价格回落，并且我们之前正处于"卖出监测"状态时，才意味着本次机会结束，可以重置了
-            if self.buying_or_selling:
+            if self.is_monitoring_sell:
                 self.logger.info(f"价格已回落至 {current_price:.2f}，低于上轨 {initial_upper_band:.2f}。重置卖出监测状态。")
-                self.buying_or_selling = False
+                self.is_monitoring_sell = False
                 self._reset_extremes()
 
         return False
@@ -1155,8 +1170,8 @@ class GridTrader:
         # 计算对数收益率
         returns = np.diff(np.log(prices))
 
-        # 计算年化波动率 (日数据，所以乘以sqrt(252))
-        volatility = np.std(returns) * np.sqrt(252)  # 252个交易日
+        # 计算年化波动率 (日数据，所以乘以sqrt(365))
+        volatility = np.std(returns) * np.sqrt(365)  # 365个交易日
 
         return volatility
 
