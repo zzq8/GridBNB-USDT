@@ -1573,14 +1573,26 @@ class GridTrader:
                     self.logger.info(f"可划转{self.quote_asset} ({transfer_amount:.2f}) 低于最小申购额 1.0，跳过申购")
             elif quote_balance < target_quote:
                 # 不足的从理财赎回
-                transfer_amount = target_quote - quote_balance
-                self.logger.info(f"从理财赎回{self.quote_asset}: {transfer_amount}")
-                # 同样，赎回也可能需要最小金额检查，如果遇到错误需添加
-                try:
-                    await self.exchange.transfer_to_spot(self.quote_asset, transfer_amount)
-                    self.logger.info(f"已从理财赎回 {transfer_amount:.2f} {self.quote_asset}")
-                except Exception as e_spot_quote:
-                    self.logger.error(f"从理财赎回{self.quote_asset}失败: {str(e_spot_quote)}")
+                needed_amount = target_quote - quote_balance
+
+                # --- 【新增】前置检查：确保理财账户里有该资产 ---
+                funding_quote_balance = float(funding_balance.get(self.quote_asset, 0))
+                if funding_quote_balance > 0:
+                    # 实际能赎回的金额，不能超过理财账户里的余额
+                    actual_transfer_amount = min(needed_amount, funding_quote_balance)
+                    self.logger.info(f"理财账户有 {funding_quote_balance:.2f} {self.quote_asset}，尝试从理财赎回: {actual_transfer_amount:.2f}")
+                    try:
+                        # 确保赎回金额大于一个极小值，避免API报错
+                        if actual_transfer_amount >= 0.01:
+                            await self.exchange.transfer_to_spot(self.quote_asset, actual_transfer_amount)
+                            self.logger.info(f"已成功从理财赎回 {actual_transfer_amount:.2f} {self.quote_asset}")
+                        else:
+                            self.logger.info(f"计算出的需赎回金额 ({actual_transfer_amount:.4f}) 过小，跳过。")
+                    except Exception as e_spot_quote:
+                        self.logger.error(f"从理财赎回{self.quote_asset}失败: {str(e_spot_quote)}")
+                else:
+                    # 如果理财里没有，就直接警告
+                    self.logger.warning(f"现货{self.quote_asset}不足，且理财账户中没有{self.quote_asset}可供赎回。请手动补充底仓。")
 
             # 调整基础货币余额
             if base_balance > target_base:
@@ -1599,15 +1611,26 @@ class GridTrader:
                     self.logger.info(f"可划转{self.base_asset} ({transfer_amount:.4f}) 低于最小申购额 {min_transfer}，跳过申购")
             elif base_balance < target_base:
                 # 不足的从理财赎回
-                transfer_amount = target_base - base_balance
-                self.logger.info(f"从理财赎回{self.base_asset}: {transfer_amount}")
-                # 赎回操作通常有不同的最低限额，或者限额较低，这里暂时不加检查
-                # 如果赎回也遇到 -6005，需要在这里也加上对应的赎回最小额检查
-                try:
-                    await self.exchange.transfer_to_spot(self.base_asset, transfer_amount)
-                    self.logger.info(f"已从理财赎回 {transfer_amount:.4f} {self.base_asset}")
-                except Exception as e_spot:
-                    self.logger.error(f"从理财赎回{self.base_asset}失败: {str(e_spot)}")
+                needed_amount = target_base - base_balance
+
+                # --- 【新增】前置检查：确保理财账户里有该资产 ---
+                funding_base_balance = float(funding_balance.get(self.base_asset, 0))
+                if funding_base_balance > 0:
+                    # 实际能赎回的金额，不能超过理财账户里的余额
+                    actual_transfer_amount = min(needed_amount, funding_base_balance)
+                    self.logger.info(f"理财账户有 {funding_base_balance:.4f} {self.base_asset}，尝试从理财赎回: {actual_transfer_amount:.4f}")
+                    try:
+                        # 确保赎回金额大于一个极小值，避免API报错
+                        if actual_transfer_amount > 1e-8:
+                            await self.exchange.transfer_to_spot(self.base_asset, actual_transfer_amount)
+                            self.logger.info(f"已成功从理财赎回 {actual_transfer_amount:.4f} {self.base_asset}")
+                        else:
+                            self.logger.info(f"计算出的需赎回金额 ({actual_transfer_amount:.8f}) 过小，跳过。")
+                    except Exception as e_spot:
+                        self.logger.error(f"从理财赎回{self.base_asset}失败: {str(e_spot)}")
+                else:
+                    # 如果理财里没有，就直接警告
+                    self.logger.warning(f"现货{self.base_asset}不足，且理财账户中没有{self.base_asset}可供赎回。请手动补充底仓。")
 
             self.logger.info(
                 f"资金分配完成\n"
