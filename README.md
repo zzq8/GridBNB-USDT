@@ -270,6 +270,19 @@ docker stats
 
 <div align="center">
 
+### 🤝 联系与交流
+
+遇到问题或有任何想法？通过以下方式加入我们的社区，我们期待你的声音！
+
+<p>
+  <a href="https://t.me/+b9fKO9kEOkg2ZjI1"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-群组交流-28A8EA?style=flat-square&logo=telegram"></a>
+  <a href="https://github.com/EBOLABOY/GridBNB-USDT/issues"><img alt="Issues" src="https://img.shields.io/github/issues/EBOLABOY/GridBNB-USDT?style=flat-square&logo=github&label=Issues"></a>
+  </p>
+
+</div>
+
+<div align="center">
+
 **⭐ 如果这个项目对您有帮助，请给个 Star！⭐**
 
 [![Powered by DartNode](https://dartnode.com/branding/DN-Open-Source-sm.png)](https://dartnode.com "Powered by DartNode - Free VPS for Open Source")
