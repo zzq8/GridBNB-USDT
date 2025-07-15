@@ -1135,28 +1135,33 @@ class GridTrader:
             # 4. 【关键】使用平滑后的波动率来决定网格大小
             volatility_for_decision = smoothed_volatility
 
-            # 根据平滑后的波动率获取基础网格大小
-            base_grid = None
-            for range_config in self.config.GRID_PARAMS['volatility_threshold']['ranges']:
-                if range_config['range'][0] <= volatility_for_decision < range_config['range'][1]:
-                    base_grid = range_config['grid']
-                    break
+            # ========== 使用连续函数计算新网格大小 ==========
+            # 1. 从配置中获取连续调整的参数
+            params = self.config.GRID_CONTINUOUS_PARAMS
+            base_grid = params['base_grid']
+            center_volatility = params['center_volatility']
+            sensitivity_k = params['sensitivity_k']
 
-            # 如果没有匹配到波动率范围，使用默认网格
-            if base_grid is None:
-                base_grid = self.config.INITIAL_GRID
+            # 2. 应用线性函数公式
+            # 公式: 新网格 = 基础网格 + k * (当前平滑波动率 - 波动率中心点)
+            new_grid = base_grid + sensitivity_k * (volatility_for_decision - center_volatility)
 
-            new_grid = base_grid
+            self.logger.info(
+                f"连续网格计算 | "
+                f"波动率: {volatility_for_decision:.2%} | "
+                f"计算公式: {base_grid:.2f}% + {sensitivity_k} * ({volatility_for_decision:.2%} - {center_volatility:.2%}) = {new_grid:.2f}%"
+            )
 
             # 确保网格在允许范围内
             new_grid = max(min(new_grid, self.config.GRID_PARAMS['max']), self.config.GRID_PARAMS['min'])
 
-            if new_grid != self.grid_size:
+            # 只有在变化大于0.01%时才更新，避免频繁的微小调整
+            if abs(new_grid - self.grid_size) > 0.01:
                 self.logger.info(
                     f"调整网格大小 | "
                     f"平滑波动率: {volatility_for_decision:.2%} | "  # 日志中体现是平滑值
                     f"原网格: {self.grid_size:.2f}% | "
-                    f"新网格: {new_grid:.2f}%"
+                    f"新网格 (限定范围后): {new_grid:.2f}%"
                 )
                 self.grid_size = new_grid
                 self.last_grid_adjust_time = time.time()  # 更新时间
@@ -1188,8 +1193,8 @@ class GridTrader:
             prices = [float(k[4]) for k in klines]
             current_price = prices[-1]
 
-            # 计算7天传统波动率
-            traditional_volatility = self._calculate_traditional_volatility(prices)
+            # 计算7天传统波动率 (传递完整的klines数据以支持成交量加权)
+            traditional_volatility = self._calculate_traditional_volatility(klines)
 
             # 计算EWMA波动率
             ewma_volatility = self._update_ewma_volatility(current_price)
@@ -1215,20 +1220,48 @@ class GridTrader:
             self.logger.error(f"计算波动率失败: {str(e)}")
             return 0.2  # 返回默认波动率而不是0
 
-    def _calculate_traditional_volatility(self, prices):
+    def _calculate_traditional_volatility(self, klines):
         """
-        计算传统的7天年化波动率
+        计算传统的7天年化波动率 (已优化：支持成交量加权)
         使用对数收益率的标准差，基于4小时数据
         """
-        if len(prices) < 2:
+        if len(klines) < 2:
             return 0.2
 
-        # 计算对数收益率
-        returns = np.diff(np.log(prices))
+        # 提取收盘价和成交量
+        prices = np.array([float(k[4]) for k in klines])
+        volumes = np.array([float(k[5]) for k in klines])
 
-        # 计算年化波动率 (4小时数据，所以乘以sqrt(365*6))
-        # 一年有365天，每天6根4小时K线，共2190根
-        volatility = np.std(returns) * np.sqrt(365 * 6)  # 年化因子
+        # 计算对数收益率
+        # np.diff 会让序列长度减1，所以我们对应地处理成交量
+        log_returns = np.diff(np.log(prices))
+
+        # 如果不启用成交量加权，则执行原逻辑
+        if not self.config.ENABLE_VOLUME_WEIGHTING:
+            volatility = np.std(log_returns) * np.sqrt(365 * 6)
+            return volatility
+
+        # --- 执行成交量加权逻辑 ---
+        # 我们需要对应收益率的成交量，通常使用后一根K线的成交量
+        relevant_volumes = volumes[1:]
+
+        # 计算平均成交量，处理分母为0的情况
+        average_volume = np.mean(relevant_volumes)
+        if average_volume == 0:
+            # 如果所有成交量都为0，则退回至不加权的计算
+            volatility = np.std(log_returns) * np.sqrt(365 * 6)
+            return volatility
+
+        # 计算成交量因子 (权重)
+        volume_factors = relevant_volumes / average_volume
+
+        # 计算加权后的收益率
+        weighted_log_returns = log_returns * volume_factors
+
+        self.logger.debug(f"成交量加权计算 | 平均成交量: {average_volume:.2f} | 成交量权重范围: [{np.min(volume_factors):.2f}, {np.max(volume_factors):.2f}]")
+
+        # 基于加权收益率计算年化波动率
+        volatility = np.std(weighted_log_returns) * np.sqrt(365 * 6)
 
         return volatility
 
