@@ -49,6 +49,12 @@ class ExchangeClient:
         self.balance_cache = {'timestamp': 0, 'data': None}
         self.funding_balance_cache = {'timestamp': 0, 'data': {}}
         self.cache_ttl = 30  # 缓存有效期（秒）
+
+        # 为全局总资产计算添加缓存
+        self.total_value_cache = {'timestamp': 0, 'data': 0.0}
+
+        # 【新增】用于管理后台时间同步任务
+        self.time_sync_task = None
     
     def _verify_credentials(self):
         """验证API密钥是否存在"""
@@ -312,10 +318,12 @@ class ExchangeClient:
         try:
             server_time = await self.exchange.fetch_time()
             local_time = int(time.time() * 1000)
+            # 【关键】更新 self.time_diff
             self.time_diff = server_time - local_time
-            self.logger.info(f"时间同步完成 | 时差: {self.time_diff}ms")
+            # 将日志级别从 INFO 改为 DEBUG，避免频繁刷屏
+            self.logger.debug(f"时间同步完成 | 新时差: {self.time_diff}ms")
         except Exception as e:
-            self.logger.error(f"时间同步失败: {str(e)}")
+            self.logger.error(f"周期性时间同步失败: {str(e)}")
 
     async def fetch_order_book(self, symbol, limit=5):
         """获取订单簿数据"""
@@ -420,4 +428,133 @@ class ExchangeClient:
         except Exception as e:
             self.logger.error(f"获取成交记录失败 for {symbol}: {str(e)}")
             # 返回空列表或根据需要处理错误
-            return [] 
+            return []
+
+    async def calculate_total_account_value(self, quote_currency: str = 'USDT', min_value_threshold: float = 1.0) -> float:
+        """
+        计算整个账户的总资产价值，并以指定的计价货币（默认为USDT）表示。
+
+        这个方法会获取账户中所有非零资产（包括现货和理财账户），
+        并将它们的价值换算成指定的计价货币进行累加。
+
+        Args:
+            quote_currency: 用于计价的货币，默认为 'USDT'。
+            min_value_threshold: 忽略价值低于此阈值的资产（以计价货币计），避免为"粉尘"资产请求价格。
+
+        Returns:
+            整个账户的总资产价值。
+        """
+        now = time.time()
+        # 如果缓存有效，直接返回缓存数据
+        if now - self.total_value_cache['timestamp'] < self.cache_ttl:
+            return self.total_value_cache['data']
+
+        try:
+            # 1. 获取现货和理财账户的完整余额
+            spot_balance = await self.fetch_balance()
+            funding_balance = await self.fetch_funding_balance()
+
+            # 2. 合并所有资产及其总额
+            combined_balances = {}
+
+            # 合并现货余额 (free + used = total)
+            for asset, amount in spot_balance.get('total', {}).items():
+                if float(amount) > 0:
+                    combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
+
+            # 合并理财余额
+            for asset, amount in funding_balance.items():
+                if float(amount) > 0:
+                    combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
+
+            total_value = 0.0
+            processed_assets = []
+            skipped_assets = []
+
+            # 3. 遍历所有资产，换算成USDT价值并累加
+            for asset, amount in combined_balances.items():
+                if amount <= 0:
+                    continue
+
+                asset_value = 0.0
+                if asset == quote_currency:
+                    # 如果资产本身就是计价货币，其价值就是其数量
+                    asset_value = amount
+                    processed_assets.append(f"{asset}: {amount:.4f} (计价货币)")
+                else:
+                    # 否则，尝试获取其对USDT的价格
+                    try:
+                        # 构造交易对，例如 'BTC/USDT'
+                        symbol = f"{asset}/{quote_currency}"
+                        ticker = await self.fetch_ticker(symbol)
+                        if ticker and 'last' in ticker and ticker['last'] > 0:
+                            asset_value = amount * ticker['last']
+                            processed_assets.append(f"{asset}: {amount:.4f} × {ticker['last']:.4f} = {asset_value:.2f}")
+                        else:
+                            skipped_assets.append(f"{asset}: 无效价格数据")
+                            continue
+                    except Exception as e:
+                        # 如果获取 'ASSET/USDT' 失败，记录并跳过
+                        skipped_assets.append(f"{asset}: 无法获取价格 ({str(e)[:50]})")
+                        continue
+
+                # 4. 只有当资产价值大于阈值时，才计入总资产
+                if asset_value >= min_value_threshold:
+                    total_value += asset_value
+                else:
+                    skipped_assets.append(f"{asset}: 价值过低 ({asset_value:.4f} < {min_value_threshold})")
+
+            # 记录详细的计算日志
+            self.logger.info(f"全账户总资产价值更新: {total_value:.2f} {quote_currency}")
+            if processed_assets:
+                self.logger.debug(f"已处理资产: {'; '.join(processed_assets)}")
+            if skipped_assets:
+                self.logger.debug(f"跳过资产: {'; '.join(skipped_assets)}")
+
+            # 更新缓存
+            self.total_value_cache = {'timestamp': now, 'data': total_value}
+
+            return total_value
+
+        except Exception as e:
+            self.logger.error(f"计算全账户总资产价值失败: {e}", exc_info=True)
+            # 如果计算失败，返回上一次的缓存值，避免显示为0
+            return self.total_value_cache['data']
+
+    async def start_periodic_time_sync(self, interval_seconds: int = 3600):
+        """
+        启动一个后台任务，周期性地同步交易所时间。
+
+        Args:
+            interval_seconds: 同步间隔，单位为秒。默认为 3600秒（1小时）。
+        """
+        if self.time_sync_task is not None:
+            self.logger.warning("时间同步任务已经启动，无需重复启动。")
+            return
+
+        async def _time_sync_loop():
+            self.logger.info(f"启动周期性时间同步任务，每 {interval_seconds} 秒执行一次。")
+            while True:
+                try:
+                    await self.sync_time()
+                    await asyncio.sleep(interval_seconds)
+                except asyncio.CancelledError:
+                    self.logger.info("时间同步任务被取消。")
+                    break
+                except Exception as e:
+                    self.logger.error(f"时间同步循环发生错误: {e}，将在60秒后重试。")
+                    await asyncio.sleep(60)
+
+        # 创建并启动后台任务
+        self.time_sync_task = asyncio.create_task(_time_sync_loop())
+
+    async def stop_periodic_time_sync(self):
+        """安全地停止周期性时间同步任务。"""
+        if self.time_sync_task and not self.time_sync_task.done():
+            self.time_sync_task.cancel()
+            try:
+                await self.time_sync_task
+            except asyncio.CancelledError:
+                pass  # 任务被取消是正常现象
+            self.logger.info("周期性时间同步任务已停止。")
+        self.time_sync_task = None

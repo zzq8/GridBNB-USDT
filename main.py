@@ -50,6 +50,9 @@ async def main():
         # 在主函数中创建唯一、共享的ExchangeClient实例
         shared_exchange_client = ExchangeClient()
 
+        # 【新增】启动周期性时间同步任务
+        await shared_exchange_client.start_periodic_time_sync()
+
         # 加载一次市场数据供所有实例使用
         await shared_exchange_client.load_markets()
         logging.info("市场数据加载完成，开始创建交易器实例...")
@@ -86,6 +89,8 @@ async def main():
         # 统一在此处关闭共享的客户端
         if shared_exchange_client:
             try:
+                # 【新增】在关闭连接前，先停止时间同步任务
+                await shared_exchange_client.stop_periodic_time_sync()
                 await shared_exchange_client.close()
                 logging.info("共享的交易所连接已安全关闭")
             except Exception as e:

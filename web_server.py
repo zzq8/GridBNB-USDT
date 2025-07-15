@@ -536,8 +536,9 @@ async def handle_status(request):
         minutes, seconds = divmod(remainder, 60)
         uptime_str = f"{days}天 {hours}小时 {minutes}分钟 {seconds}秒"
         
-        # 使用trader中正确的方法获取总资产
-        total_assets = await trader._get_total_assets()
+        # 【双轨制资产计算 - 第一轨：全局报告】
+        # 使用全局方法获取真正的账户总资产（包括所有币种），用于准确的盈亏报告
+        global_total_assets = await trader.exchange.calculate_total_account_value()
 
         # 使用动态资产名称计算余额
         base_asset = trader.base_asset
@@ -551,13 +552,13 @@ async def handle_status(request):
         spot_base = float(balance.get('total', {}).get(base_asset, 0))
         funding_base = float(funding_balance.get(base_asset, 0))
         display_base_balance = spot_base + funding_base
-        
-        # 计算总盈亏和盈亏率
+
+        # 计算全局总盈亏和盈亏率（基于全账户资产）
         initial_principal = trader.config.INITIAL_PRINCIPAL
         total_profit = 0.0
         profit_rate = 0.0
         if initial_principal > 0:
-            total_profit = total_assets - initial_principal
+            total_profit = global_total_assets - initial_principal
             profit_rate = (total_profit / initial_principal) * 100
         else:
             logging.warning("初始本金未设置或为0，无法计算盈亏率")
@@ -579,7 +580,9 @@ async def handle_status(request):
                 'profit': trade.get('profit', 0)
             } for trade in trades[-10:]]  # 只取最近10笔交易
         
-        # 计算目标委托金额 (总资产的10%)
+        # 【双轨制资产计算 - 第二轨：交易决策】
+        # 计算目标委托金额 (交易对相关资产的10%)，这里会调用 _get_pair_specific_assets_value 方法
+        # 确保交易决策只基于交易对相关资产，实现风险隔离
         target_order_amount = await trader._calculate_order_amount('buy') # buy/sell 结果一样
         
         # 获取仓位百分比 - 使用风控管理器的方法获取最准确的仓位比例
@@ -599,7 +602,7 @@ async def handle_status(request):
             "current_price": current_price,
             "grid_size": grid_size_decimal,
             "threshold": threshold,
-            "total_assets": total_assets,
+            "total_assets": global_total_assets,  # 使用全局总资产用于报告
             "quote_balance": display_quote_balance,  # 使用动态计价货币余额
             "base_balance": display_base_balance,    # 使用动态基础货币余额
             "target_order_amount": target_order_amount,

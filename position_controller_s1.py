@@ -218,7 +218,7 @@ class PositionControllerS1:
             # 使用风控管理器的仓位计算方法
             position_pct = await self.trader.risk_manager._get_position_ratio()
             position_value = await self.trader.risk_manager._get_position_value()
-            total_assets = await self.trader._get_total_assets()
+            total_assets = await self.trader._get_pair_specific_assets_value()
             bnb_balance = await self.trader.get_available_balance('BNB') # 获取可用 BNB
 
             if total_assets <= 0:

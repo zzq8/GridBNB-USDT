@@ -87,6 +87,10 @@ class GridTrader:
         self.is_monitoring_buy = False   # 是否在监测买入机会
         self.is_monitoring_sell = False  # 是否在监测卖出机会
 
+        # 【新增】波动率平滑化相关变量
+        self.volatility_history = []  # 用于存储最近的波动率值
+        self.volatility_smoothing_window = 3  # 平滑窗口大小，取最近3次的平均值
+
         # 状态持久化相关 - 状态文件名与交易对挂钩
         state_filename = f"trader_state_{self.symbol.replace('/', '_')}.json"
         self.state_file_path = os.path.join(os.path.dirname(__file__), 'data', state_filename)
@@ -109,7 +113,9 @@ class GridTrader:
                 'ewma_initialized': self.ewma_initialized,
                 # 独立监测状态
                 'is_monitoring_buy': self.is_monitoring_buy,
-                'is_monitoring_sell': self.is_monitoring_sell
+                'is_monitoring_sell': self.is_monitoring_sell,
+                # 波动率平滑相关
+                'volatility_history': self.volatility_history
             }
             # 确保 data 目录存在
             os.makedirs(os.path.dirname(self.state_file_path), exist_ok=True)
@@ -175,9 +181,15 @@ class GridTrader:
             if saved_is_monitoring_sell is not None:
                 self.is_monitoring_sell = bool(saved_is_monitoring_sell)
 
+            # 加载波动率历史记录
+            saved_volatility_history = state.get('volatility_history')
+            if saved_volatility_history is not None and isinstance(saved_volatility_history, list):
+                self.volatility_history = saved_volatility_history
+
             self.logger.info(
                 f"成功从文件加载状态。基准价: {self.base_price:.2f}, 网格: {self.grid_size:.2f}%, "
-                f"EWMA已初始化: {self.ewma_initialized}, 监测状态: 买入={self.is_monitoring_buy}, 卖出={self.is_monitoring_sell}"
+                f"EWMA已初始化: {self.ewma_initialized}, 监测状态: 买入={self.is_monitoring_buy}, 卖出={self.is_monitoring_sell}, "
+                f"波动率历史记录数: {len(self.volatility_history)}"
             )
         except Exception as e:
             self.logger.error(f"加载核心状态失败，将使用默认值: {e}")
@@ -453,7 +465,7 @@ class GridTrader:
                     current_time - getattr(self, f'{cache_key}_time') < 60:  # 1分钟缓存
                 return getattr(self, cache_key)
 
-            total_assets = await self._get_total_assets()
+            total_assets = await self._get_pair_specific_assets_value()
 
             # 目标金额严格等于总资产的10%
             amount = total_assets * 0.1
@@ -465,7 +477,7 @@ class GridTrader:
                                                                               0.01) > 0.01:
                 self.logger.info(
                     f"目标订单金额计算 | "
-                    f"总资产: {total_assets:.2f} {self.quote_asset} | "
+                    f"交易对相关资产: {total_assets:.2f} {self.quote_asset} | "
                     f"计算金额 (10%): {amount:.2f} {self.quote_asset}"
                 )
                 setattr(self, f'{cache_key}_last', amount)
@@ -1093,15 +1105,37 @@ class GridTrader:
                         continue
 
     async def adjust_grid_size(self):
-        """根据波动率和市场趋势调整网格大小"""
+        """根据【平滑后】的波动率和市场趋势调整网格大小"""
         try:
-            volatility = await self._calculate_volatility()
-            self.logger.info(f"当前波动率: {volatility:.4f}")
+            # 1. 计算当前的瞬时波动率
+            current_volatility = await self._calculate_volatility()
+            if current_volatility is None:
+                self.logger.warning("无法计算当前波动率，跳过网格调整。")
+                return
 
-            # 根据波动率获取基础网格大小
+            # 2. 更新波动率历史记录
+            self.volatility_history.append(current_volatility)
+            # 保持历史记录的长度不超过平滑窗口大小
+            if len(self.volatility_history) > self.volatility_smoothing_window:
+                self.volatility_history.pop(0)  # 移除最旧的记录
+
+            # 3. 计算平滑后的波动率（移动平均值）
+            # 只有当历史记录足够长时才开始计算，以保证平均值的有效性
+            if len(self.volatility_history) < self.volatility_smoothing_window:
+                self.logger.info(f"正在收集波动率数据 ({len(self.volatility_history)}/{self.volatility_smoothing_window})... 瞬时值: {current_volatility:.4f}")
+                return  # 数据不足，暂时不调整
+
+            smoothed_volatility = sum(self.volatility_history) / len(self.volatility_history)
+
+            self.logger.info(f"波动率分析 | 瞬时值: {current_volatility:.4f} | 平滑后({self.volatility_smoothing_window}次平均): {smoothed_volatility:.4f}")
+
+            # 4. 【关键】使用平滑后的波动率来决定网格大小
+            volatility_for_decision = smoothed_volatility
+
+            # 根据平滑后的波动率获取基础网格大小
             base_grid = None
             for range_config in self.config.GRID_PARAMS['volatility_threshold']['ranges']:
-                if range_config['range'][0] <= volatility < range_config['range'][1]:
+                if range_config['range'][0] <= volatility_for_decision < range_config['range'][1]:
                     base_grid = range_config['grid']
                     break
 
@@ -1109,7 +1143,6 @@ class GridTrader:
             if base_grid is None:
                 base_grid = self.config.INITIAL_GRID
 
-            # 删除趋势调整逻辑
             new_grid = base_grid
 
             # 确保网格在允许范围内
@@ -1118,7 +1151,7 @@ class GridTrader:
             if new_grid != self.grid_size:
                 self.logger.info(
                     f"调整网格大小 | "
-                    f"波动率: {volatility:.2%} | "
+                    f"平滑波动率: {volatility_for_decision:.2%} | "  # 日志中体现是平滑值
                     f"原网格: {self.grid_size:.2f}% | "
                     f"新网格: {new_grid:.2f}%"
                 )
@@ -1410,7 +1443,7 @@ class GridTrader:
         try:
             balance = await self.exchange.fetch_balance()
             current_price = await self._get_latest_price()
-            total_assets = await self._get_total_assets()
+            total_assets = await self._get_pair_specific_assets_value()
 
             # 如果无法获取价格或总资产，则跳过
             if not current_price or current_price <= 0 or total_assets <= 0:
@@ -1542,7 +1575,7 @@ class GridTrader:
             # 获取现货和理财账户余额
             balance = await self.exchange.fetch_balance()
             funding_balance = await self.exchange.fetch_funding_balance()
-            total_assets = await self._get_total_assets()
+            total_assets = await self._get_pair_specific_assets_value()
             current_price = await self._get_latest_price()
 
             # 计算目标持仓（总资产的16%）
@@ -1640,8 +1673,15 @@ class GridTrader:
         except Exception as e:
             self.logger.error(f"初始资金检查失败: {str(e)}")
 
-    async def _get_total_assets(self):
-        """获取总资产价值（以计价货币计算）"""
+    async def _get_pair_specific_assets_value(self):
+        """
+        获取当前交易对相关资产价值（以计价货币计算）- 用于交易决策
+
+        此方法仅计算当前交易对（self.base_asset和self.quote_asset）的资产价值，
+        用于该交易对的交易决策和风险控制，实现交易对之间的风险隔离。
+
+        如需获取全账户总资产（用于报告），请使用 exchange.calculate_total_account_value() 方法。
+        """
         try:
             # 使用缓存避免频繁请求
             current_time = time.time()
@@ -1696,7 +1736,7 @@ class GridTrader:
             if not hasattr(self, '_last_logged_assets') or \
                     abs(total_assets - self._last_logged_assets) / max(self._last_logged_assets, 0.01) > 0.01:
                 self.logger.info(
-                    f"总资产: {total_assets:.2f} {self.quote_asset} | "
+                    f"【{self.symbol}】交易对资产: {total_assets:.2f} {self.quote_asset} | "
                     f"现货: {spot_value:.2f} {self.quote_asset} "
                     f"({self.base_asset}: {spot_base:.4f}, {self.quote_asset}: {spot_quote:.2f}) | "
                     f"理财: {fund_value:.2f} {self.quote_asset} "

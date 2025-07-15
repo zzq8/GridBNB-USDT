@@ -22,9 +22,9 @@ class TradingMonitor:
 
         # 安全地调用 trader 的方法，处理可能的异常或属性缺失
         try:
-            # 确认 GridTrader 中获取总资产的方法名
-            if hasattr(self.trader, '_get_total_assets') and callable(getattr(self.trader, '_get_total_assets')):
-                total_assets = await self.trader._get_total_assets()
+            # 确认 GridTrader 中获取交易对资产的方法名
+            if hasattr(self.trader, '_get_pair_specific_assets_value') and callable(getattr(self.trader, '_get_pair_specific_assets_value')):
+                total_assets = await self.trader._get_pair_specific_assets_value()
             elif hasattr(self.trader, 'total_assets'): # 备选：直接访问属性
                  total_assets = self.trader.total_assets
         except Exception as e:
