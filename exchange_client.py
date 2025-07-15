@@ -520,13 +520,6 @@ class ExchangeClient:
                 else:
                     skipped_assets.append(f"{asset}: 价值过低 ({asset_value:.4f} < {min_value_threshold})")
 
-            # 记录详细的计算日志
-            self.logger.info(f"全账户总资产价值更新: {total_value:.2f} {quote_currency}")
-            if processed_assets:
-                self.logger.debug(f"已处理资产: {'; '.join(processed_assets)}")
-            if skipped_assets:
-                self.logger.debug(f"跳过资产: {'; '.join(skipped_assets)}")
-
             # 更新缓存
             self.total_value_cache = {'timestamp': now, 'data': total_value}
 
