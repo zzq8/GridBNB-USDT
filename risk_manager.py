@@ -18,10 +18,10 @@ class AdvancedRiskManager:
         self._min_limit_warning_logged = False
         self._max_limit_warning_logged = False
     
-    async def check_position_limits(self) -> RiskState:
+    async def check_position_limits(self, spot_balance, funding_balance) -> RiskState:
         """检查仓位限制并返回相应的风险状态，同时控制日志频率"""
         try:
-            position_ratio = await self._get_position_ratio()
+            position_ratio = await self._get_position_ratio(spot_balance, funding_balance) # 传递参数
 
             # 保存上次的仓位比例
             if not hasattr(self, 'last_position_ratio'):
@@ -80,31 +80,35 @@ class AdvancedRiskManager:
     # 保留原方法以保持向后兼容性
     async def multi_layer_check(self):
         """向后兼容的方法，将新的风控状态转换为布尔值"""
-        risk_state = await self.check_position_limits()
+        # 获取账户快照
+        spot_balance = await self.trader.exchange.fetch_balance()
+        funding_balance = await self.trader.exchange.fetch_funding_balance()
+
+        risk_state = await self.check_position_limits(spot_balance, funding_balance)
         return risk_state != RiskState.ALLOW_ALL
 
-    async def _get_position_value(self):
-        balance = await self.trader.exchange.fetch_balance()
-        funding_balance = await self.trader.exchange.fetch_funding_balance()
+    async def _get_position_value(self, spot_balance, funding_balance):
+        # balance = await self.trader.exchange.fetch_balance() # 删除，使用参数
+        # funding_balance = await self.trader.exchange.fetch_funding_balance() # 删除，使用参数
         if not self.trader.base_asset:
             self.trader.logger.error("基础资产信息未初始化")
             return 0
         base_amount = (
-            float(balance.get('free', {}).get(self.trader.base_asset, 0)) +
+            float(spot_balance.get('free', {}).get(self.trader.base_asset, 0)) +
             float(funding_balance.get(self.trader.base_asset, 0))
         )
         current_price = await self.trader._get_latest_price()
         return base_amount * current_price
 
-    async def _get_position_ratio(self):
+    async def _get_position_ratio(self, spot_balance, funding_balance):
         """获取当前仓位占总资产比例"""
         try:
-            position_value = await self._get_position_value()
-            balance = await self.trader.exchange.fetch_balance()
-            funding_balance = await self.trader.exchange.fetch_funding_balance()
+            position_value = await self._get_position_value(spot_balance, funding_balance) # 传递参数
+            # balance = await self.trader.exchange.fetch_balance() # 删除，使用参数
+            # funding_balance = await self.trader.exchange.fetch_funding_balance() # 删除，使用参数
 
             quote_balance = (
-                float(balance.get('free', {}).get(self.trader.quote_asset, 0)) +
+                float(spot_balance.get('free', {}).get(self.trader.quote_asset, 0)) +
                 float(funding_balance.get(self.trader.quote_asset, 0))
             )
 

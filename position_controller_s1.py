@@ -215,9 +215,13 @@ class PositionControllerS1:
                 self.logger.warning("S1: Invalid current price from trader.")
                 return
 
+            # 获取账户快照用于仓位计算
+            spot_balance = await self.trader.exchange.fetch_balance()
+            funding_balance = await self.trader.exchange.fetch_funding_balance()
+
             # 使用风控管理器的仓位计算方法
-            position_pct = await self.trader.risk_manager._get_position_ratio()
-            position_value = await self.trader.risk_manager._get_position_value()
+            position_pct = await self.trader.risk_manager._get_position_ratio(spot_balance, funding_balance)
+            position_value = await self.trader.risk_manager._get_position_value(spot_balance, funding_balance)
             total_assets = await self.trader._get_pair_specific_assets_value()
             bnb_balance = await self.trader.get_available_balance('BNB') # 获取可用 BNB
 

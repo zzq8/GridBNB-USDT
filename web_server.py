@@ -585,8 +585,12 @@ async def handle_status(request):
         # 确保交易决策只基于交易对相关资产，实现风险隔离
         target_order_amount = await trader._calculate_order_amount('buy') # buy/sell 结果一样
         
+        # 获取账户快照用于仓位计算
+        spot_balance = await trader.exchange.fetch_balance()
+        funding_balance = await trader.exchange.fetch_funding_balance()
+
         # 获取仓位百分比 - 使用风控管理器的方法获取最准确的仓位比例
-        position_ratio = await trader.risk_manager._get_position_ratio()
+        position_ratio = await trader.risk_manager._get_position_ratio(spot_balance, funding_balance)
         position_percentage = position_ratio * 100
         
         # 获取 S1 高低价

@@ -32,8 +32,11 @@ class TradingMonitor:
             # 可以设置默认值或记录错误
 
         try:
-            if hasattr(self.trader, '_get_position_ratio') and callable(getattr(self.trader, '_get_position_ratio')):
-                position_ratio = await self.trader._get_position_ratio()
+            # 使用风控管理器获取仓位比例，需要先获取账户快照
+            if hasattr(self.trader, 'risk_manager') and hasattr(self.trader.risk_manager, '_get_position_ratio'):
+                spot_balance = await self.trader.exchange.fetch_balance()
+                funding_balance = await self.trader.exchange.fetch_funding_balance()
+                position_ratio = await self.trader.risk_manager._get_position_ratio(spot_balance, funding_balance)
         except Exception as e:
             print(f"Error getting position ratio in monitor: {e}")
 

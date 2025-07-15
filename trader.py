@@ -366,7 +366,7 @@ class GridTrader:
         except Exception as e:
             self.logger.error(f"同步最近成交失败: {e}")
 
-    async def _check_buy_signal(self):
+    async def _check_buy_signal(self, spot_balance, funding_balance):
         current_price = self.current_price
         initial_lower_band = self._get_lower_band()
 
@@ -397,7 +397,7 @@ class GridTrader:
                 self.is_monitoring_buy = False # 准备交易，退出监测
                 self.logger.info(
                     f"触发买入信号 | 当前价: {current_price:.2f} | 已反弹: {(current_price / self.lowest - 1) * 100:.2f}%")
-                if not await self.check_buy_balance(current_price):
+                if not await self.check_buy_balance(current_price, spot_balance, funding_balance):
                     return False
                 return True
         else:
@@ -409,7 +409,7 @@ class GridTrader:
 
         return False
 
-    async def _check_sell_signal(self):
+    async def _check_sell_signal(self, spot_balance, funding_balance):
         current_price = self.current_price
         initial_upper_band = self._get_upper_band()
 
@@ -442,7 +442,7 @@ class GridTrader:
                 self.is_monitoring_sell = False  # 准备交易，退出监测
                 self.logger.info(
                     f"触发卖出信号 | 当前价: {current_price:.2f} | 目标价: {self.highest * (1 - threshold):.5f} | 已下跌: {(1 - current_price / self.highest) * 100:.2f}%")
-                if not await self.check_sell_balance():
+                if not await self.check_sell_balance(spot_balance, funding_balance):
                     return False
                 return True
         else:
@@ -553,6 +553,11 @@ class GridTrader:
                     continue
                 self.current_price = current_price
 
+                # ========== 新增：获取本轮循环的统一账户快照 ==========
+                spot_balance = await self.exchange.fetch_balance()
+                funding_balance = await self.exchange.fetch_funding_balance()
+                # ========== 新增结束 ==========
+
                 # --- 核心理念：维护任务与交易任务分离 ---
 
                 # ------------------------------------------------------------------
@@ -577,21 +582,23 @@ class GridTrader:
                 # ------------------------------------------------------------------
 
                 # 1. 【核心】首先获取唯一的风控许可
-                risk_state = await self.risk_manager.check_position_limits()
+                risk_state = await self.risk_manager.check_position_limits(spot_balance, funding_balance)
 
                 # 2. 定义标志位，确保一轮循环只做一次主网格交易
                 trade_executed_this_loop = False
 
                 # 3. 卖出逻辑：只有在风控允许的情况下，才去检查信号
                 if risk_state != RiskState.ALLOW_BUY_ONLY:
-                    sell_signal = await self._check_signal_with_retry(self._check_sell_signal, "卖出检测")
+                    sell_signal = await self._check_signal_with_retry(
+                        lambda: self._check_sell_signal(spot_balance, funding_balance), "卖出检测")
                     if sell_signal:
                         if await self.execute_order('sell'):
                             trade_executed_this_loop = True
 
                 # 4. 买入逻辑：如果没卖出，且风控允许，才去检查买入信号
                 if not trade_executed_this_loop and risk_state != RiskState.ALLOW_SELL_ONLY:
-                    buy_signal = await self._check_signal_with_retry(self._check_buy_signal, "买入检测")
+                    buy_signal = await self._check_signal_with_retry(
+                        lambda: self._check_buy_signal(spot_balance, funding_balance), "买入检测")
                     if buy_signal:
                         if await self.execute_order('buy'):
                             trade_executed_this_loop = True
@@ -705,18 +712,7 @@ class GridTrader:
             await self.exchange.close()
             exit()
 
-    async def _get_position_ratio(self):
-        """获取当前仓位占总资产比例"""
-        try:
-            quote_balance = await self.get_available_balance(self.quote_asset)
-            position_value = await self.risk_manager._get_position_value()
-            total_assets = position_value + quote_balance
-            if total_assets == 0:
-                return 0
-            return position_value / total_assets
-        except Exception as e:
-            self.logger.error(f"获取仓位比例失败: {str(e)}")
-            return 0
+
 
     async def _handle_filled_order(
             self,
@@ -1927,14 +1923,13 @@ class GridTrader:
             ema = (price - ema) * multiplier + ema
         return ema
 
-    async def check_buy_balance(self, current_price):
+    async def check_buy_balance(self, current_price, spot_balance, funding_balance):
         """检查买入前的余额，如果不够则从理财赎回"""
         try:
             # 计算所需买入资金
             amount_quote = await self._calculate_order_amount('buy')
 
-            # 获取现货余额
-            spot_balance = await self.exchange.fetch_balance({'type': 'spot'})
+            # spot_balance = await self.exchange.fetch_balance({'type': 'spot'}) # 删除，使用参数
 
             # 防御性检查：确保返回的余额是有效的
             if not spot_balance or 'free' not in spot_balance:
@@ -1956,7 +1951,7 @@ class GridTrader:
 
             # 现货不足，尝试从理财赎回
             self.logger.info(f"现货{self.quote_asset}不足，尝试从理财赎回...")
-            funding_balance = await self.exchange.fetch_funding_balance()
+            # funding_balance = await self.exchange.fetch_funding_balance() # 删除，使用参数
             funding_quote = float(funding_balance.get(self.quote_asset, 0) or 0)
 
             # 检查总余额是否足够
@@ -2004,11 +1999,10 @@ class GridTrader:
             send_pushplus_message(f"余额检查错误\\n交易类型: 买入\\n错误信息: {str(e)}", "系统错误")
             return False
 
-    async def check_sell_balance(self):
+    async def check_sell_balance(self, spot_balance, funding_balance):
         """检查卖出前的余额，如果不够则从理财赎回"""
         try:
-            # 获取现货余额
-            spot_balance = await self.exchange.fetch_balance({'type': 'spot'})
+            # spot_balance = await self.exchange.fetch_balance({'type': 'spot'}) # 删除，使用参数
 
             # 防御性检查：确保返回的余额是有效的
             if not spot_balance or 'free' not in spot_balance:
@@ -2040,7 +2034,7 @@ class GridTrader:
 
             # 现货不足，尝试从理财赎回
             self.logger.info(f"现货{self.base_asset}不足，尝试从理财赎回...")
-            funding_balance = await self.exchange.fetch_funding_balance()
+            # funding_balance = await self.exchange.fetch_funding_balance() # 删除，使用参数
             funding_base = float(funding_balance.get(self.base_asset, 0) or 0)
 
             # 检查总余额是否足够
