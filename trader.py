@@ -773,8 +773,11 @@ class GridTrader:
         )
         send_pushplus_message(msg, "交易成功通知")
 
-        # 6) 将多余资金转入理财
-        await self._transfer_excess_funds()
+        # 6) 将多余资金转入理财 (如果功能开启)
+        if self.config.ENABLE_SAVINGS_FUNCTION:
+            await self._transfer_excess_funds()
+        else:
+            self.logger.info("理财功能已禁用，跳过资金转移。")
 
         return order_dict
 
@@ -1440,6 +1443,10 @@ class GridTrader:
 
     async def _transfer_excess_funds(self):
         """将超出总资产16%目标的部分资金转回理财账户"""
+        # 功能开关检查
+        if not self.config.ENABLE_SAVINGS_FUNCTION:
+            return
+
         try:
             balance = await self.exchange.fetch_balance()
             current_price = await self._get_latest_price()
@@ -1571,6 +1578,11 @@ class GridTrader:
 
     async def _check_and_transfer_initial_funds(self):
         """检查并划转初始资金"""
+        # 功能开关检查
+        if not self.config.ENABLE_SAVINGS_FUNCTION:
+            self.logger.info("理财功能已禁用，跳过初始资金检查与划转。")
+            return
+
         try:
             # 获取现货和理财账户余额
             balance = await self.exchange.fetch_balance()
@@ -1904,6 +1916,11 @@ class GridTrader:
             if spot_quote >= amount_quote:
                 return True
 
+            # 现货不足，检查理财开关
+            if not self.config.ENABLE_SAVINGS_FUNCTION:
+                self.logger.error(f"买入资金不足，且理财功能已禁用。现货{self.quote_asset}: {spot_quote:.2f}, 所需: {amount_quote:.2f}")
+                return False
+
             # 现货不足，尝试从理财赎回
             self.logger.info(f"现货{self.quote_asset}不足，尝试从理财赎回...")
             funding_balance = await self.exchange.fetch_funding_balance()
@@ -1982,6 +1999,11 @@ class GridTrader:
             # 如果现货余额足够，直接返回成功
             if spot_base >= base_needed:
                 return True
+
+            # 现货不足，检查理财开关
+            if not self.config.ENABLE_SAVINGS_FUNCTION:
+                self.logger.error(f"卖出资金不足，且理财功能已禁用。现货{self.base_asset}: {spot_base:.8f}, 所需: {base_needed:.8f}")
+                return False
 
             # 现货不足，尝试从理财赎回
             self.logger.info(f"现货{self.base_asset}不足，尝试从理财赎回...")

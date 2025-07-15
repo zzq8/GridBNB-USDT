@@ -166,6 +166,12 @@ class ExchangeClient:
 
     async def fetch_funding_balance(self):
         """[已修复] 获取理财账户余额（支持分页）"""
+        # 功能开关检查
+        if not settings.ENABLE_SAVINGS_FUNCTION:
+            # 如果理财功能关闭，直接返回空字典，并确保缓存也是空的
+            self.funding_balance_cache = {'timestamp': 0, 'data': {}}
+            return {}
+
         now = time.time()
 
         # 如果缓存有效，直接返回缓存数据

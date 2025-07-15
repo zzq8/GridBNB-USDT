@@ -29,6 +29,10 @@ class Settings(BaseSettings):
 
     # --- 可选配置 (从 .env 读取) ---
     PUSHPLUS_TOKEN: Optional[str] = None
+
+    # 理财功能开关
+    ENABLE_SAVINGS_FUNCTION: bool = True
+
     WEB_USER: Optional[str] = None
     WEB_PASSWORD: Optional[str] = None
     HTTP_PROXY: Optional[str] = None
@@ -120,6 +124,7 @@ MAX_RETRIES = settings.MAX_RETRIES
 RISK_FACTOR = settings.RISK_FACTOR
 VOLATILITY_WINDOW = settings.VOLATILITY_WINDOW
 INITIAL_PRINCIPAL = settings.INITIAL_PRINCIPAL
+ENABLE_SAVINGS_FUNCTION = settings.ENABLE_SAVINGS_FUNCTION
 
 class TradingConfig:
     """交易配置类，整合所有配置参数"""
@@ -179,6 +184,9 @@ class TradingConfig:
     MAX_POSITION_PERCENT = settings.MAX_POSITION_PERCENT
     INITIAL_PRINCIPAL = settings.INITIAL_PRINCIPAL
     AUTO_ADJUST_BASE_PRICE = settings.AUTO_ADJUST_BASE_PRICE
+
+    # 理财功能开关
+    ENABLE_SAVINGS_FUNCTION = settings.ENABLE_SAVINGS_FUNCTION
 
     # 常量化的魔术数字
     SPOT_FUNDS_TARGET_RATIO = settings.SPOT_FUNDS_TARGET_RATIO

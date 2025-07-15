@@ -26,6 +26,7 @@
 - ✅ **连续失败保护**: 最大重试次数限制，防止僵尸进程
 - ✅ **实时监控**: 风险状态实时评估和告警
 - ✅ **紧急停止**: 异常情况下的自动停止机制
+- ✅ **理财功能开关**: 可选禁用理财功能，适合子账户用户
 
 ### 🌐 企业级部署
 - ✅ **Docker 容器化**: 完整的 Docker Compose 部署方案
@@ -146,6 +147,10 @@ INITIAL_PRINCIPAL=800
 # PushPlus 通知 Token
 PUSHPLUS_TOKEN="your_pushplus_token"
 
+# 理财功能开关 (true/false)
+# 对于子账户用户或不希望使用理财功能的用户，请设置为 false
+ENABLE_SAVINGS_FUNCTION=true
+
 # Web UI 认证 (可选)
 WEB_USER=admin
 WEB_PASSWORD=your_password
@@ -161,6 +166,32 @@ HTTP_PROXY="http://127.0.0.1:7890"
 - **禁用提现权限**
 - 不要在公共场所或代码中暴露密钥
 - 定期更换 API 密钥
+
+### 理财功能配置
+
+系统支持币安活期理财的自动申购/赎回功能，通过 `ENABLE_SAVINGS_FUNCTION` 开关控制：
+
+**启用理财功能 (默认)**:
+```bash
+ENABLE_SAVINGS_FUNCTION=true
+```
+- ✅ 自动将多余资金申购到活期理财
+- ✅ 资金不足时自动从理财赎回
+- ✅ 最大化资金利用效率
+
+**禁用理财功能**:
+```bash
+ENABLE_SAVINGS_FUNCTION=false
+```
+- ✅ 所有资金保留在现货账户
+- ✅ 不调用任何理财相关API
+- ✅ 适合子账户用户或保守用户
+
+**适用场景**:
+- 🏦 **子账户用户**: 子账户通常没有理财权限
+- 🔒 **保守策略**: 不希望资金离开现货账户
+- 🧪 **测试环境**: 避免意外的资金操作
+- ⚙️ **完全控制**: 手动管理所有资金流向
 
 ### 高级配置
 
