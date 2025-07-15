@@ -40,7 +40,7 @@ class ExchangeClient:
         if proxy:
             self.logger.info(f"使用代理: {proxy}")
         # 然后进行其他配置
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)
         self.logger.info("交易所客户端初始化完成")
 
         
