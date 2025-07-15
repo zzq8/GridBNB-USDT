@@ -438,106 +438,77 @@ class ExchangeClient:
 
     async def calculate_total_account_value(self, quote_currency: str = 'USDT', min_value_threshold: float = 1.0) -> float:
         """
-        【已升级】计算整个账户的总资产价值，并以指定的计价货币（默认为USDT）表示。
-        此版本能智能处理币安理财产品产生的 'LD' 前缀资产。
-
-        这个方法会获取账户中所有非零资产（包括现货和理财账户），
-        并将它们的价值换算成指定的计价货币进行累加。
-
-        Args:
-            quote_currency: 用于计价的货币，默认为 'USDT'。
-            min_value_threshold: 忽略价值低于此阈值的资产（以计价货币计），避免为"粉尘"资产请求价格。
-
-        Returns:
-            整个账户的总资产价值。
+        【最终修复版】计算整个账户的总资产价值。
+        此版本修复了因 fetch_balance() 返回理财凭证而导致的重复计算BUG。
         """
         now = time.time()
-        # 如果缓存有效，直接返回缓存数据
         if now - self.total_value_cache['timestamp'] < self.cache_ttl:
             return self.total_value_cache['data']
 
         try:
-            # 1. 获取现货和理财账户的完整余额
+            # 1. 获取现货和理财账户的余额
             spot_balance = await self.fetch_balance()
             funding_balance = await self.fetch_funding_balance()
 
-            # 2. 合并所有资产及其总额
+            # --- 核心修复逻辑开始 ---
+
+            # 2. 创建一个干净的合并字典
             combined_balances = {}
 
-            # 【调试】记录原始数据
-            self.logger.info(f"[全局资产计算] 现货账户余额: {spot_balance.get('total', {})}")
-            self.logger.info(f"[全局资产计算] 理财账户余额: {funding_balance}")
+            # 3. 首先，只处理真正的现货余额。
+            # 我们遍历现货账户返回的所有资产，但【明确跳过】所有以 'LD' 开头的理财凭证。
+            # 这确保了我们只累加纯粹的现货资产。
+            if spot_balance and 'total' in spot_balance:
+                for asset, amount in spot_balance['total'].items():
+                    if float(amount) > 0 and not asset.startswith('LD'):
+                        combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
 
-            # 合并现货余额 (free + used = total)
-            for asset, amount in spot_balance.get('total', {}).items():
-                if float(amount) > 0:
-                    combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
-                    self.logger.info(f"[全局资产计算] 现货资产 {asset}: {amount}")
+            # 4. 然后，将专门获取的、干净的理财账户余额加进来。
+            # 因为上一步已经排除了 'LD' 资产，这里的累加绝对不会重复。
+            if funding_balance:
+                for asset, amount in funding_balance.items():
+                    if float(amount) > 0:
+                        combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
 
-            # 合并理财余额
-            for asset, amount in funding_balance.items():
-                if float(amount) > 0:
-                    old_amount = combined_balances.get(asset, 0.0)
-                    combined_balances[asset] = old_amount + float(amount)
-                    self.logger.info(f"[全局资产计算] 理财资产 {asset}: {amount} (现货中已有: {old_amount})")
-
-            self.logger.info(f"[全局资产计算] 合并后的资产: {combined_balances}")
+            # --- 核心修复逻辑结束 ---
 
             total_value = 0.0
-            processed_assets = []
-            skipped_assets = []
 
-            # 3. 遍历所有资产，换算成USDT价值并累加
+            # 5. 后续的计价逻辑保持不变，因为它现在处理的是一个干净、无重复的资产列表
             for asset, amount in combined_balances.items():
                 if amount <= 0:
                     continue
 
                 asset_value = 0.0
 
-                # 【核心修改】智能处理 'LD' 前缀资产
+                # 注意：这里的 'LD' 处理逻辑依然需要保留，因为在某些极罕见情况下，
+                # funding_balance 可能直接返回带 'LD' 的key。这是一种防御性编程。
                 original_asset = asset
                 if asset.startswith('LD'):
-                    # 如果资产以 'LD' 开头，我们就取其后面的部分作为原始币种
-                    # 例如: 'LDUSDT' -> 'USDT', 'LDBNB' -> 'BNB'
                     original_asset = asset[2:]
-                    self.logger.debug(f"检测到理财凭证资产: {asset}，将按原始资产 {original_asset} 计算价值。")
 
                 if original_asset == quote_currency:
-                    # 如果原始资产本身就是计价货币，其价值就是其数量
                     asset_value = amount
-                    processed_assets.append(f"{asset}: {amount:.4f} (计价货币)")
                 else:
-                    # 否则，尝试获取原始资产对计价货币的价格
                     try:
-                        # 构造交易对，例如 'BNB/USDT'（而不是 'LDBNB/USDT'）
                         symbol = f"{original_asset}/{quote_currency}"
                         ticker = await self.fetch_ticker(symbol)
                         if ticker and 'last' in ticker and ticker['last'] > 0:
                             asset_value = amount * ticker['last']
-                            processed_assets.append(f"{asset}: {amount:.4f} × {ticker['last']:.4f} = {asset_value:.2f}")
                         else:
-                            skipped_assets.append(f"{asset}: 无效价格数据")
                             continue
-                    except Exception as e:
-                        # 如果获取价格失败，记录并跳过
-                        skipped_assets.append(f"{asset}: 无法获取价格 ({str(e)[:50]})")
+                    except Exception:
                         continue
 
-                # 4. 只有当资产价值大于阈值时，才计入总资产
                 if asset_value >= min_value_threshold:
                     total_value += asset_value
-                else:
-                    skipped_assets.append(f"{asset}: 价值过低 ({asset_value:.4f} < {min_value_threshold})")
 
-            # 更新缓存
             self.total_value_cache = {'timestamp': now, 'data': total_value}
-
             return total_value
 
         except Exception as e:
             self.logger.error(f"计算全账户总资产价值失败: {e}", exc_info=True)
-            # 如果计算失败，返回上一次的缓存值，避免显示为0
-            return self.total_value_cache['data']
+            return self.total_value_cache.get('data', 0.0)
 
     async def start_periodic_time_sync(self, interval_seconds: int = 3600):
         """
