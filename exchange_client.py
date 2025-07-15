@@ -438,7 +438,8 @@ class ExchangeClient:
 
     async def calculate_total_account_value(self, quote_currency: str = 'USDT', min_value_threshold: float = 1.0) -> float:
         """
-        计算整个账户的总资产价值，并以指定的计价货币（默认为USDT）表示。
+        【已升级】计算整个账户的总资产价值，并以指定的计价货币（默认为USDT）表示。
+        此版本能智能处理币安理财产品产生的 'LD' 前缀资产。
 
         这个方法会获取账户中所有非零资产（包括现货和理财账户），
         并将它们的价值换算成指定的计价货币进行累加。
@@ -483,15 +484,24 @@ class ExchangeClient:
                     continue
 
                 asset_value = 0.0
-                if asset == quote_currency:
-                    # 如果资产本身就是计价货币，其价值就是其数量
+
+                # 【核心修改】智能处理 'LD' 前缀资产
+                original_asset = asset
+                if asset.startswith('LD'):
+                    # 如果资产以 'LD' 开头，我们就取其后面的部分作为原始币种
+                    # 例如: 'LDUSDT' -> 'USDT', 'LDBNB' -> 'BNB'
+                    original_asset = asset[2:]
+                    self.logger.debug(f"检测到理财凭证资产: {asset}，将按原始资产 {original_asset} 计算价值。")
+
+                if original_asset == quote_currency:
+                    # 如果原始资产本身就是计价货币，其价值就是其数量
                     asset_value = amount
                     processed_assets.append(f"{asset}: {amount:.4f} (计价货币)")
                 else:
-                    # 否则，尝试获取其对USDT的价格
+                    # 否则，尝试获取原始资产对计价货币的价格
                     try:
-                        # 构造交易对，例如 'BTC/USDT'
-                        symbol = f"{asset}/{quote_currency}"
+                        # 构造交易对，例如 'BNB/USDT'（而不是 'LDBNB/USDT'）
+                        symbol = f"{original_asset}/{quote_currency}"
                         ticker = await self.fetch_ticker(symbol)
                         if ticker and 'last' in ticker and ticker['last'] > 0:
                             asset_value = amount * ticker['last']
@@ -500,7 +510,7 @@ class ExchangeClient:
                             skipped_assets.append(f"{asset}: 无效价格数据")
                             continue
                     except Exception as e:
-                        # 如果获取 'ASSET/USDT' 失败，记录并跳过
+                        # 如果获取价格失败，记录并跳过
                         skipped_assets.append(f"{asset}: 无法获取价格 ({str(e)[:50]})")
                         continue
 
