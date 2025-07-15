@@ -9,35 +9,37 @@ from web_server import start_web_server
 from exchange_client import ExchangeClient
 from config import TradingConfig, SYMBOLS_LIST
 
-async def periodic_global_status_logger(exchange_client: ExchangeClient, interval_seconds: int = 60):
+async def periodic_global_status_logger(interval_seconds: int = 60):
     """
-    一个独立的后台任务，周期性地计算并记录真正的全账户总资产。
-    【优化版】只有当资产变化超过1%时才打印日志。
+    一个独立的后台任务，使用自己独立的ExchangeClient实例，
+    周期性地计算并记录真正的全账户总资产。
+    【最终修复版】
     """
     logging.info(f"启动全局资产监控任务，每 {interval_seconds} 秒检查一次（仅在变化>1%时记录）。")
 
-    # 用于存储上一次记录的总资产值，初始化为0以确保第一次总会记录
+    # 1. 为此任务创建专用的、独立的客户端实例，确保数据隔离
+    report_client = None
+    try:
+        report_client = ExchangeClient()
+        await report_client.load_markets() # 独立加载市场数据
+    except Exception as e:
+        logging.critical(f"全局资产监控任务的客户端初始化失败，任务无法启动: {e}")
+        return # 如果客户端初始化失败，则直接退出任务
+
     last_logged_total_value = 0.0
 
     while True:
         try:
-            # 1. 计算当前的总价值
-            current_total_value = await exchange_client.calculate_total_account_value(quote_currency='USDT')
+            # 2. 使用专用的客户端进行计算
+            current_total_value = await report_client.calculate_total_account_value(quote_currency='USDT')
 
-            # 2. 核心逻辑：只有当资产变化超过1%时才记录日志
-            # 使用 max(last_logged_total_value, 1e-9) 来避免除以零的错误
             if abs(current_total_value - last_logged_total_value) / max(last_logged_total_value, 1e-9) > 0.01:
-
-                # 3. 打印日志
                 logging.info(
                     f"【全局资产报告】当前全账户总价值: {current_total_value:.2f} USDT "
                     f"(较上次记录变化: {current_total_value - last_logged_total_value:+.2f} USDT)"
                 )
-
-                # 4. 更新上一次记录的值，为下一次比较做准备
                 last_logged_total_value = current_total_value
 
-            # 无论是否打印日志，都按预设间隔等待
             await asyncio.sleep(interval_seconds)
 
         except asyncio.CancelledError:
@@ -45,8 +47,12 @@ async def periodic_global_status_logger(exchange_client: ExchangeClient, interva
             break
         except Exception as e:
             logging.error(f"全局资产监控任务发生错误: {e}", exc_info=True)
-            # 发生错误后等待更长时间再重试
             await asyncio.sleep(interval_seconds * 2)
+
+    # 任务结束前，安全关闭专用的客户端
+    if report_client:
+        await report_client.close()
+        logging.info("全局资产监控任务的客户端已关闭。")
 
 # 在Windows平台上设置SelectorEventLoop
 if platform.system() == 'Windows':
@@ -119,7 +125,7 @@ async def main():
 
         # 【新增】启动独立的全局资产监控任务
         global_status_task = asyncio.create_task(
-            periodic_global_status_logger(shared_exchange_client, interval_seconds=60)
+            periodic_global_status_logger(interval_seconds=60)
         )
         tasks.append(global_status_task)
 
