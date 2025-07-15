@@ -464,15 +464,24 @@ class ExchangeClient:
             # 2. 合并所有资产及其总额
             combined_balances = {}
 
+            # 【调试】记录原始数据
+            self.logger.debug(f"现货账户余额: {spot_balance.get('total', {})}")
+            self.logger.debug(f"理财账户余额: {funding_balance}")
+
             # 合并现货余额 (free + used = total)
             for asset, amount in spot_balance.get('total', {}).items():
                 if float(amount) > 0:
                     combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
+                    self.logger.debug(f"现货资产 {asset}: {amount}")
 
             # 合并理财余额
             for asset, amount in funding_balance.items():
                 if float(amount) > 0:
-                    combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
+                    old_amount = combined_balances.get(asset, 0.0)
+                    combined_balances[asset] = old_amount + float(amount)
+                    self.logger.debug(f"理财资产 {asset}: {amount} (现货中已有: {old_amount})")
+
+            self.logger.debug(f"合并后的资产: {combined_balances}")
 
             total_value = 0.0
             processed_assets = []
