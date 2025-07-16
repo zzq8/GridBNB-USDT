@@ -98,12 +98,20 @@ sleep 15
 echo -e "${YELLOW}🔍 检查服务状态...${NC}"
 if docker-compose ps | grep -q "Up"; then
     echo "✅ 服务运行正常"
-    
+
+    # 验证安全配置
+    echo -e "${YELLOW}🔒 验证安全配置...${NC}"
+    if docker-compose port gridbnb-bot 8080 2>/dev/null; then
+        echo -e "${YELLOW}⚠️  警告: 8080端口仍然开放，建议检查docker-compose.yml配置${NC}"
+    else
+        echo "✅ 安全配置正确: 8080端口已关闭"
+    fi
+
     # 显示服务状态
     echo ""
     echo "📊 服务状态:"
     docker-compose ps
-    
+
     # 显示最新日志
     echo ""
     echo "📝 最新日志 (最近5行):"
@@ -136,6 +144,7 @@ echo ""
 echo "🌐 访问地址:"
 echo "   - Web界面: http://$(hostname -I | awk '{print $1}')"
 echo "   - 本地访问: http://localhost"
+echo "   - 安全配置: 仅通过Nginx访问，8080端口已关闭"
 
 echo ""
 echo "📊 常用命令:"

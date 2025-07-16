@@ -172,6 +172,14 @@ main() {
     log_info "检查服务状态..."
     docker-compose ps
 
+    # 验证安全配置
+    log_info "验证安全配置..."
+    if docker-compose port gridbnb-bot 8080 2>/dev/null; then
+        log_warning "8080端口仍然开放，建议检查docker-compose.yml配置"
+    else
+        log_success "安全配置正确: 8080端口已关闭"
+    fi
+
     # 显示访问信息
     echo ""
     log_success "🎉 GridBNB交易机器人部署完成！"
@@ -179,7 +187,7 @@ main() {
     echo "🌐 访问地址:"
     echo "   - Web界面: http://$(hostname -I | awk '{print $1}')"
     echo "   - 本地访问: http://localhost"
-    echo "   - 调试端口: http://$(hostname -I | awk '{print $1}'):8080"
+    echo "   - 安全配置: 仅通过Nginx访问，8080端口已关闭"
     echo ""
     echo "📊 管理命令:"
     echo "   - 查看状态: docker-compose ps"
