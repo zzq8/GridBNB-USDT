@@ -61,8 +61,10 @@ class TestTradingConfig:
             'BINANCE_API_SECRET': 'test_secret'
         }):
             config = TradingConfig()
-            assert config.SYMBOLS == 'BNB/USDT'
-            assert config.INITIAL_GRID == 2.0
+            # 现在这些配置直接从 settings 获取
+            from config import settings
+            assert settings.SYMBOLS == 'BNB/USDT'
+            assert settings.INITIAL_GRID == 2.0
             assert 'position_limit' in config.RISK_PARAMS
     
     def test_config_validation_position_ratios(self):
@@ -73,7 +75,8 @@ class TestTradingConfig:
         }):
             # 正常情况
             config = TradingConfig()
-            assert config.MIN_POSITION_RATIO < config.MAX_POSITION_RATIO
+            from config import settings
+            assert settings.MIN_POSITION_RATIO < settings.MAX_POSITION_RATIO
     
     def test_config_validation_grid_params(self):
         """测试网格参数验证"""

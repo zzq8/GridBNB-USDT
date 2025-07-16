@@ -174,7 +174,8 @@ class TestConfigValidation:
         """测试TradingConfig的验证逻辑"""
         # 正常情况应该不抛出异常
         config = TradingConfig()
-        assert config.MIN_POSITION_RATIO < config.MAX_POSITION_RATIO
+        from config import settings
+        assert settings.MIN_POSITION_RATIO < settings.MAX_POSITION_RATIO
         assert config.GRID_PARAMS['min'] <= config.GRID_PARAMS['max']
 
 

@@ -1,7 +1,7 @@
 import ccxt.async_support as ccxt
 import os
 import logging
-from config import DEBUG_MODE, API_TIMEOUT, RECV_WINDOW, settings
+from config import settings
 from datetime import datetime
 import time
 import asyncio
@@ -9,15 +9,15 @@ import asyncio
 class ExchangeClient:
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self._verify_credentials()
+        # API密钥验证已由Pydantic在settings实例化时自动完成
         
         # 获取代理配置，如果环境变量中没有设置，则使用None
         proxy = os.getenv('HTTP_PROXY')
         
         # 先初始化交易所实例
         self.exchange = ccxt.binance({
-            'apiKey': os.getenv('BINANCE_API_KEY'),
-            'secret': os.getenv('BINANCE_API_SECRET'),
+            'apiKey': settings.BINANCE_API_KEY,
+            'secret': settings.BINANCE_API_SECRET,
             'enableRateLimit': True,
             'timeout': 60000,  # 增加超时时间到60秒
             'options': {
@@ -35,7 +35,7 @@ class ExchangeClient:
                 'createMarketBuyOrderRequiresPrice': False
             },
             'aiohttp_proxy': proxy,  # 使用环境变量中的代理配置
-            'verbose': DEBUG_MODE
+            'verbose': settings.DEBUG_MODE
         })
         if proxy:
             self.logger.info(f"使用代理: {proxy}")
@@ -56,14 +56,7 @@ class ExchangeClient:
         # 【新增】用于管理后台时间同步任务
         self.time_sync_task = None
     
-    def _verify_credentials(self):
-        """验证API密钥是否存在"""
-        required_env = ['BINANCE_API_KEY', 'BINANCE_API_SECRET']
-        missing = [var for var in required_env if not os.getenv(var)]
-        if missing:
-            error_msg = f"缺少环境变量: {', '.join(missing)}"
-            self.logger.critical(error_msg)
-            raise EnvironmentError(error_msg)
+
 
     def _format_savings_amount(self, asset: str, amount: float) -> str:
         """根据配置格式化理财产品的操作金额"""

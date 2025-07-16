@@ -1,4 +1,4 @@
-from config import TradingConfig, FLIP_THRESHOLD, SAFETY_MARGIN, COOLDOWN, settings
+from config import TradingConfig, FLIP_THRESHOLD, settings
 from exchange_client import ExchangeClient
 from order_tracker import OrderTracker, OrderThrottler
 from risk_manager import AdvancedRiskManager, RiskState
@@ -96,34 +96,52 @@ class GridTrader:
         self.state_file_path = os.path.join(os.path.dirname(__file__), 'data', state_filename)
 
     def _save_state(self):
-        """保存当前核心策略状态到文件"""
+        """【重构后】以原子方式安全地保存当前核心策略状态到文件"""
+        state = {
+            'base_price': self.base_price,
+            'grid_size': self.grid_size,
+            'highest': self.highest,
+            'lowest': self.lowest,
+            'last_grid_adjust_time': self.last_grid_adjust_time,
+            'last_trade_time': self.last_trade_time,
+            'last_trade_price': self.last_trade_price,
+            'timestamp': time.time(),
+            # EWMA波动率状态
+            'ewma_volatility': self.ewma_volatility,
+            'last_price': self.last_price,
+            'ewma_initialized': self.ewma_initialized,
+            # 独立监测状态
+            'is_monitoring_buy': self.is_monitoring_buy,
+            'is_monitoring_sell': self.is_monitoring_sell,
+            # 波动率平滑相关
+            'volatility_history': self.volatility_history
+        }
+
+        temp_file_path = self.state_file_path + ".tmp"
+
         try:
-            state = {
-                'base_price': self.base_price,
-                'grid_size': self.grid_size,
-                'highest': self.highest,
-                'lowest': self.lowest,
-                'last_grid_adjust_time': self.last_grid_adjust_time,
-                'last_trade_time': self.last_trade_time,
-                'last_trade_price': self.last_trade_price,
-                'timestamp': time.time(),
-                # EWMA波动率状态
-                'ewma_volatility': self.ewma_volatility,
-                'last_price': self.last_price,
-                'ewma_initialized': self.ewma_initialized,
-                # 独立监测状态
-                'is_monitoring_buy': self.is_monitoring_buy,
-                'is_monitoring_sell': self.is_monitoring_sell,
-                # 波动率平滑相关
-                'volatility_history': self.volatility_history
-            }
-            # 确保 data 目录存在
+            # 确保目录存在
             os.makedirs(os.path.dirname(self.state_file_path), exist_ok=True)
-            with open(self.state_file_path, 'w', encoding='utf-8') as f:
+
+            # 1. 写入临时文件
+            with open(temp_file_path, 'w', encoding='utf-8') as f:
                 json.dump(state, f, indent=2, ensure_ascii=False)
-            self.logger.info(f"核心状态已保存。基准价: {self.base_price:.2f}, 网格: {self.grid_size:.2f}%")
+
+            # 2. 原子性地重命名临时文件为正式文件
+            os.rename(temp_file_path, self.state_file_path)
+
+            self.logger.info(f"核心状态已安全保存。基准价: {self.base_price:.2f}, 网格: {self.grid_size:.2f}%")
+
         except Exception as e:
             self.logger.error(f"保存核心状态失败: {e}")
+
+        finally:
+            # 3. 确保临时文件在任何情况下都被删除
+            if os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                except OSError as e:
+                    self.logger.error(f"删除临时状态文件失败: {e}")
 
     def _load_state(self):
         """从文件加载核心策略状态"""
@@ -366,7 +384,7 @@ class GridTrader:
         except Exception as e:
             self.logger.error(f"同步最近成交失败: {e}")
 
-    async def _check_buy_signal(self, spot_balance, funding_balance):
+    async def _check_buy_signal(self):
         current_price = self.current_price
         initial_lower_band = self._get_lower_band()
 
@@ -397,8 +415,7 @@ class GridTrader:
                 self.is_monitoring_buy = False # 准备交易，退出监测
                 self.logger.info(
                     f"触发买入信号 | 当前价: {current_price:.2f} | 已反弹: {(current_price / self.lowest - 1) * 100:.2f}%")
-                if not await self.check_buy_balance(current_price, spot_balance, funding_balance):
-                    return False
+                # 只返回价格条件是否满足，余额检查在execute_order中进行
                 return True
         else:
             # 只有当价格回升，并且我们之前正处于"买入监测"状态时，才重置
@@ -409,7 +426,7 @@ class GridTrader:
 
         return False
 
-    async def _check_sell_signal(self, spot_balance, funding_balance):
+    async def _check_sell_signal(self):
         current_price = self.current_price
         initial_upper_band = self._get_upper_band()
 
@@ -442,8 +459,7 @@ class GridTrader:
                 self.is_monitoring_sell = False  # 准备交易，退出监测
                 self.logger.info(
                     f"触发卖出信号 | 当前价: {current_price:.2f} | 目标价: {self.highest * (1 - threshold):.5f} | 已下跌: {(1 - current_price / self.highest) * 100:.2f}%")
-                if not await self.check_sell_balance(spot_balance, funding_balance):
-                    return False
+                # 只返回价格条件是否满足，余额检查在execute_order中进行
                 return True
         else:
             # 只有当价格回落，并且我们之前正处于"卖出监测"状态时，才意味着本次机会结束，可以重置了
@@ -495,7 +511,7 @@ class GridTrader:
 
     async def get_available_balance(self, currency):
         balance = await self.exchange.fetch_balance({'type': 'spot'})
-        return balance.get('free', {}).get(currency, 0) * SAFETY_MARGIN
+        return balance.get('free', {}).get(currency, 0) * settings.SAFETY_MARGIN
 
     async def _calculate_dynamic_interval_seconds(self):
         """根据波动率动态计算网格调整的时间间隔（秒）"""
@@ -504,8 +520,8 @@ class GridTrader:
             if volatility is None:  # Handle case where volatility calculation failed
                 raise ValueError("波动率计算失败")  # Volatility calculation failed
 
-            interval_rules = self.config.DYNAMIC_INTERVAL_PARAMS['volatility_to_interval_hours']
-            default_interval_hours = self.config.DYNAMIC_INTERVAL_PARAMS['default_interval_hours']
+            interval_rules = TradingConfig.DYNAMIC_INTERVAL_PARAMS['volatility_to_interval_hours']
+            default_interval_hours = TradingConfig.DYNAMIC_INTERVAL_PARAMS['default_interval_hours']
 
             matched_interval_hours = default_interval_hours  # Start with default
 
@@ -531,7 +547,7 @@ class GridTrader:
             self.logger.error(
                 f"计算动态调整间隔失败: {e}, 使用默认间隔。")  # Failed to calculate dynamic interval, using default.
             # Fallback to default interval from config
-            default_interval_hours = self.config.DYNAMIC_INTERVAL_PARAMS.get('default_interval_hours', 1.0)
+            default_interval_hours = TradingConfig.DYNAMIC_INTERVAL_PARAMS.get('default_interval_hours', 1.0)
             return default_interval_hours * 3600
 
     async def main_loop(self):
@@ -590,7 +606,7 @@ class GridTrader:
                 # 3. 卖出逻辑：只有在风控允许的情况下，才去检查信号
                 if risk_state != RiskState.ALLOW_BUY_ONLY:
                     sell_signal = await self._check_signal_with_retry(
-                        lambda: self._check_sell_signal(spot_balance, funding_balance), "卖出检测")
+                        lambda: self._check_sell_signal(), "卖出检测")
                     if sell_signal:
                         if await self.execute_order('sell'):
                             trade_executed_this_loop = True
@@ -598,7 +614,7 @@ class GridTrader:
                 # 4. 买入逻辑：如果没卖出，且风控允许，才去检查买入信号
                 if not trade_executed_this_loop and risk_state != RiskState.ALLOW_SELL_ONLY:
                     buy_signal = await self._check_signal_with_retry(
-                        lambda: self._check_buy_signal(spot_balance, funding_balance), "买入检测")
+                        lambda: self._check_buy_signal(), "买入检测")
                     if buy_signal:
                         if await self.execute_order('buy'):
                             trade_executed_this_loop = True
@@ -666,7 +682,7 @@ class GridTrader:
             current_price = self.current_price
 
             # 计算所需资金
-            required_quote = self.config.MIN_TRADE_AMOUNT * 2  # 保持两倍最小交易额
+            required_quote = settings.MIN_TRADE_AMOUNT * 2  # 保持两倍最小交易额
             required_base = required_quote / current_price
 
             # 获取现货余额
@@ -770,7 +786,7 @@ class GridTrader:
         send_pushplus_message(msg, "交易成功通知")
 
         # 6) 将多余资金转入理财 (如果功能开启)
-        if self.config.ENABLE_SAVINGS_FUNCTION:
+        if settings.ENABLE_SAVINGS_FUNCTION:
             await self._transfer_excess_funds()
         else:
             self.logger.info("理财功能已禁用，跳过资金转移。")
@@ -806,15 +822,13 @@ class GridTrader:
                 # 调整价格精度
                 order_price = self._adjust_price_precision(order_price)
 
-                # 检查余额是否足够
-                if side == 'buy':
-                    if not await self.check_buy_balance(order_price):
-                        self.logger.warning(f"买入余额不足，第 {retry_count + 1} 次尝试中止")
-                        return False
-                else:
-                    if not await self.check_sell_balance():
-                        self.logger.warning(f"卖出余额不足，第 {retry_count + 1} 次尝试中止")
-                        return False
+                # 检查余额是否足够 - 需要获取最新的余额信息
+                spot_balance = await self.exchange.fetch_balance({'type': 'spot'})
+                funding_balance = await self.exchange.fetch_funding_balance()
+
+                if not await self._ensure_balance_for_trade(side, spot_balance, funding_balance):
+                    self.logger.warning(f"{side}余额不足，第 {retry_count + 1} 次尝试中止")
+                    return False
 
                 # 为了日志记录，将字符串类型的 amount 临时转为浮点数
                 log_display_amount = float(amount)
@@ -953,20 +967,21 @@ class GridTrader:
     async def _adjust_grid_after_trade(self):
         """根据市场波动动态调整网格大小"""
         trade_count = self.order_tracker.trade_count
-        if trade_count % self.config.GRID_PARAMS['adjust_interval'] == 0:
+        if trade_count % TradingConfig.GRID_PARAMS.get('adjust_interval', 5) == 0:
             volatility = await self._calculate_volatility()
 
             # 根据波动率调整
-            if volatility > self.config.GRID_PARAMS['volatility_threshold']['high']:
+            high_threshold = TradingConfig.GRID_PARAMS.get('volatility_threshold', {}).get('high', 0.3)
+            if volatility > high_threshold:
                 new_size = min(
                     self.grid_size * 1.1,  # 扩大10%
-                    self.config.GRID_PARAMS['max']
+                    TradingConfig.GRID_PARAMS['max']
                 )
                 action = "扩大"
             else:
                 new_size = max(
                     self.grid_size * 0.9,  # 缩小10%
-                    self.config.GRID_PARAMS['min']
+                    TradingConfig.GRID_PARAMS['min']
                 )
                 action = "缩小"
 
@@ -1038,7 +1053,7 @@ class GridTrader:
             self.base_price = None
             self.highest = None
             self.lowest = None
-            self.grid_size = self.config.GRID_PARAMS['initial']
+            self.grid_size = TradingConfig.GRID_PARAMS.get('initial', settings.INITIAL_GRID)
             self.last_trade = 0
             self.initialized = False  # 确保重置初始化状态
 
@@ -1133,7 +1148,7 @@ class GridTrader:
 
             # ========== 使用连续函数计算新网格大小 ==========
             # 1. 从配置中获取连续调整的参数
-            params = self.config.GRID_CONTINUOUS_PARAMS
+            params = TradingConfig.GRID_CONTINUOUS_PARAMS
             base_grid = params['base_grid']
             center_volatility = params['center_volatility']
             sensitivity_k = params['sensitivity_k']
@@ -1149,7 +1164,7 @@ class GridTrader:
             )
 
             # 确保网格在允许范围内
-            new_grid = max(min(new_grid, self.config.GRID_PARAMS['max']), self.config.GRID_PARAMS['min'])
+            new_grid = max(min(new_grid, TradingConfig.GRID_PARAMS['max']), TradingConfig.GRID_PARAMS['min'])
 
             # 只有在变化大于0.01%时才更新，避免频繁的微小调整
             if abs(new_grid - self.grid_size) > 0.01:
@@ -1198,8 +1213,8 @@ class GridTrader:
             # 混合波动率：EWMA权重0.7，传统波动率权重0.3
             if ewma_volatility is not None:
                 hybrid_volatility = (
-                    self.config.VOLATILITY_HYBRID_WEIGHT * ewma_volatility +
-                    (1 - self.config.VOLATILITY_HYBRID_WEIGHT) * traditional_volatility
+                    settings.VOLATILITY_HYBRID_WEIGHT * ewma_volatility +
+                    (1 - settings.VOLATILITY_HYBRID_WEIGHT) * traditional_volatility
                 )
                 self.logger.debug(
                     f"混合波动率计算 | 传统: {traditional_volatility:.4f} | "
@@ -1233,7 +1248,7 @@ class GridTrader:
         log_returns = np.diff(np.log(prices))
 
         # 如果不启用成交量加权，则执行原逻辑
-        if not self.config.ENABLE_VOLUME_WEIGHTING:
+        if not TradingConfig.ENABLE_VOLUME_WEIGHTING:
             volatility = np.std(log_returns) * np.sqrt(365 * 6)
             return volatility
 
@@ -1278,7 +1293,7 @@ class GridTrader:
             return_squared = 0
 
         # 更新EWMA波动率
-        lambda_factor = self.config.VOLATILITY_EWMA_LAMBDA
+        lambda_factor = settings.VOLATILITY_EWMA_LAMBDA
 
         if not self.ewma_initialized:
             # 首次初始化：使用当期收益率平方作为初始值
@@ -1351,14 +1366,14 @@ class GridTrader:
 
         # 动态计算交易金额
         risk_adjusted_amount = min(
-            total_assets * self.config.RISK_FACTOR * volatility_factor * kelly_f * percentile_factor,
-            total_assets * self.config.MAX_POSITION_RATIO
+            total_assets * settings.RISK_FACTOR * volatility_factor * kelly_f * percentile_factor,
+            total_assets * settings.MAX_POSITION_RATIO
         )
 
         # 应用最小/最大限制
         amount_quote = max(
-            min(risk_adjusted_amount, self.config.BASE_AMOUNT),
-            self.config.MIN_TRADE_AMOUNT
+            min(risk_adjusted_amount, TradingConfig.BASE_AMOUNT),
+            settings.MIN_TRADE_AMOUNT
         )
 
         return amount_quote
@@ -1468,12 +1483,12 @@ class GridTrader:
 
         # 考虑手续费和滑价
         required = amount_quote * 1.05  # 增加5%缓冲
-        return min(required, self.config.MAX_POSITION_RATIO * total_assets)
+        return min(required, settings.MAX_POSITION_RATIO * total_assets)
 
     async def _transfer_excess_funds(self):
         """将超出总资产16%目标的部分资金转回理财账户"""
         # 功能开关检查
-        if not self.config.ENABLE_SAVINGS_FUNCTION:
+        if not settings.ENABLE_SAVINGS_FUNCTION:
             return
 
         try:
@@ -1523,7 +1538,7 @@ class GridTrader:
             if spot_base_balance > target_base_hold_amount:
                 transfer_amount = spot_base_balance - target_base_hold_amount
                 # 检查转移金额是否大于等于最小申购额
-                min_transfer = self.config.MIN_BNB_TRANSFER if self.base_asset == 'BNB' else 0.01
+                min_transfer = settings.MIN_BNB_TRANSFER if self.base_asset == 'BNB' else 0.01
                 if transfer_amount >= min_transfer:
                     self.logger.info(f"转移多余{self.base_asset}到理财: {transfer_amount:.4f}")
                     try:
@@ -1588,10 +1603,10 @@ class GridTrader:
         """计算动态基础交易金额"""
         # 计算基于总资产百分比的交易金额范围
         min_amount = max(
-            self.config.MIN_TRADE_AMOUNT,  # 不低于最小交易金额
-            total_assets * self.config.MIN_POSITION_PERCENT  # 不低于总资产的5%
+            settings.MIN_TRADE_AMOUNT,  # 不低于最小交易金额
+            total_assets * settings.MIN_POSITION_PERCENT  # 不低于总资产的5%
         )
-        max_amount = total_assets * self.config.MAX_POSITION_PERCENT  # 不超过总资产的15%
+        max_amount = total_assets * settings.MAX_POSITION_PERCENT  # 不超过总资产的15%
 
         # 计算目标交易金额（总资产的10%）
         target_amount = total_assets * 0.1
@@ -1608,7 +1623,7 @@ class GridTrader:
     async def _check_and_transfer_initial_funds(self):
         """检查并划转初始资金"""
         # 功能开关检查
-        if not self.config.ENABLE_SAVINGS_FUNCTION:
+        if not settings.ENABLE_SAVINGS_FUNCTION:
             self.logger.info("理财功能已禁用，跳过初始资金检查与划转。")
             return
 
@@ -1674,7 +1689,7 @@ class GridTrader:
                 transfer_amount = base_balance - target_base
                 self.logger.info(f"发现可划转{self.base_asset}: {transfer_amount}")
                 # --- 添加最小申购金额检查 ---
-                min_transfer = self.config.MIN_BNB_TRANSFER if self.base_asset == 'BNB' else 0.01
+                min_transfer = settings.MIN_BNB_TRANSFER if self.base_asset == 'BNB' else 0.01
                 if transfer_amount >= min_transfer:
                     try:
                         await self.exchange.transfer_to_savings(self.base_asset, transfer_amount)
@@ -1923,164 +1938,73 @@ class GridTrader:
             ema = (price - ema) * multiplier + ema
         return ema
 
-    async def check_buy_balance(self, current_price, spot_balance, funding_balance):
-        """检查买入前的余额，如果不够则从理财赎回"""
+    async def _ensure_balance_for_trade(self, side: str, spot_balance: dict, funding_balance: dict) -> bool:
+        """
+        【重构后】统一检查买卖双方的余额，并在需要时从理财赎回。
+        """
         try:
-            # 计算所需买入资金
-            amount_quote = await self._calculate_order_amount('buy')
+            # 1. 确定所需资产和数量
+            amount_quote = await self._calculate_order_amount(side)
+            if side == 'buy':
+                asset_needed = self.quote_asset
+                required_amount = amount_quote
+                spot_balance_asset = float(spot_balance.get('free', {}).get(self.quote_asset, 0) or 0)
+            else: # side == 'sell'
+                if not self.current_price or self.current_price <= 0:
+                    self.logger.error(f"价格无效，无法计算卖出所需 {self.base_asset} 数量。")
+                    return False
+                asset_needed = self.base_asset
+                required_amount = amount_quote / self.current_price
+                spot_balance_asset = float(spot_balance.get('free', {}).get(self.base_asset, 0) or 0)
 
-            # spot_balance = await self.exchange.fetch_balance({'type': 'spot'}) # 删除，使用参数
+            self.logger.info(f"{side}前余额检查 | 所需 {asset_needed}: {required_amount:.4f} | 现货可用: {spot_balance_asset:.4f}")
 
-            # 防御性检查：确保返回的余额是有效的
-            if not spot_balance or 'free' not in spot_balance:
-                self.logger.error("获取现货余额失败，返回无效数据")
-                return False
-
-            spot_quote = float(spot_balance.get('free', {}).get(self.quote_asset, 0) or 0)
-
-            self.logger.info(f"买入前余额检查 | 所需{self.quote_asset}: {amount_quote:.2f} | 现货{self.quote_asset}: {spot_quote:.2f}")
-
-            # 如果现货余额足够，直接返回成功
-            if spot_quote >= amount_quote:
+            # 2. 如果现货余额足够，直接成功返回
+            if spot_balance_asset >= required_amount:
                 return True
 
-            # 现货不足，检查理财开关
-            if not self.config.ENABLE_SAVINGS_FUNCTION:
-                self.logger.error(f"买入资金不足，且理财功能已禁用。现货{self.quote_asset}: {spot_quote:.2f}, 所需: {amount_quote:.2f}")
+            # 3. 现货不足，检查理财功能是否开启
+            if not settings.ENABLE_SAVINGS_FUNCTION:
+                self.logger.error(f"资金不足 ({asset_needed})，且理财功能已禁用。")
                 return False
 
-            # 现货不足，尝试从理财赎回
-            self.logger.info(f"现货{self.quote_asset}不足，尝试从理财赎回...")
-            # funding_balance = await self.exchange.fetch_funding_balance() # 删除，使用参数
-            funding_quote = float(funding_balance.get(self.quote_asset, 0) or 0)
+            # 4. 尝试从理财赎回
+            self.logger.info(f"现货 {asset_needed} 不足，尝试从理财赎回...")
+            funding_balance_asset = float(funding_balance.get(asset_needed, 0) or 0)
 
             # 检查总余额是否足够
-            if spot_quote + funding_quote < amount_quote:
-                # 总资金不足，发送通知
-                error_msg = f"资金不足通知\\n交易类型: 买入\\n所需{self.quote_asset}: {amount_quote:.2f}\\n" \
-                            f"现货余额: {spot_quote:.2f}\\n理财余额: {funding_quote:.2f}\\n" \
-                            f"缺口: {amount_quote - (spot_quote + funding_quote):.2f}"
-                self.logger.error(f"买入资金不足: 现货+理财总额不足以执行交易")
-                send_pushplus_message(error_msg, "资金不足警告")
+            if spot_balance_asset + funding_balance_asset < required_amount:
+                msg = f"总资金不足警告 ({side}) | 所需 {asset_needed}: {required_amount:.4f} | 总计 (现货+理财): {spot_balance_asset + funding_balance_asset:.4f}"
+                self.logger.error(msg)
+                send_pushplus_message(msg, "总资金不足警告")
                 return False
 
-            # 计算需要赎回的金额（增加5%缓冲）
-            needed_amount = (amount_quote - spot_quote) * 1.05
+            # 计算需要赎回的金额 (增加5%缓冲)
+            redeem_amount = (required_amount - spot_balance_asset) * 1.05
+            # 确保赎回金额不超过理财账户的余额
+            actual_redeem_amount = min(redeem_amount, funding_balance_asset)
 
-            # 从理财赎回
-            self.logger.info(f"从理财赎回 {needed_amount:.2f} {self.quote_asset}")
-            await self.exchange.transfer_to_spot(self.quote_asset, needed_amount)
+            self.logger.info(f"从理财赎回 {actual_redeem_amount:.4f} {asset_needed}")
+            await self.exchange.transfer_to_spot(asset_needed, actual_redeem_amount)
+            await asyncio.sleep(5) # 等待资金到账
 
-            # 等待资金到账
-            await asyncio.sleep(5)
+            # 5. 再次检查余额
+            new_spot_balance = await self.exchange.fetch_balance({'type': 'spot'})
+            new_spot_balance_asset = float(new_spot_balance.get('free', {}).get(asset_needed, 0) or 0)
+            self.logger.info(f"赎回后余额检查 | 现货 {asset_needed}: {new_spot_balance_asset:.4f}")
 
-            # 再次检查余额
-            new_balance = await self.exchange.fetch_balance({'type': 'spot'})
-
-            # 防御性检查：确保返回的余额是有效的
-            if not new_balance or 'free' not in new_balance:
-                self.logger.error("赎回后获取现货余额失败，返回无效数据")
-                return False
-
-            new_quote = float(new_balance.get('free', {}).get(self.quote_asset, 0) or 0)
-
-            self.logger.info(f"赎回后余额检查 | 现货{self.quote_asset}: {new_quote:.2f}")
-
-            if new_quote >= amount_quote:
+            if new_spot_balance_asset >= required_amount:
                 return True
             else:
-                error_msg = f"资金赎回后仍不足\\n交易类型: 买入\\n所需{self.quote_asset}: {amount_quote:.2f}\\n现货余额: {new_quote:.2f}"
-                self.logger.error(error_msg)
-                send_pushplus_message(error_msg, "资金不足警告")
+                self.logger.error(f"赎回后资金仍不足 ({asset_needed})。")
                 return False
 
         except Exception as e:
-            self.logger.error(f"检查买入余额失败: {str(e)}")
-            send_pushplus_message(f"余额检查错误\\n交易类型: 买入\\n错误信息: {str(e)}", "系统错误")
+            self.logger.error(f"检查 {side} 余额失败: {e}", exc_info=True)
+            send_pushplus_message(f"余额检查错误 ({side}): {e}", "系统错误")
             return False
 
-    async def check_sell_balance(self, spot_balance, funding_balance):
-        """检查卖出前的余额，如果不够则从理财赎回"""
-        try:
-            # spot_balance = await self.exchange.fetch_balance({'type': 'spot'}) # 删除，使用参数
 
-            # 防御性检查：确保返回的余额是有效的
-            if not spot_balance or 'free' not in spot_balance:
-                self.logger.error("获取现货余额失败，返回无效数据")
-                return False
-
-            spot_base = float(spot_balance.get('free', {}).get(self.base_asset, 0) or 0)
-
-            # 计算所需数量
-            amount_quote = await self._calculate_order_amount('sell')
-
-            # 确保当前价格有效
-            if not self.current_price or self.current_price <= 0:
-                self.logger.error(f"当前价格无效，无法计算{self.base_asset}需求量")
-                return False
-
-            base_needed = amount_quote / self.current_price
-
-            self.logger.info(f"卖出前余额检查 | 所需{self.base_asset}: {base_needed:.8f} | 现货{self.base_asset}: {spot_base:.8f}")
-
-            # 如果现货余额足够，直接返回成功
-            if spot_base >= base_needed:
-                return True
-
-            # 现货不足，检查理财开关
-            if not self.config.ENABLE_SAVINGS_FUNCTION:
-                self.logger.error(f"卖出资金不足，且理财功能已禁用。现货{self.base_asset}: {spot_base:.8f}, 所需: {base_needed:.8f}")
-                return False
-
-            # 现货不足，尝试从理财赎回
-            self.logger.info(f"现货{self.base_asset}不足，尝试从理财赎回...")
-            # funding_balance = await self.exchange.fetch_funding_balance() # 删除，使用参数
-            funding_base = float(funding_balance.get(self.base_asset, 0) or 0)
-
-            # 检查总余额是否足够
-            if spot_base + funding_base < base_needed:
-                # 总资金不足，发送通知
-                error_msg = f"资金不足通知\\n交易类型: 卖出\\n所需{self.base_asset}: {base_needed:.8f}\\n" \
-                            f"现货余额: {spot_base:.8f}\\n理财余额: {funding_base:.8f}\\n" \
-                            f"缺口: {base_needed - (spot_base + funding_base):.8f}"
-                self.logger.error(f"卖出资金不足: 现货+理财总额不足以执行交易")
-                send_pushplus_message(error_msg, "资金不足警告")
-                return False
-
-            # 计算需要赎回的金额（增加5%缓冲）
-            needed_amount = (base_needed - spot_base) * 1.05
-
-            # 从理财赎回
-            self.logger.info(f"从理财赎回 {needed_amount:.8f} {self.base_asset}")
-            await self.exchange.transfer_to_spot(self.base_asset, needed_amount)
-
-            # 等待资金到账
-            await asyncio.sleep(5)
-
-            # 再次检查余额
-            new_balance = await self.exchange.fetch_balance({'type': 'spot'})
-
-            # 防御性检查：确保返回的余额是有效的
-            if not new_balance or 'free' not in new_balance:
-                self.logger.error("赎回后获取现货余额失败，返回无效数据")
-                return False
-
-            new_base = float(new_balance.get('free', {}).get(self.base_asset, 0) or 0)
-
-            self.logger.info(f"赎回后余额检查 | 现货{self.base_asset}: {new_base:.8f}")
-
-            if new_base >= base_needed:
-                return True
-            else:
-                error_msg = f"资金赎回后仍不足\\n交易类型: 卖出\\n所需{self.base_asset}: {base_needed:.8f}\\n现货余额: {new_base:.8f}"
-                self.logger.error(error_msg)
-                send_pushplus_message(error_msg, "资金不足警告")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"检查卖出余额失败: {str(e)}")
-            send_pushplus_message(f"余额检查错误\\n交易类型: 卖出\\n错误信息: {str(e)}", "系统错误")
-            return False
 
     async def _execute_trade(self, side, price, amount, retry_count=None):
         """执行交易并发送通知"""

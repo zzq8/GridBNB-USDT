@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     # --- 理财精度配置 (从JSON字符串解析) ---
     SAVINGS_PRECISIONS: Dict[str, int] = {'USDT': 2, 'BNB': 6, 'DEFAULT': 8}
 
+    # --- 新增：从 .env 读取的高级策略配置 ---
+    GRID_PARAMS_JSON: Dict = {}
+    GRID_CONTINUOUS_PARAMS_JSON: Dict = {}
+    DYNAMIC_INTERVAL_PARAMS_JSON: Dict = {}
+    ENABLE_VOLUME_WEIGHTING: bool = True
+
     @field_validator('INITIAL_PARAMS_JSON', mode='before')
     @classmethod
     def parse_initial_params(cls, value):
@@ -50,6 +56,17 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 raise ValueError("INITIAL_PARAMS_JSON 格式无效，必须是合法的JSON字符串。")
         return value if value else {}  # 如果为空，返回空字典
+
+    @field_validator('GRID_PARAMS_JSON', 'GRID_CONTINUOUS_PARAMS_JSON', 'DYNAMIC_INTERVAL_PARAMS_JSON', mode='before')
+    @classmethod
+    def parse_strategy_params_json(cls, value):
+        """通用验证器，用于将策略相关的JSON字符串解析为字典"""
+        if isinstance(value, str) and value:
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                raise ValueError(f"策略参数格式无效，必须是合法的JSON字符串。收到的值: {value}")
+        return value if value else {}
 
     @field_validator('SAVINGS_PRECISIONS', mode='before')
     @classmethod
@@ -100,39 +117,26 @@ settings = Settings()
 # 提供一个解析后的列表，方便使用
 SYMBOLS_LIST = [s.strip() for s in settings.SYMBOLS.split(',') if s.strip()]
 
-# 保持向后兼容的常量定义
-SYMBOL = settings.SYMBOLS  # 保持兼容性，但现在是多个交易对的字符串
-INITIAL_GRID = settings.INITIAL_GRID
+# 保留必要的向后兼容性常量，但建议逐步迁移到 settings.XXX 的形式
 FLIP_THRESHOLD = lambda grid_size: (grid_size / 5) / 100  # 网格大小的1/5的1%
-POSITION_SCALE_FACTOR = settings.POSITION_SCALE_FACTOR
-MIN_TRADE_AMOUNT = settings.MIN_TRADE_AMOUNT
-MIN_POSITION_PERCENT = settings.MIN_POSITION_PERCENT
-MAX_POSITION_PERCENT = settings.MAX_POSITION_PERCENT
-COOLDOWN = settings.COOLDOWN
-SAFETY_MARGIN = settings.SAFETY_MARGIN
-MAX_POSITION_RATIO = settings.MAX_POSITION_RATIO
-MIN_POSITION_RATIO = settings.MIN_POSITION_RATIO
-AUTO_ADJUST_BASE_PRICE = settings.AUTO_ADJUST_BASE_PRICE
-PUSHPLUS_TOKEN = settings.PUSHPLUS_TOKEN
-PUSHPLUS_TIMEOUT = settings.PUSHPLUS_TIMEOUT
-LOG_LEVEL = settings.LOG_LEVEL
-DEBUG_MODE = settings.DEBUG_MODE
-API_TIMEOUT = settings.API_TIMEOUT
-RECV_WINDOW = settings.RECV_WINDOW
-RISK_CHECK_INTERVAL = settings.RISK_CHECK_INTERVAL
-MAX_RETRIES = settings.MAX_RETRIES
-RISK_FACTOR = settings.RISK_FACTOR
-VOLATILITY_WINDOW = settings.VOLATILITY_WINDOW
-INITIAL_PRINCIPAL = settings.INITIAL_PRINCIPAL
-ENABLE_SAVINGS_FUNCTION = settings.ENABLE_SAVINGS_FUNCTION
 
 class TradingConfig:
-    """交易配置类，整合所有配置参数"""
+    """
+    交易配置类，现在只包含从settings派生或转换而来的复杂策略参数。
+    简单的配置项直接从全局的 settings 对象获取。
+
+    这个类的职责：
+    1. 将JSON格式的策略参数转换为Python字典
+    2. 为复杂的策略参数提供默认值
+    3. 进行配置验证
+    """
 
     RISK_PARAMS = {
         'position_limit': settings.MAX_POSITION_RATIO
     }
-    GRID_PARAMS = {
+
+    # 将硬编码的字典替换为从 settings 中获取，如果为空则使用默认值
+    GRID_PARAMS = settings.GRID_PARAMS_JSON if settings.GRID_PARAMS_JSON else {
         'initial': settings.INITIAL_GRID,
         'min': 1.0,  # 网格大小的绝对最小值
         'max': 4.0,  # 网格大小的绝对最大值
@@ -148,18 +152,19 @@ class TradingConfig:
         }
     }
 
-    # ========== 新增：连续网格调整参数 ==========
-    GRID_CONTINUOUS_PARAMS = {
+    # 连续网格调整参数
+    GRID_CONTINUOUS_PARAMS = settings.GRID_CONTINUOUS_PARAMS_JSON if settings.GRID_CONTINUOUS_PARAMS_JSON else {
         'base_grid': 2.5,          # 波动率处于中心点时，我们期望的基础网格大小 (例如 2.5%)
         'center_volatility': 0.25, # 我们定义的市场"正常"波动率水平 (例如 0.25 或 25%)
         'sensitivity_k': 10.0      # 灵敏度系数k。k越大，网格对波动率变化的反应越剧烈。
                                    # k=10.0 意味着波动率每变化1%(0.01)，网格大小变化 0.1% (10.0 * 0.01)
     }
 
-    # ========== 新增：成交量加权波动率计算开关 ==========
-    ENABLE_VOLUME_WEIGHTING = True  # 是否启用成交量加权波动率计算
-        # --- 新增：动态时间间隔参数 ---
-    DYNAMIC_INTERVAL_PARAMS = {
+    # 成交量加权波动率计算开关
+    ENABLE_VOLUME_WEIGHTING = settings.ENABLE_VOLUME_WEIGHTING
+
+    # 动态时间间隔参数
+    DYNAMIC_INTERVAL_PARAMS = settings.DYNAMIC_INTERVAL_PARAMS_JSON if settings.DYNAMIC_INTERVAL_PARAMS_JSON else {
         # 定义波动率区间与对应调整间隔（小时）的映射关系
         'volatility_to_interval_hours': [
             # 格式: {'range': [最低波动率(含), 最高波动率(不含)], 'interval_hours': 对应的小时间隔}
@@ -173,39 +178,12 @@ class TradingConfig:
         'default_interval_hours': 1.0
     }
 
-    # 使用settings实例的属性
-    SYMBOLS = settings.SYMBOLS  # 现在使用SYMBOLS而不是SYMBOL
-    RISK_CHECK_INTERVAL = settings.RISK_CHECK_INTERVAL
-    MAX_RETRIES = settings.MAX_RETRIES
-    RISK_FACTOR = settings.RISK_FACTOR
-    BASE_AMOUNT = 50.0  # 恢复原始基础金额（可调整）
-    MIN_TRADE_AMOUNT = settings.MIN_TRADE_AMOUNT
-    MAX_POSITION_RATIO = settings.MAX_POSITION_RATIO
-    MIN_POSITION_RATIO = settings.MIN_POSITION_RATIO
-    VOLATILITY_WINDOW = settings.VOLATILITY_WINDOW
-    VOLATILITY_EWMA_LAMBDA = settings.VOLATILITY_EWMA_LAMBDA
-    VOLATILITY_HYBRID_WEIGHT = settings.VOLATILITY_HYBRID_WEIGHT
-    INITIAL_GRID = settings.INITIAL_GRID
-    POSITION_SCALE_FACTOR = settings.POSITION_SCALE_FACTOR
-    COOLDOWN = settings.COOLDOWN
-    SAFETY_MARGIN = settings.SAFETY_MARGIN
-    API_TIMEOUT = settings.API_TIMEOUT
-    RECV_WINDOW = settings.RECV_WINDOW
-    MIN_POSITION_PERCENT = settings.MIN_POSITION_PERCENT
-    MAX_POSITION_PERCENT = settings.MAX_POSITION_PERCENT
-    INITIAL_PRINCIPAL = settings.INITIAL_PRINCIPAL
-    AUTO_ADJUST_BASE_PRICE = settings.AUTO_ADJUST_BASE_PRICE
-
-    # 理财功能开关
-    ENABLE_SAVINGS_FUNCTION = settings.ENABLE_SAVINGS_FUNCTION
-
-    # 常量化的魔术数字
-    SPOT_FUNDS_TARGET_RATIO = settings.SPOT_FUNDS_TARGET_RATIO
-    MIN_BNB_TRANSFER = settings.MIN_BNB_TRANSFER
+    # 保留的策略相关基础值
+    BASE_AMOUNT = 50.0  # 基础交易金额（可调整）
 
     def __init__(self):
         # 添加配置验证
-        if self.MIN_POSITION_RATIO >= self.MAX_POSITION_RATIO:
+        if settings.MIN_POSITION_RATIO >= settings.MAX_POSITION_RATIO:
             raise ValueError("底仓比例不能大于或等于最大仓位比例")
 
         if self.GRID_PARAMS['min'] > self.GRID_PARAMS['max']:

@@ -24,10 +24,10 @@ class PositionControllerS1:
         self.logger = logging.getLogger(self.__class__.__name__) # 创建独立的 logger
 
         # S1 策略参数 (从配置或直接赋值)
-        # 确保这些参数在你的 config.py 或 trader_instance 中可访问
-        self.s1_lookback = getattr(self.config, 'S1_LOOKBACK', 52)
-        self.s1_sell_target_pct = getattr(self.config, 'S1_SELL_TARGET_PCT', 0.50)
-        self.s1_buy_target_pct = getattr(self.config, 'S1_BUY_TARGET_PCT', 0.70)
+        # 现在直接使用默认值，因为这些参数不在 settings 中定义
+        self.s1_lookback = 52
+        self.s1_sell_target_pct = 0.50
+        self.s1_buy_target_pct = 0.70
 
         # S1 状态变量
         self.s1_daily_high = None

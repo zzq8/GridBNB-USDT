@@ -554,7 +554,7 @@ async def handle_status(request):
         display_base_balance = spot_base + funding_base
 
         # 计算全局总盈亏和盈亏率（基于全账户资产）
-        initial_principal = trader.config.INITIAL_PRINCIPAL
+        initial_principal = settings.INITIAL_PRINCIPAL
         total_profit = 0.0
         profit_rate = 0.0
         if initial_principal > 0:

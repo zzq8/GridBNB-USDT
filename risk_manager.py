@@ -1,6 +1,6 @@
 import logging
 import enum
-from config import MAX_POSITION_RATIO
+from config import settings
 
 
 class RiskState(enum.Enum):
@@ -32,13 +32,13 @@ class AdvancedRiskManager:
                 self.logger.info(
                     f"风控检查 | "
                     f"当前仓位比例: {position_ratio:.2%} | "
-                    f"最大允许比例: {self.trader.config.MAX_POSITION_RATIO:.2%} | "
-                    f"最小底仓比例: {self.trader.config.MIN_POSITION_RATIO:.2%}"
+                    f"最大允许比例: {settings.MAX_POSITION_RATIO:.2%} | "
+                    f"最小底仓比例: {settings.MIN_POSITION_RATIO:.2%}"
                 )
                 self.last_position_ratio = position_ratio
 
             # 检查仓位是否超限 (> 90%)
-            if position_ratio > self.trader.config.MAX_POSITION_RATIO:
+            if position_ratio > settings.MAX_POSITION_RATIO:
                 # 只有在没打印过日志时才打印
                 if not self._max_limit_warning_logged:
                     self.logger.warning(f"仓位超限 ({position_ratio:.2%})，暂停新的买入操作。")
@@ -49,7 +49,7 @@ class AdvancedRiskManager:
                 return RiskState.ALLOW_SELL_ONLY
 
             # 检查是否触发底仓保护 (< 10%)
-            elif position_ratio < self.trader.config.MIN_POSITION_RATIO:
+            elif position_ratio < settings.MIN_POSITION_RATIO:
                 # 只有在没打印过日志时才打印
                 if not self._min_limit_warning_logged:
                     self.logger.warning(f"底仓保护触发 ({position_ratio:.2%})，暂停新的卖出操作。")
@@ -134,8 +134,9 @@ class AdvancedRiskManager:
         try:
             fear_greed = await self._get_fear_greed_index()
             if fear_greed < 20:  # 极度恐惧
-                self.trader.config.RISK_FACTOR *= 0.5  # 降低风险系数
+                # 注意：这里修改的是全局设置，会影响所有交易对
+                settings.RISK_FACTOR *= 0.5  # 降低风险系数
             elif fear_greed > 80:  # 极度贪婪
-                self.trader.config.RISK_FACTOR *= 1.2  # 提高风险系数
+                settings.RISK_FACTOR *= 1.2  # 提高风险系数
         except Exception as e:
             self.logger.error(f"获取市场情绪失败: {str(e)}") 
