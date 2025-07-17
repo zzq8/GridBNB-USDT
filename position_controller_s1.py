@@ -80,7 +80,7 @@ class PositionControllerS1:
             await self._fetch_and_calculate_s1_levels()
         # else: 不需要更新
 
-    async def _execute_s1_adjustment(self, side, amount_bnb):
+    async def _execute_s1_adjustment(self, side, amount_base_asset):
         """
         专门执行 S1 仓位调整的下单函数。
         使用 trader 实例的 exchange 客户端直接下单。
@@ -90,12 +90,12 @@ class PositionControllerS1:
             # 1. 精度调整 (复用 trader 中的方法，如果存在且安全)
             # 假设 trader 中有 _adjust_amount_precision 方法
             if hasattr(self.trader, '_adjust_amount_precision') and callable(self.trader._adjust_amount_precision):
-                adjusted_amount = self.trader._adjust_amount_precision(amount_bnb)
+                adjusted_amount = self.trader._adjust_amount_precision(amount_base_asset)
             else:
                 # 如果没有，提供一个基础实现 (根据需要调整精度)
                 precision = 3 
                 factor = 10 ** precision
-                adjusted_amount = math.floor(amount_bnb * factor) / factor
+                adjusted_amount = math.floor(amount_base_asset * factor) / factor
                 self.logger.warning("S1: Using basic amount precision adjustment.")
 
             if adjusted_amount <= 0:
@@ -117,7 +117,7 @@ class PositionControllerS1:
                  min_amount_limit = limits.get('amount', {}).get('min', min_amount_limit)
                  
             if adjusted_amount < min_amount_limit:
-                self.logger.warning(f"S1: Adjusted amount {adjusted_amount:.8f} BNB is below minimum amount limit {min_amount_limit:.8f}.")
+                self.logger.warning(f"S1: Adjusted amount {adjusted_amount:.8f} {self.trader.base_asset} is below minimum amount limit {min_amount_limit:.8f}.")
                 return False
             if adjusted_amount * current_price < min_notional:
                  self.logger.warning(f"S1: Order value {adjusted_amount * current_price:.2f} USDT is below minimum notional value {min_notional:.2f}.")
@@ -149,12 +149,12 @@ class PositionControllerS1:
                         return False
                     
             elif side == 'SELL':
-                # 检查BNB余额是否足够
-                if adjusted_amount > await self.trader.get_available_balance('BNB'):
-                    self.logger.warning(f"S1: BNB余额不足，无法执行卖出操作")
+                # 检查base_asset余额是否足够
+                if adjusted_amount > await self.trader.get_available_balance(self.trader.base_asset):
+                    self.logger.warning(f"S1: {self.trader.base_asset}余额不足，无法执行卖出操作")
                     return False
 
-            self.logger.info(f"S1: Placing {side} order for {adjusted_amount:.8f} BNB at market price (approx {current_price})...")
+            self.logger.info(f"S1: Placing {side} order for {adjusted_amount:.8f} {self.trader.base_asset} at market price (approx {current_price})...")
 
             # 5. 使用 trader 的 exchange 客户端直接下单 (使用市价单确保执行调整)
             # 注意：市价单可能有滑点风险，对于大额调整需谨慎
@@ -191,8 +191,46 @@ class PositionControllerS1:
             return True # 表示成功执行
 
         except Exception as e:
-            self.logger.error(f"S1: Failed to execute adjustment order ({side} {amount_bnb:.8f}): {e}", exc_info=True)
+            self.logger.error(f"S1: Failed to execute adjustment order ({side} {amount_base_asset:.8f}): {e}", exc_info=True)
             return False
+
+    async def check_s1_balance_and_transfer(self, value_needed, currency='USDT'):
+        """
+        检查S1策略触发后可用余额, 如果不够则尝试从理财账户赎回资金。
+        """
+        try:
+            self.logger.info(f"S1: 需要现货账户余额: {value_needed:.2f} {currency}")
+            # 获取当前可用余额
+            available_balance = await self.trader.get_available_balance(currency)
+            if available_balance >= value_needed:
+                self.logger.info(f"S1: 可用余额足够: {available_balance:.2f} {currency}, 不需要赎回。")
+            else:
+                # 余额不足，尝试从理财账户赎回资金
+                required = value_needed - available_balance
+                # 添加20%缓冲
+                required_with_buffer = required * 1.2
+                
+                self.logger.info(f"S1: 可用余额不足: {available_balance:.2f} {currency}, 需要赎回 {required_with_buffer:.2f} {currency}。")
+                # 尝试从理财账户赎回资金
+                max_single_transfer = 5000  # 假设单次最大划转5000 USDT
+                while required_with_buffer > 0:
+                    transfer_amount = min(required_with_buffer, max_single_transfer)
+                    await self.trader.exchange.transfer_to_spot(currency, transfer_amount)
+                    required_with_buffer -= transfer_amount
+                    self.logger.info(f"预划转完成: {transfer_amount} {currency} | 剩余需划转: {required_with_buffer:.2f} {currency}")
+                    
+                self.logger.info("资金预划转完成，等待10秒确保到账")
+                await asyncio.sleep(10)  # 等待资金到账
+                
+                # 再次检查余额
+                available_balance = await self.trader.get_available_balance(currency)
+                self.logger.info(f"赎回后余额检查 | 可用于S1策略交易的的现货{currency}: {available_balance:.2f}")
+            
+            return available_balance
+                
+        except Exception as e:
+            self.logger.error(f"S1: 检查可用余额失败: {e}")
+            return 0
 
 
     async def check_and_execute(self, risk_state: RiskState = RiskState.ALLOW_ALL):
@@ -223,7 +261,7 @@ class PositionControllerS1:
             position_pct = await self.trader.risk_manager._get_position_ratio(spot_balance, funding_balance)
             position_value = await self.trader.risk_manager._get_position_value(spot_balance, funding_balance)
             total_assets = await self.trader._get_pair_specific_assets_value()
-            bnb_balance = await self.trader.get_available_balance('BNB') # 获取可用 BNB
+            base_asset_balance = await self.trader.get_available_balance(self.trader.base_asset)
 
             if total_assets <= 0:
                 self.logger.warning("S1: Invalid total assets value.")
@@ -235,7 +273,7 @@ class PositionControllerS1:
 
         # 2. 判断 S1 条件
         s1_action = 'NONE'
-        s1_trade_amount_bnb = 0
+        s1_trade_amount_base_asset = 0
 
         # 高点检查
         if current_price > self.s1_daily_high and position_pct > self.s1_sell_target_pct:
@@ -244,8 +282,13 @@ class PositionControllerS1:
             sell_value_needed = position_value - target_position_value
             # 确保不会卖出负数或零 (以防万一)
             if sell_value_needed > 0:
-                s1_trade_amount_bnb = min(sell_value_needed / current_price, bnb_balance)
-                self.logger.info(f"S1: High level breached. Need to SELL {s1_trade_amount_bnb:.8f} BNB to reach {self.s1_sell_target_pct*100:.0f}% target.")
+                available_balance = await self.check_s1_balance_and_transfer(sell_value_needed / current_price, self.trader.base_asset)
+                if available_balance > 0:
+                    s1_trade_amount_base_asset = min(sell_value_needed / current_price, available_balance)
+                    self.logger.info(f"S1: High level breached. Need to SELL {s1_trade_amount_base_asset:.8f} {self.trader.base_asset} to reach {self.s1_sell_target_pct*100:.0f}% target.")
+                else:
+                    self.logger.warning(f"S1: Insufficient {self.trader.base_asset} balance for sell adjustment. Available: {available_balance:.8f} {self.trader.base_asset}")
+                    s1_action = 'NONE'
             else:
                 s1_action = 'NONE' # 重置，因为计算结果无效
 
@@ -256,21 +299,21 @@ class PositionControllerS1:
             buy_value_needed = target_position_value - position_value
             # 确保不会买入负数或零
             if buy_value_needed > 0:
-                s1_trade_amount_bnb = buy_value_needed / current_price
-                self.logger.info(f"S1: Low level breached. Need to BUY {s1_trade_amount_bnb:.8f} BNB to reach {self.s1_buy_target_pct*100:.0f}% target.")
+                s1_trade_amount_base_asset = buy_value_needed / current_price
+                self.logger.info(f"S1: Low level breached. Need to BUY {s1_trade_amount_base_asset:.8f} {self.trader.base_asset} to reach {self.s1_buy_target_pct*100:.0f}% target.")
             else:
                 s1_action = 'NONE' # 重置
 
         # 3. 如果触发，并且风控允许，才执行 S1 调仓
         if s1_action == 'SELL' and risk_state != RiskState.ALLOW_BUY_ONLY:
-            if s1_trade_amount_bnb > 1e-9:
+            if s1_trade_amount_base_asset > 1e-9:
                 self.logger.info(f"S1: Condition met for SELL adjustment.")
-                await self._execute_s1_adjustment('SELL', s1_trade_amount_bnb)
+                await self._execute_s1_adjustment('SELL', s1_trade_amount_base_asset)
         elif s1_action == 'BUY' and risk_state != RiskState.ALLOW_SELL_ONLY:
-            if s1_trade_amount_bnb > 1e-9:
+            if s1_trade_amount_base_asset > 1e-9:
                 self.logger.info(f"S1: Condition met for BUY adjustment.")
-                await self._execute_s1_adjustment('BUY', s1_trade_amount_bnb)
-        elif s1_action != 'NONE' and s1_trade_amount_bnb > 1e-9:
+                await self._execute_s1_adjustment('BUY', s1_trade_amount_base_asset)
+        elif s1_action != 'NONE' and s1_trade_amount_base_asset > 1e-9:
             # 记录被风控阻止的操作
             self.logger.info(f"S1: {s1_action} signal detected but blocked by risk control (state: {risk_state.name})")
             # 注意：这里不等待执行结果，执行函数内部处理日志和错误
