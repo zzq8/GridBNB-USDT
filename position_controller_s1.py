@@ -109,7 +109,7 @@ class PositionControllerS1:
                  return False
                  
             # 3. 检查最小订单限制 (复用 trader 中的 symbol_info, 如果存在)
-            min_notional = 10 # 默认最小名义价值 (USDT)
+            min_notional = 10 # 默认最小名义价值 (quote currency)
             min_amount_limit = 0.0001 # 默认最小数量
             if hasattr(self.trader, 'symbol_info') and self.trader.symbol_info:
                  limits = self.trader.symbol_info.get('limits', {})
@@ -120,26 +120,26 @@ class PositionControllerS1:
                 self.logger.warning(f"S1: Adjusted amount {adjusted_amount:.8f} {self.trader.base_asset} is below minimum amount limit {min_amount_limit:.8f}.")
                 return False
             if adjusted_amount * current_price < min_notional:
-                 self.logger.warning(f"S1: Order value {adjusted_amount * current_price:.2f} USDT is below minimum notional value {min_notional:.2f}.")
+                 self.logger.warning(f"S1: Order value {adjusted_amount * current_price:.2f} {self.trader.quote_asset} is below minimum notional value {min_notional:.2f}.")
                  return False
 
             # 4. 检查余额，必要时从理财账户赎回资金
             if side == 'BUY':
-                # 检查USDT余额是否足够
-                usdt_needed = adjusted_amount * current_price
-                usdt_available = await self.trader.get_available_balance('USDT')
+                # 检查quote currency余额是否足够
+                quote_needed = adjusted_amount * current_price
+                quote_available = await self.trader.get_available_balance(self.trader.quote_asset)
                 
-                if usdt_available < usdt_needed:
-                    self.logger.info(f"S1: USDT余额不足，需要{usdt_needed:.2f}，可用{usdt_available:.2f}，尝试从理财赎回")
+                if quote_available < quote_needed:
+                    self.logger.info(f"S1: {self.trader.quote_asset}余额不足，需要{quote_needed:.2f}，可用{quote_available:.2f}，尝试从理财赎回")
                     
                     # 使用网格策略的资金转移方法
                     if hasattr(self.trader, '_pre_transfer_funds'):
                         try:
                             await self.trader._pre_transfer_funds(current_price)
                             # 重新检查余额
-                            usdt_available = await self.trader.get_available_balance('USDT')
-                            if usdt_available < usdt_needed:
-                                self.logger.warning(f"S1: 即使赎回后，USDT余额仍不足，可用{usdt_available:.2f}")
+                            quote_available = await self.trader.get_available_balance(self.trader.quote_asset)
+                            if quote_available < quote_needed:
+                                self.logger.warning(f"S1: 即使赎回后，{self.trader.quote_asset}余额仍不足，可用{quote_available:.2f}")
                                 return False
                         except Exception as e:
                             self.logger.error(f"S1: 从理财赎回资金失败: {e}")
@@ -212,7 +212,7 @@ class PositionControllerS1:
                 
                 self.logger.info(f"S1: 可用余额不足: {available_balance:.2f} {currency}, 需要赎回 {required_with_buffer:.2f} {currency}。")
                 # 尝试从理财账户赎回资金
-                max_single_transfer = 5000  # 假设单次最大划转5000 USDT
+                max_single_transfer = 5000  # 假设单次最大划转5000
                 while required_with_buffer > 0:
                     transfer_amount = min(required_with_buffer, max_single_transfer)
                     await self.trader.exchange.transfer_to_spot(currency, transfer_amount)
