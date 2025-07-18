@@ -158,6 +158,8 @@ WEB_PASSWORD=your_password
 # 代理设置 (如需要)
 HTTP_PROXY="http://127.0.0.1:7890"
 ```
+### https配置（可选）
+[https配置教程(可选)](README-https.md)
 
 ### 重要安全提示
 
