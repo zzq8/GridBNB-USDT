@@ -91,6 +91,10 @@ async def main():
         if not SYMBOLS_LIST:
             logging.warning("没有配置任何交易对，程序即将退出。")
             return
+            
+        if len({s.split('/')[1] for s in SYMBOLS_LIST}) > 1:
+            logging.warning("计价货币不一致，程序即将退出。")
+            return
 
         # 在主函数中创建唯一、共享的ExchangeClient实例
         shared_exchange_client = ExchangeClient()
