@@ -120,4 +120,8 @@ data/
 *.log
 *.log.*
 
+# Windows specific
+*.stackdump
+*.exe.stackdump
+
 update_git.ps1

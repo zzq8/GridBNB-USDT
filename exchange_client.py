@@ -1,7 +1,7 @@
 import ccxt.async_support as ccxt
 import os
 import logging
-from config import SYMBOL, DEBUG_MODE, API_TIMEOUT, RECV_WINDOW
+from config import settings
 from datetime import datetime
 import time
 import asyncio
@@ -9,15 +9,15 @@ import asyncio
 class ExchangeClient:
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self._verify_credentials()
+        # API密钥验证已由Pydantic在settings实例化时自动完成
         
         # 获取代理配置，如果环境变量中没有设置，则使用None
         proxy = os.getenv('HTTP_PROXY')
         
         # 先初始化交易所实例
         self.exchange = ccxt.binance({
-            'apiKey': os.getenv('BINANCE_API_KEY'),
-            'secret': os.getenv('BINANCE_API_SECRET'),
+            'apiKey': settings.BINANCE_API_KEY,
+            'secret': settings.BINANCE_API_SECRET,
             'enableRateLimit': True,
             'timeout': 60000,  # 增加超时时间到60秒
             'options': {
@@ -35,7 +35,7 @@ class ExchangeClient:
                 'createMarketBuyOrderRequiresPrice': False
             },
             'aiohttp_proxy': proxy,  # 使用环境变量中的代理配置
-            'verbose': DEBUG_MODE
+            'verbose': settings.DEBUG_MODE
         })
         if proxy:
             self.logger.info(f"使用代理: {proxy}")
@@ -49,15 +49,63 @@ class ExchangeClient:
         self.balance_cache = {'timestamp': 0, 'data': None}
         self.funding_balance_cache = {'timestamp': 0, 'data': {}}
         self.cache_ttl = 30  # 缓存有效期（秒）
+
+        # 为全局总资产计算添加缓存
+        self.total_value_cache = {'timestamp': 0, 'data': 0.0}
+
+        # 【新增】用于管理后台时间同步任务
+        self.time_sync_task = None
     
-    def _verify_credentials(self):
-        """验证API密钥是否存在"""
-        required_env = ['BINANCE_API_KEY', 'BINANCE_API_SECRET']
-        missing = [var for var in required_env if not os.getenv(var)]
-        if missing:
-            error_msg = f"缺少环境变量: {', '.join(missing)}"
-            self.logger.critical(error_msg)
-            raise EnvironmentError(error_msg)
+
+
+    def _format_savings_amount(self, asset: str, amount: float) -> str:
+        """根据配置格式化理财产品的操作金额"""
+        # 从配置中获取该资产的理财精度，如果未指定，则使用默认精度
+        precision = settings.SAVINGS_PRECISIONS.get(asset, settings.SAVINGS_PRECISIONS['DEFAULT'])
+
+        # 使用 f-string 和获取到的精度来格式化
+        return f"{float(amount):.{precision}f}"
+
+    def _is_funding_balance_changed_significantly(
+        self, old_balances: dict, new_balances: dict, relative_threshold: float = 0.001
+    ) -> bool:
+        """
+        比较新旧理财余额，判断是否存在"重大变化"。
+        通过比较相对变化百分比，智能忽略微小利息，且无需为新币种单独配置。
+
+        Args:
+            old_balances: 上一次缓存的余额字典。
+            new_balances: 新获取的余额字典。
+            relative_threshold: 相对变化阈值 (例如: 0.001 表示 0.1%)。
+
+        Returns:
+            True 如果任何资产的变化超过阈值，否则 False。
+        """
+        # 如果新旧余额完全相同，直接返回False，这是最高效的检查
+        if new_balances == old_balances:
+            return False
+
+        # 获取所有涉及的资产（并集），以处理新增或移除的资产
+        all_assets = set(old_balances.keys()) | set(new_balances.keys())
+
+        for asset in all_assets:
+            old_amount = old_balances.get(asset, 0.0)
+            new_amount = new_balances.get(asset, 0.0)
+
+            # 如果旧余额为0，任何新增都视为重大变化
+            if old_amount == 0 and new_amount > 0:
+                return True
+
+            # 计算相对变化率
+            # 使用 max(old_amount, 1e-9) 避免除以零的错误
+            relative_change = abs(new_amount - old_amount) / max(old_amount, 1e-9)
+
+            # 如果任何一个资产的相对变化超过了阈值，就认为发生了重大变化
+            if relative_change > relative_threshold:
+                return True
+
+        # 如果所有资产的相对变化都未超过阈值，则认为没有重大变化
+        return False
 
     async def load_markets(self):
         try:
@@ -70,8 +118,7 @@ class ExchangeClient:
                 try:
                     await self.exchange.load_markets()
                     self.markets_loaded = True
-                    market = self.exchange.market(SYMBOL)
-                    self.logger.info(f"市场数据加载成功 | 交易对: {SYMBOL}")
+                    self.logger.info(f"所有市场数据加载成功")
                     return True
                 except Exception as e:
                     if i == max_retries - 1:
@@ -112,6 +159,12 @@ class ExchangeClient:
 
     async def fetch_funding_balance(self):
         """[已修复] 获取理财账户余额（支持分页）"""
+        # 功能开关检查
+        if not settings.ENABLE_SAVINGS_FUNCTION:
+            # 如果理财功能关闭，直接返回空字典，并确保缓存也是空的
+            self.funding_balance_cache = {'timestamp': 0, 'data': {}}
+            return {}
+
         now = time.time()
 
         # 如果缓存有效，直接返回缓存数据
@@ -149,9 +202,9 @@ class ExchangeClient:
                 current_page += 1
                 await asyncio.sleep(0.1)  # 避免请求过于频繁
 
-            # 只在余额发生显著变化时打印日志
+            # 只在余额发生显著变化时打印日志（使用智能相对变化检测）
             old_balances = self.funding_balance_cache.get('data', {})
-            if all_balances != old_balances:
+            if self._is_funding_balance_changed_significantly(old_balances, all_balances):
                 self.logger.info(f"理财账户余额更新: {all_balances}")
 
             # 更新缓存
@@ -264,10 +317,12 @@ class ExchangeClient:
         try:
             server_time = await self.exchange.fetch_time()
             local_time = int(time.time() * 1000)
+            # 【关键】更新 self.time_diff
             self.time_diff = server_time - local_time
-            self.logger.info(f"时间同步完成 | 时差: {self.time_diff}ms")
+            # 将日志级别从 INFO 改为 DEBUG，避免频繁刷屏
+            self.logger.debug(f"时间同步完成 | 新时差: {self.time_diff}ms")
         except Exception as e:
-            self.logger.error(f"时间同步失败: {str(e)}")
+            self.logger.error(f"周期性时间同步失败: {str(e)}")
 
     async def fetch_order_book(self, symbol, limit=5):
         """获取订单簿数据"""
@@ -307,13 +362,8 @@ class ExchangeClient:
             # 获取产品ID
             product_id = await self.get_flexible_product_id(asset)
             
-            # 格式化金额，确保精度正确
-            if asset == 'USDT':
-                formatted_amount = "{:.2f}".format(float(amount))
-            elif asset == 'BNB':
-                formatted_amount = "{:.8f}".format(float(amount))
-            else:
-                formatted_amount = str(amount)
+            # 使用配置化的精度格式化金额
+            formatted_amount = self._format_savings_amount(asset, amount)
             
             params = {
                 'asset': asset,
@@ -341,13 +391,8 @@ class ExchangeClient:
             # 获取产品ID
             product_id = await self.get_flexible_product_id(asset)
             
-            # 格式化金额，确保精度正确
-            if asset == 'USDT':
-                formatted_amount = "{:.2f}".format(float(amount))  # USDT保留2位小数
-            elif asset == 'BNB':
-                formatted_amount = "{:.8f}".format(float(amount))  # BNB保留8位小数
-            else:
-                formatted_amount = str(amount)
+            # 使用配置化的精度格式化金额
+            formatted_amount = self._format_savings_amount(asset, amount)
             
             params = {
                 'asset': asset,
@@ -382,4 +427,116 @@ class ExchangeClient:
         except Exception as e:
             self.logger.error(f"获取成交记录失败 for {symbol}: {str(e)}")
             # 返回空列表或根据需要处理错误
-            return [] 
+            return []
+
+    async def calculate_total_account_value(self, quote_currency: str = 'USDT', min_value_threshold: float = 1.0) -> float:
+        """
+        【最终修复版】计算整个账户的总资产价值。
+        此版本修复了因 fetch_balance() 返回理财凭证而导致的重复计算BUG。
+        """
+        now = time.time()
+        if now - self.total_value_cache['timestamp'] < self.cache_ttl:
+            return self.total_value_cache['data']
+
+        try:
+            # 1. 获取现货和理财账户的余额
+            spot_balance = await self.fetch_balance()
+            funding_balance = await self.fetch_funding_balance()
+
+            # --- 核心修复逻辑开始 ---
+
+            # 2. 创建一个干净的合并字典
+            combined_balances = {}
+
+            # 3. 首先，只处理真正的现货余额。
+            # 我们遍历现货账户返回的所有资产，但【明确跳过】所有以 'LD' 开头的理财凭证。
+            # 这确保了我们只累加纯粹的现货资产。
+            if spot_balance and 'total' in spot_balance:
+                for asset, amount in spot_balance['total'].items():
+                    if float(amount) > 0 and not asset.startswith('LD'):
+                        combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
+
+            # 4. 然后，将专门获取的、干净的理财账户余额加进来。
+            # 因为上一步已经排除了 'LD' 资产，这里的累加绝对不会重复。
+            if funding_balance:
+                for asset, amount in funding_balance.items():
+                    if float(amount) > 0:
+                        combined_balances[asset] = combined_balances.get(asset, 0.0) + float(amount)
+
+            # --- 核心修复逻辑结束 ---
+
+            total_value = 0.0
+
+            # 5. 后续的计价逻辑保持不变，因为它现在处理的是一个干净、无重复的资产列表
+            for asset, amount in combined_balances.items():
+                if amount <= 0:
+                    continue
+
+                asset_value = 0.0
+
+                # 注意：这里的 'LD' 处理逻辑依然需要保留，因为在某些极罕见情况下，
+                # funding_balance 可能直接返回带 'LD' 的key。这是一种防御性编程。
+                original_asset = asset
+                if asset.startswith('LD'):
+                    original_asset = asset[2:]
+
+                if original_asset == quote_currency:
+                    asset_value = amount
+                else:
+                    try:
+                        symbol = f"{original_asset}/{quote_currency}"
+                        ticker = await self.fetch_ticker(symbol)
+                        if ticker and 'last' in ticker and ticker['last'] > 0:
+                            asset_value = amount * ticker['last']
+                        else:
+                            continue
+                    except Exception:
+                        continue
+
+                if asset_value >= min_value_threshold:
+                    total_value += asset_value
+
+            self.total_value_cache = {'timestamp': now, 'data': total_value}
+            return total_value
+
+        except Exception as e:
+            self.logger.error(f"计算全账户总资产价值失败: {e}", exc_info=True)
+            return self.total_value_cache.get('data', 0.0)
+
+    async def start_periodic_time_sync(self, interval_seconds: int = 3600):
+        """
+        启动一个后台任务，周期性地同步交易所时间。
+
+        Args:
+            interval_seconds: 同步间隔，单位为秒。默认为 3600秒（1小时）。
+        """
+        if self.time_sync_task is not None:
+            self.logger.warning("时间同步任务已经启动，无需重复启动。")
+            return
+
+        async def _time_sync_loop():
+            self.logger.info(f"启动周期性时间同步任务，每 {interval_seconds} 秒执行一次。")
+            while True:
+                try:
+                    await self.sync_time()
+                    await asyncio.sleep(interval_seconds)
+                except asyncio.CancelledError:
+                    self.logger.info("时间同步任务被取消。")
+                    break
+                except Exception as e:
+                    self.logger.error(f"时间同步循环发生错误: {e}，将在60秒后重试。")
+                    await asyncio.sleep(60)
+
+        # 创建并启动后台任务
+        self.time_sync_task = asyncio.create_task(_time_sync_loop())
+
+    async def stop_periodic_time_sync(self):
+        """安全地停止周期性时间同步任务。"""
+        if self.time_sync_task and not self.time_sync_task.done():
+            self.time_sync_task.cancel()
+            try:
+                await self.time_sync_task
+            except asyncio.CancelledError:
+                pass  # 任务被取消是正常现象
+            self.logger.info("周期性时间同步任务已停止。")
+        self.time_sync_task = None
