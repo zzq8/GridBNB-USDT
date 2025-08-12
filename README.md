@@ -1,3 +1,12 @@
+---
+xd:
+- 说明你买的BNB还不够，你只持有5%的BNB，你还要再买5%，才能正常运行
+- nohup python main.py >/dev/null 2>&1 &
+
+Q&A:
+---
+
+
 # GridBNB 多币种自动化网格交易机器人
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
