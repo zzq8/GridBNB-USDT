@@ -1,7 +1,8 @@
 ---
 xd:
 - 说明你买的BNB还不够，你只持有5%的BNB，你还要再买5%，才能正常运行
-- nohup python main.py >/dev/null 2>&1 &
+- 
+   nohup python main.py --port 80 >/dev/null 2>&1 &
 
 Q&A:
 ---

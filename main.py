@@ -155,7 +155,7 @@ async def main(host="0.0.0.0", port=58181):
         logging.info("所有交易任务已结束。程序即将退出。")
 
 if __name__ == "__main__":
-    parser = argΩparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="0.0.0.0", help="绑定的主机地址 (默认 0.0.0.0)")
     parser.add_argument("--port", type=int, default=58181, help="绑定的端口号 (默认 58181)")
     args = parser.parse_args()
