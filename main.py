@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import logging
 import traceback
@@ -79,7 +80,7 @@ async def run_trader_for_symbol(symbol: str, exchange_client: ExchangeClient):
         logging.error(error_msg)
         send_pushplus_message(error_msg, f"致命错误 - {symbol}")
 
-async def main():
+async def main(host="0.0.0.0", port=58181):
     shared_exchange_client = None  # 在try块外部定义
     try:
         LogConfig.setup_logger()
@@ -124,7 +125,7 @@ async def main():
         # 如果有trader实例，启动Web服务器监控所有交易对
         if traders:
             logging.info(f"启动Web服务器监控 {len(traders)} 个交易对...")
-            web_server_task = asyncio.create_task(start_web_server(traders))
+            web_server_task = asyncio.create_task(start_web_server(traders, host=host, port=port))
             tasks.append(web_server_task)
 
         # 【新增】启动独立的全局资产监控任务
@@ -154,4 +155,9 @@ async def main():
         logging.info("所有交易任务已结束。程序即将退出。")
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    parser = argΩparse.ArgumentParser()
+    parser.add_argument("--host", default="0.0.0.0", help="绑定的主机地址 (默认 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=58181, help="绑定的端口号 (默认 58181)")
+    args = parser.parse_args()
+
+    asyncio.run(main(host=args.host, port=args.port))

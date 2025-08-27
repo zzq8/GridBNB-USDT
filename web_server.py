@@ -641,7 +641,7 @@ async def handle_symbols(request):
         logging.error(f"获取交易对列表失败: {str(e)}")
         return web.json_response({"error": str(e)}, status=500)
 
-async def start_web_server(traders):
+async def start_web_server(traders, host="0.0.0.0", port=58181):
     app = web.Application()
     # 添加中间件处理无效请求
     @web.middleware
@@ -676,14 +676,14 @@ async def start_web_server(traders):
     app.router.add_get('/api/symbols', handle_symbols)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 58181)
+    site = web.TCPSite(runner, host, port)
     await site.start()
 
     # 打印访问地址
-    local_ip = "localhost"  # 或者使用实际IP
+    # local_ip = "localhost"  # 或者使用实际IP
     logging.info(f"Web服务已启动:")
-    logging.info(f"- 本地访问: http://{local_ip}:58181/{home_prefix}")
-    logging.info(f"- 局域网访问: http://0.0.0.0:58181/{home_prefix}")
+    logging.info(f"- 本地访问: http://localhost:{port}/{home_prefix}")
+    logging.info(f"- 局域网访问: http://{host}:{port}/{home_prefix}")
 
 @auth_required
 async def handle_log_content(request):
