@@ -255,6 +255,7 @@ class TestS1OrderExecution:
         trader.symbol = 'BNB/USDT'
         trader.base_asset = 'BNB'
         trader.quote_asset = 'USDT'
+        # 关键修复: exchange 应该是 AsyncMock,它的方法也应该是 AsyncMock
         trader.exchange = AsyncMock()
         trader.current_price = 683.0
         trader.symbol_info = {
@@ -263,10 +264,19 @@ class TestS1OrderExecution:
                 'amount': {'min': 0.001}
             }
         }
+        # 确保余额充足,避免触发资金转移逻辑
+        # 买入1.5个BNB约需 1.5 * 683 = 1024.5 USDT
         trader.get_available_balance = AsyncMock(side_effect=lambda asset:
-            1000.0 if asset == 'USDT' else 10.0
+            2000.0 if asset == 'USDT' else 10.0  # 提高USDT余额到2000
         )
         trader._adjust_amount_precision = MagicMock(side_effect=lambda x: round(x, 3))
+        # 添加 _pre_transfer_funds 的 AsyncMock (以防万一)
+        trader._pre_transfer_funds = AsyncMock()
+        # 添加 _transfer_excess_funds 的 AsyncMock
+        trader._transfer_excess_funds = AsyncMock()
+        # 添加 order_tracker
+        trader.order_tracker = MagicMock()
+        trader.order_tracker.add_trade = MagicMock()
         return trader
 
     @pytest.fixture
@@ -286,7 +296,8 @@ class TestS1OrderExecution:
             'average': 683.0
         }
 
-        mock_trader.exchange.create_market_order = AsyncMock(return_value=mock_order)
+        # 显式设置 create_market_order 的返回值
+        mock_trader.exchange.create_market_order.return_value = mock_order
 
         result = await controller._execute_s1_adjustment('BUY', 1.5)
 

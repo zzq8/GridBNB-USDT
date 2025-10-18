@@ -187,23 +187,22 @@ class TestBalance:
     @pytest.mark.asyncio
     async def test_fetch_funding_balance_pagination(self, mock_client):
         """测试理财余额分页获取"""
-        # 模拟两页数据
+        # 模拟分页数据 - 第一页有100条(触发分页),第二页少于100条(结束)
         mock_page1 = {
             'rows': [
                 {'asset': 'USDT', 'totalAmount': '500.0'},
                 {'asset': 'BNB', 'totalAmount': '5.0'}
-            ]
+            ] + [{'asset': 'FILLER', 'totalAmount': '1.0'}] * 98  # 补齐到100条
         }
         mock_page2 = {
             'rows': [
                 {'asset': 'USDT', 'totalAmount': '300.0'},
                 {'asset': 'ETH', 'totalAmount': '2.0'}
-            ]
+            ]  # 少于100条,触发结束条件
         }
-        mock_page3 = {'rows': []}  # 空页面表示结束
 
         mock_client.exchange.sapi_get_simple_earn_flexible_position = AsyncMock(
-            side_effect=[mock_page1, mock_page2, mock_page3]
+            side_effect=[mock_page1, mock_page2]
         )
 
         balance = await mock_client.fetch_funding_balance()
@@ -212,6 +211,7 @@ class TestBalance:
         assert balance['USDT'] == 800.0  # 500 + 300
         assert balance['BNB'] == 5.0
         assert balance['ETH'] == 2.0
+        assert balance['FILLER'] == 98.0  # 98条填充数据
 
 
 class TestOrders:
