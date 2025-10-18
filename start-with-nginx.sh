@@ -2,6 +2,10 @@
 
 # GridBNB Trading Bot - Ubuntu/Linux 部署脚本
 # 专为 Ubuntu 服务器优化
+# 优化记录:
+# - 使用 docker compose 替代 docker-compose
+# - 添加 sudo 检测和提示
+# - 优化 Docker 安装流程
 
 set -e  # 遇到错误立即退出
 
@@ -29,6 +33,42 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# 检查 sudo 是否可用
+check_sudo() {
+    log_info "检查 sudo 命令..."
+
+    if ! command -v sudo &> /dev/null; then
+        log_error "sudo 命令未安装"
+        echo ""
+        echo "在 Debian 系统上,sudo 默认未安装。请以 root 用户运行以下命令安装:"
+        echo ""
+        echo "  su -"
+        echo "  apt-get update"
+        echo "  apt-get install -y sudo"
+        echo "  usermod -aG sudo $USER"
+        echo "  exit"
+        echo ""
+        echo "然后重新登录并再次运行此脚本。"
+        exit 1
+    fi
+
+    # 检查当前用户是否在 sudo 组中
+    if ! groups | grep -q '\bsudo\b'; then
+        log_warning "当前用户不在 sudo 组中"
+        echo ""
+        echo "请以 root 用户运行以下命令将当前用户添加到 sudo 组:"
+        echo ""
+        echo "  su -"
+        echo "  usermod -aG sudo $USER"
+        echo "  exit"
+        echo ""
+        echo "然后重新登录并再次运行此脚本。"
+        exit 1
+    fi
+
+    log_success "sudo 检查通过"
+}
+
 # 检查是否为root用户
 check_root() {
     if [[ $EUID -eq 0 ]]; then
@@ -45,13 +85,14 @@ check_root() {
 check_system() {
     log_info "检查系统环境..."
 
-    # 检查Ubuntu版本
+    # 检查操作系统
     if [ -f /etc/os-release ]; then
         . /etc/os-release
-        if [[ "$ID" != "ubuntu" ]]; then
-            log_warning "检测到非Ubuntu系统: $PRETTY_NAME"
+        if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
+            log_warning "检测到非Ubuntu/Debian系统: $PRETTY_NAME"
+            log_warning "脚本主要针对Ubuntu优化,其他系统可能需要手动调整"
         else
-            log_success "Ubuntu系统检测: $PRETTY_NAME"
+            log_success "系统检测: $PRETTY_NAME"
         fi
     fi
 
@@ -73,60 +114,74 @@ check_system() {
     fi
 }
 
-# 安装Docker
+# 检测 Docker Compose 命令
+detect_docker_compose_cmd() {
+    # 优先使用 docker compose (Docker官方集成)
+    if docker compose version &> /dev/null; then
+        echo "docker compose"
+    # 回退到 docker-compose (独立安装版)
+    elif command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    else
+        echo ""
+    fi
+}
+
+# 安装Docker (使用官方便捷脚本)
 install_docker() {
     if ! command -v docker &> /dev/null; then
         log_info "Docker未安装，开始安装..."
 
-        # 更新包索引
-        sudo apt-get update
+        log_info "使用Docker官方便捷安装脚本..."
 
-        # 安装必要的包
-        sudo apt-get install -y \
-            apt-transport-https \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release
-
-        # 添加Docker官方GPG密钥
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-
-        # 设置稳定版仓库
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-          $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-        # 安装Docker Engine
-        sudo apt-get update
-        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+        # 下载并运行Docker官方安装脚本
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo sh get-docker.sh
+        rm get-docker.sh
 
         # 将当前用户添加到docker组
         sudo usermod -aG docker $USER
 
         log_success "Docker安装完成"
         log_warning "请重新登录以使docker组权限生效，或运行: newgrp docker"
+
+        # 启动并启用Docker服务
+        sudo systemctl enable docker
+        sudo systemctl start docker
     else
         log_success "Docker已安装: $(docker --version)"
     fi
 }
 
-# 安装Docker Compose
-install_docker_compose() {
-    if ! command -v docker-compose &> /dev/null; then
-        log_info "Docker Compose未安装，开始安装..."
+# 检查 Docker Compose 插件
+check_docker_compose() {
+    log_info "检查 Docker Compose..."
 
-        # 下载最新版本的Docker Compose
-        DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)
-        sudo curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    DOCKER_COMPOSE_CMD=$(detect_docker_compose_cmd)
 
-        # 添加执行权限
-        sudo chmod +x /usr/local/bin/docker-compose
+    if [ -z "$DOCKER_COMPOSE_CMD" ]; then
+        log_warning "Docker Compose 未安装"
+        log_info "现代Docker版本已内置 Compose 插件"
+        log_info "尝试安装 Docker Compose 插件..."
 
-        log_success "Docker Compose安装完成: $(docker-compose --version)"
-    else
-        log_success "Docker Compose已安装: $(docker-compose --version)"
+        # 安装 Docker Compose 插件
+        sudo apt-get update
+        sudo apt-get install -y docker-compose-plugin
+
+        # 再次检测
+        DOCKER_COMPOSE_CMD=$(detect_docker_compose_cmd)
+
+        if [ -z "$DOCKER_COMPOSE_CMD" ]; then
+            log_error "Docker Compose 安装失败"
+            exit 1
+        fi
     fi
+
+    log_success "使用命令: $DOCKER_COMPOSE_CMD"
+    log_success "版本: $($DOCKER_COMPOSE_CMD version)"
+
+    # 导出全局变量供后续使用
+    export DOCKER_COMPOSE_CMD
 }
 
 # 主函数
@@ -134,10 +189,11 @@ main() {
     echo "🚀 GridBNB Trading Bot - Ubuntu/Linux 部署脚本"
     echo "=================================================="
 
+    check_sudo
     check_root
     check_system
     install_docker
-    install_docker_compose
+    check_docker_compose
 
     # 检查必要文件
     log_info "检查项目文件..."
@@ -158,11 +214,11 @@ main() {
 
     # 停止现有容器
     log_info "停止现有容器..."
-    docker-compose down 2>/dev/null || true
+    $DOCKER_COMPOSE_CMD down 2>/dev/null || true
 
     # 构建并启动服务
     log_info "构建并启动服务..."
-    docker-compose up -d --build
+    $DOCKER_COMPOSE_CMD up -d --build
 
     # 等待服务启动
     log_info "等待服务启动..."
@@ -170,11 +226,11 @@ main() {
 
     # 检查服务状态
     log_info "检查服务状态..."
-    docker-compose ps
+    $DOCKER_COMPOSE_CMD ps
 
     # 验证安全配置
     log_info "验证安全配置..."
-    if docker-compose port gridbnb-bot 8080 2>/dev/null; then
+    if $DOCKER_COMPOSE_CMD port gridbnb-bot 8080 2>/dev/null; then
         log_warning "8080端口仍然开放，建议检查docker-compose.yml配置"
     else
         log_success "安全配置正确: 8080端口已关闭"
@@ -190,16 +246,16 @@ main() {
     echo "   - 安全配置: 仅通过Nginx访问，8080端口已关闭"
     echo ""
     echo "📊 管理命令:"
-    echo "   - 查看状态: docker-compose ps"
-    echo "   - 查看日志: docker-compose logs -f"
-    echo "   - 重启服务: docker-compose restart"
-    echo "   - 停止服务: docker-compose down"
-    echo "   - 更新代码: git pull && docker-compose up -d --build"
+    echo "   - 查看状态: $DOCKER_COMPOSE_CMD ps"
+    echo "   - 查看日志: $DOCKER_COMPOSE_CMD logs -f"
+    echo "   - 重启服务: $DOCKER_COMPOSE_CMD restart"
+    echo "   - 停止服务: $DOCKER_COMPOSE_CMD down"
+    echo "   - 更新代码: git pull && $DOCKER_COMPOSE_CMD up -d --build"
     echo ""
     echo "📝 日志位置:"
     echo "   - 应用日志: ./trading_system.log"
     echo "   - Nginx日志: ./nginx/logs/"
-    echo "   - Docker日志: docker-compose logs"
+    echo "   - Docker日志: $DOCKER_COMPOSE_CMD logs"
     echo ""
     echo "🔧 故障排除:"
     echo "   - 检查端口: sudo netstat -tlnp | grep :80"

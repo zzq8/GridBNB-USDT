@@ -103,6 +103,10 @@
 
    # 安装依赖
    pip install -r requirements.txt
+
+   # (可选) 安装开发工具 - 用于代码质量检查
+   pip install -r requirements-dev.txt
+   pre-commit install  # 安装 Git 钩子
    ```
 
 2. **配置和运行**
@@ -221,7 +225,7 @@ ENABLE_SAVINGS_FUNCTION=false
 
 ### 一键更新脚本 (Ubuntu/Linux)
 
-为已部署的Ubuntu服务器提供简单的一键更新解决方案：
+为已部署的Ubuntu/Debian服务器提供简单的一键更新解决方案：
 
 ```bash
 # 进入项目目录
@@ -241,9 +245,15 @@ chmod +x update.sh
 - ✅ 重新构建并重启 Docker 容器
 - ✅ 验证服务运行状态
 - ✅ 显示更新结果和访问信息
+- ✅ 智能检测 `docker compose` 或 `docker-compose`
+
+**脚本优化** (v2.0):
+- ✅ **sudo 检测**: 自动检测并提示安装 sudo (Debian 系统必需)
+- ✅ **命令兼容**: 优先使用 `docker compose`，向后兼容 `docker-compose`
+- ✅ **官方安装**: 使用 Docker 官方便捷脚本安装
 
 **适用场景**:
-- Ubuntu/Linux 服务器环境
+- Ubuntu/Debian/Linux 服务器环境
 - 已通过 Docker 部署的系统
 - 需要保持配置文件不变的更新
 
@@ -255,14 +265,20 @@ chmod +x update.sh
 # 1. 拉取最新代码
 git pull origin main
 
-# 2. 重启服务
+# 2. 重启服务 (使用 docker compose 或 docker-compose)
+docker compose up -d --build
+# 或
 docker-compose up -d --build
 
 # 3. 检查状态
+docker compose ps
+# 或
 docker-compose ps
 ```
 
-**注意**: `.env` 配置文件不会被 Git 更新影响，因为它在 `.gitignore` 中被忽略。
+**注意**:
+- `.env` 配置文件不会被 Git 更新影响，因为它在 `.gitignore` 中被忽略
+- 新版 Docker (20.10+) 已内置 `docker compose` 命令，无需单独安装 `docker-compose`
 
 ## �📊 监控和日志
 
@@ -273,10 +289,14 @@ docker-compose ps
 
 ### 监控命令
 ```bash
-# 查看服务状态
+# 查看服务状态 (使用 docker compose 或 docker-compose)
+docker compose ps
+# 或
 docker-compose ps
 
 # 查看实时日志
+docker compose logs -f gridbnb-bot
+# 或
 docker-compose logs -f gridbnb-bot
 
 # 查看系统资源
@@ -291,13 +311,13 @@ docker stats
    ```bash
    # 检查 Docker 状态
    docker --version
-   docker-compose --version
+   docker compose version  # 或 docker-compose --version
 
    # 重启服务
-   docker-compose restart
+   docker compose restart  # 或 docker-compose restart
 
    # 查看错误日志
-   docker-compose logs gridbnb-bot
+   docker compose logs gridbnb-bot  # 或 docker-compose logs gridbnb-bot
    ```
 
 2. **API 连接问题**
@@ -309,6 +329,17 @@ docker stats
    - 检查端口是否被占用
    - 确认防火墙设置
    - 验证容器状态
+
+4. **Debian 系统 sudo 未安装**
+   ```bash
+   # 以 root 用户登录
+   su -
+   apt-get update
+   apt-get install -y sudo
+   usermod -aG sudo your_username
+   exit
+   # 重新登录后即可使用 sudo
+   ```
 
 ### 获取帮助
 
@@ -329,15 +360,75 @@ docker stats
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
+## 👨‍💻 开发者指南
+
+### 代码质量工具
+
+本项目使用多种工具保证代码质量和一致性:
+
+**已配置的工具**:
+- ✅ **Black**: 代码自动格式化 (行长 100)
+- ✅ **isort**: 导入语句自动排序
+- ✅ **Flake8**: 代码风格和质量检查
+- ✅ **mypy**: 静态类型检查
+- ✅ **Bandit**: 安全漏洞扫描
+- ✅ **Pre-commit**: Git 提交前自动检查
+
+**快速开始**:
+```bash
+# 安装开发工具
+pip install -r requirements-dev.txt
+
+# 安装 Git 钩子 (每次提交前自动检查)
+pre-commit install
+
+# 手动运行所有检查
+pre-commit run --all-files
+```
+
+**详细文档**: 查看 [CODE_QUALITY.md](CODE_QUALITY.md) 了解完整的使用指南和最佳实践。
+
+### 推荐开发流程
+
+```bash
+# 1. 创建新分支
+git checkout -b feature/your-feature
+
+# 2. 编写代码
+# ...
+
+# 3. 格式化和检查 (pre-commit 会自动执行)
+black .
+isort .
+flake8
+mypy .
+
+# 4. 运行测试
+pytest
+
+# 5. 提交代码 (触发 pre-commit 钩子)
+git add .
+git commit -m "feat: your feature description"
+```
+
 ## 🤝 贡献
 
 欢迎贡献代码！请遵循以下步骤：
 
 1. Fork 本仓库
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+3. 安装开发工具 (`pip install -r requirements-dev.txt && pre-commit install`)
+4. 编写代码并确保通过所有检查 (格式化、类型检查、测试)
+5. 提交更改 (`git commit -m 'feat: Add some AmazingFeature'`)
+6. 推送到分支 (`git push origin feature/AmazingFeature`)
+7. 开启 Pull Request
+
+**代码质量要求**:
+- ✅ 通过 Black 格式化 (行长 100)
+- ✅ 通过 Flake8 代码检查
+- ✅ 添加必要的类型注解
+- ✅ 包含单元测试 (如适用)
+- ✅ 更新相关文档
 
 ## 🙏 致谢
 
