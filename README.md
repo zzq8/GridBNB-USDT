@@ -112,12 +112,84 @@
 2. **配置和运行**
    ```bash
    # 配置 .env 文件
-   cp .env.example .env
-   # 编辑 .env 文件
+   cp config/.env.example config/.env
+   # 编辑 config/.env 文件
 
-   # 运行程序
-   python main.py
+   # 运行程序 - 支持以下任一方式
+   python src/main.py           # 方式1: 直接运行（企业级路径处理）
+   python -m src.main           # 方式2: 模块方式运行
+
+   # 或使用便捷启动脚本
+   ./start.sh                   # Linux/Mac
+   start.bat                    # Windows
    ```
+
+## 📁 项目结构
+
+项目采用企业级目录结构，模块化设计，便于维护和扩展：
+
+```
+GridBNB-USDT/
+├── src/                        # 源代码目录
+│   ├── main.py                 # 应用入口
+│   ├── core/                   # 核心模块
+│   │   ├── trader.py           # 网格交易器
+│   │   ├── exchange_client.py  # 交易所API封装
+│   │   └── order_tracker.py    # 订单跟踪
+│   ├── strategies/             # 策略模块
+│   │   ├── position_controller_s1.py  # S1辅助策略
+│   │   └── risk_manager.py     # 风险管理
+│   ├── services/               # 服务模块
+│   │   ├── monitor.py          # 交易监控
+│   │   └── web_server.py       # Web服务
+│   ├── utils/                  # 工具模块
+│   │   └── helpers.py          # 辅助函数
+│   ├── security/               # 安全模块
+│   │   ├── api_key_manager.py  # API密钥管理
+│   │   └── api_key_validator.py # API密钥验证
+│   └── config/                 # 配置模块
+│       └── settings.py         # 配置管理
+├── tests/                      # 测试目录
+│   ├── unit/                   # 单元测试
+│   ├── integration/            # 集成测试
+│   └── fixtures/               # 测试fixture
+├── scripts/                    # 脚本目录
+│   ├── run_tests.py            # 测试运行脚本
+│   ├── start-with-nginx.sh     # Nginx启动脚本
+│   └── update_imports.py       # 导入更新脚本
+├── docs/                       # 文档目录
+│   ├── CLAUDE.md               # AI上下文文档
+│   ├── CODE_QUALITY.md         # 代码质量报告
+│   └── README-https.md         # HTTPS配置教程
+├── config/                     # 配置文件目录
+│   ├── .env.example            # 环境变量模板
+│   ├── pytest.ini              # pytest配置
+│   ├── pyproject.toml          # 项目配置
+│   └── .pre-commit-config.yaml # Git钩子配置
+├── docker/                     # Docker配置
+│   ├── Dockerfile              # Docker镜像定义
+│   ├── docker-compose.yml      # 容器编排
+│   └── nginx/                  # Nginx配置
+├── data/                       # 数据目录(运行时生成)
+│   ├── trader_state_*.json     # 交易器状态
+│   └── trade_history.json      # 交易历史
+└── logs/                       # 日志目录(运行时生成)
+    └── trading_system.log      # 系统日志
+```
+
+### 模块说明
+
+- **src/core**: 核心交易逻辑和交易所API封装
+- **src/strategies**: 交易策略和风险管理
+- **src/services**: 监控和Web服务
+- **src/utils**: 通用工具函数
+- **src/security**: 安全相关功能
+- **src/config**: 配置管理和验证
+- **tests**: 完整的测试套件(覆盖率31%)
+- **scripts**: 辅助脚本工具
+- **docs**: 项目文档
+- **config**: 配置文件
+- **docker**: 容器化部署配置
 
 ## ⚙️ 配置说明
 
@@ -245,11 +317,11 @@ chmod +x update.sh
 - ✅ 重新构建并重启 Docker 容器
 - ✅ 验证服务运行状态
 - ✅ 显示更新结果和访问信息
-- ✅ 智能检测 `docker compose` 或 `docker-compose`
+- ✅ 使用 `docker compose` 标准命令
 
 **脚本优化** (v2.0):
 - ✅ **sudo 检测**: 自动检测并提示安装 sudo (Debian 系统必需)
-- ✅ **命令兼容**: 优先使用 `docker compose`，向后兼容 `docker-compose`
+- ✅ **标准命令**: 使用 `docker compose` (Docker 20.10+ 内置)
 - ✅ **官方安装**: 使用 Docker 官方便捷脚本安装
 
 **适用场景**:
@@ -265,39 +337,31 @@ chmod +x update.sh
 # 1. 拉取最新代码
 git pull origin main
 
-# 2. 重启服务 (使用 docker compose 或 docker-compose)
+# 2. 重启服务
 docker compose up -d --build
-# 或
-docker-compose up -d --build
 
 # 3. 检查状态
 docker compose ps
-# 或
-docker-compose ps
 ```
 
 **注意**:
 - `.env` 配置文件不会被 Git 更新影响，因为它在 `.gitignore` 中被忽略
-- 新版 Docker (20.10+) 已内置 `docker compose` 命令，无需单独安装 `docker-compose`
+- 本项目使用 `docker compose` (Docker 20.10+ 内置命令)
 
 ## �📊 监控和日志
 
 ### 日志文件
 - **应用日志**: `trading_system.log`
 - **Nginx 日志**: `nginx/logs/access.log`, `nginx/logs/error.log`
-- **Docker 日志**: `docker-compose logs -f`
+- **Docker 日志**: `docker compose logs -f`
 
 ### 监控命令
 ```bash
-# 查看服务状态 (使用 docker compose 或 docker-compose)
+# 查看服务状态
 docker compose ps
-# 或
-docker-compose ps
 
 # 查看实时日志
 docker compose logs -f gridbnb-bot
-# 或
-docker-compose logs -f gridbnb-bot
 
 # 查看系统资源
 docker stats
@@ -311,13 +375,13 @@ docker stats
    ```bash
    # 检查 Docker 状态
    docker --version
-   docker compose version  # 或 docker-compose --version
+   docker compose version
 
    # 重启服务
-   docker compose restart  # 或 docker-compose restart
+   docker compose restart
 
    # 查看错误日志
-   docker compose logs gridbnb-bot  # 或 docker-compose logs gridbnb-bot
+   docker compose logs gridbnb-bot
    ```
 
 2. **API 连接问题**
