@@ -27,3 +27,9 @@ python-json-logger>=4.0.0
 
 # 配置热重载 (阶段4优化)
 watchdog>=6.0.0
+
+# 监控系统 (Day 4-7优化)
+prometheus-client>=0.19.0
+# AI辅助交易 (AI Strategy)
+openai>=1.51.0  # OpenAI GPT-4/GPT-3.5
+anthropic>=0.39.0  # Claude API

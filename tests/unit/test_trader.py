@@ -40,8 +40,8 @@ def mock_trader(mock_exchange, mock_config):
     """创建模拟的GridTrader实例"""
     with patch('src.core.trader.AdvancedRiskManager'), \
          patch('src.core.trader.OrderTracker'), \
-         patch('src.core.trader.TradingMonitor'), \
-         patch('src.core.trader.PositionControllerS1'):
+         patch('src.core.trader.TradingMonitor'):
+        # S1策略已移除,不再需要mock
         trader = GridTrader(mock_exchange, mock_config, 'BNB/USDT')
         trader.base_price = 600.0
         trader.grid_size = 2.0

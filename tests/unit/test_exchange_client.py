@@ -25,8 +25,8 @@ class TestExchangeClientInit:
     @patch('src.core.exchange_client.ccxt.binance')
     def test_init_basic(self, mock_binance, mock_settings):
         """测试基础初始化"""
-        mock_settings.BINANCE_API_KEY = 'test_key'
-        mock_settings.BINANCE_API_SECRET = 'test_secret'
+        mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+        mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
         mock_settings.DEBUG_MODE = False
         mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
 
@@ -43,8 +43,8 @@ class TestExchangeClientInit:
     @patch.dict('os.environ', {'HTTP_PROXY': 'http://proxy.example.com:8080'})
     def test_init_with_proxy(self, mock_binance, mock_settings):
         """测试带代理的初始化"""
-        mock_settings.BINANCE_API_KEY = 'test_key'
-        mock_settings.BINANCE_API_SECRET = 'test_secret'
+        mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+        mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
         mock_settings.DEBUG_MODE = False
         mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
 
@@ -62,8 +62,8 @@ class TestMarketData:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
 
@@ -142,8 +142,8 @@ class TestBalance:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
             mock_settings.ENABLE_SAVINGS_FUNCTION = True
@@ -221,8 +221,8 @@ class TestOrders:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
 
@@ -294,8 +294,8 @@ class TestSavingsOperations:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'USDT': 2, 'BNB': 4, 'DEFAULT': 2}
 
@@ -361,8 +361,8 @@ class TestTimeSync:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
 
@@ -416,8 +416,8 @@ class TestUtilityMethods:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {
                 'USDT': 2,
@@ -479,8 +479,8 @@ class TestCalculateTotalValue:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
 
@@ -533,8 +533,8 @@ class TestAdditionalMethods:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
 
@@ -654,8 +654,8 @@ class TestCacheInvalidation:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
             mock_settings.ENABLE_SAVINGS_FUNCTION = True
@@ -709,8 +709,8 @@ class TestEdgeCases:
     def mock_client(self):
         """创建 mock 的交易所客户端"""
         with patch('src.core.exchange_client.settings') as mock_settings:
-            mock_settings.BINANCE_API_KEY = 'test_key'
-            mock_settings.BINANCE_API_SECRET = 'test_secret'
+            mock_settings.BINANCE_API_KEY = 'test_' + 'x' * 60
+            mock_settings.BINANCE_API_SECRET = 'test_' + 'y' * 60
             mock_settings.DEBUG_MODE = False
             mock_settings.SAVINGS_PRECISIONS = {'DEFAULT': 2}
 

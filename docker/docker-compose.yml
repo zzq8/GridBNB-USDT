@@ -27,6 +27,59 @@ services:
       timeout: 10s
       retries: 3
 
+  # Prometheus 监控服务
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gridbnb-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      - gridbnb-bot
+    networks:
+      - gridbnb-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana 可视化服务
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gridbnb-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    networks:
+      - gridbnb-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Nginx 反向代理服务
   nginx:
     image: nginx:alpine
@@ -40,6 +93,7 @@ services:
       - ./nginx/logs:/var/log/nginx
     depends_on:
       - gridbnb-bot
+      - grafana
     networks:
       - gridbnb-network
     healthcheck:
@@ -47,6 +101,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+# 定义持久化卷
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
 
 # 定义网络
 networks:

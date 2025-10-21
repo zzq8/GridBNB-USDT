@@ -11,6 +11,15 @@ from functools import wraps
 from src.config.settings import settings
 import src
 
+# 导入Prometheus指标
+try:
+    from src.monitoring.metrics import get_metrics
+    from prometheus_client import CONTENT_TYPE_LATEST
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    logging.warning("Prometheus客户端未安装,/metrics端点将不可用")
+
 def auth_required(func):
     """基础认证装饰器"""
     @wraps(func)
@@ -503,7 +512,7 @@ async def handle_status(request):
             symbol = list(traders.keys())[0]  # 默认使用第一个交易对
 
         trader = traders[symbol]
-        s1_controller = trader.position_controller_s1 # 获取 S1 控制器实例
+        # S1策略已移除: s1_controller = trader.position_controller_s1
 
         # 获取交易所数据
         balance = await trader.exchange.fetch_balance()
@@ -593,11 +602,11 @@ async def handle_status(request):
         # 获取仓位百分比 - 使用风控管理器的方法获取最准确的仓位比例
         position_ratio = await trader.risk_manager._get_position_ratio(spot_balance, funding_balance)
         position_percentage = position_ratio * 100
-        
-        # 获取 S1 高低价
-        s1_high = s1_controller.s1_daily_high if s1_controller else None
-        s1_low = s1_controller.s1_daily_low if s1_controller else None
-        
+
+        # S1策略已移除: s1_high / s1_low 不再获取
+        s1_high = None
+        s1_low = None
+
         # 构建响应数据
         status = {
             "symbol": trader.symbol,  # 新增：交易对信息
@@ -642,6 +651,60 @@ async def handle_symbols(request):
         logging.error(f"获取交易对列表失败: {str(e)}")
         return web.json_response({"error": str(e)}, status=500)
 
+
+async def handle_metrics(request):
+    """Prometheus指标端点(无需认证)"""
+    if not METRICS_AVAILABLE:
+        return web.Response(
+            text="Prometheus metrics not available. Install prometheus-client package.",
+            status=503
+        )
+
+    try:
+        # 获取指标实例
+        metrics = get_metrics()
+
+        # 更新当前trader数据到指标
+        traders = request.app.get('traders', {})
+        for symbol, trader in traders.items():
+            try:
+                # 更新网格参数
+                if hasattr(trader, 'base_price') and hasattr(trader, 'grid_size'):
+                    current_price = getattr(trader, 'last_trade_price', None) or trader.base_price
+                    upper = trader.base_price * (1 + trader.grid_size)
+                    lower = trader.base_price * (1 - trader.grid_size)
+
+                    metrics.update_grid_params(
+                        symbol=symbol,
+                        grid_size=trader.grid_size,
+                        base_price=trader.base_price,
+                        current_price=current_price,
+                        upper_band=upper,
+                        lower_band=lower
+                    )
+
+                # 更新收益
+                if hasattr(trader, 'total_profit'):
+                    metrics.update_profit(
+                        symbol=symbol,
+                        total_profit=trader.total_profit
+                    )
+
+            except Exception as e:
+                logging.error(f"更新{symbol}指标失败: {e}")
+
+        # 生成Prometheus格式的指标
+        metrics_data = metrics.get_metrics()
+
+        return web.Response(
+            body=metrics_data,
+            content_type=CONTENT_TYPE_LATEST
+        )
+
+    except Exception as e:
+        logging.error(f"获取Prometheus指标失败: {str(e)}", exc_info=True)
+        return web.Response(text=f"Error: {str(e)}", status=500)
+
 async def start_web_server(traders):
     app = web.Application()
     # 添加中间件处理无效请求
@@ -679,6 +742,8 @@ async def start_web_server(traders):
     app.router.add_get('/api/health', handle_health)  # 备用路径
     app.router.add_get('/version', handle_version)  # 版本信息端点（无需认证）
     app.router.add_get('/api/version', handle_version)  # 备用路径
+    app.router.add_get('/metrics', handle_metrics)  # Prometheus指标端点（无需认证）
+    app.router.add_get('/api/metrics', handle_metrics)  # 备用路径
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 58181)

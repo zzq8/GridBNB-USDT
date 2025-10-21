@@ -12,7 +12,15 @@ from src.utils.helpers import send_pushplus_message, format_trade_message
 import json
 import os
 from src.services.monitor import TradingMonitor
-from src.strategies.position_controller_s1 import PositionControllerS1
+# S1策略已移除: from src.strategies.position_controller_s1 import PositionControllerS1
+
+# AI策略导入 (优雅降级)
+try:
+    from src.strategies.ai_strategy import AITradingStrategy
+    AI_STRATEGY_AVAILABLE = True
+except ImportError:
+    AI_STRATEGY_AVAILABLE = False
+    logging.warning("AI策略模块未安装或导入失败，AI辅助功能禁用")
 
 
 class GridTrader:
@@ -81,7 +89,7 @@ class GridTrader:
             'data': {}
         }
         self.funding_cache_ttl = 60  # 理财余额缓存60秒
-        self.position_controller_s1 = PositionControllerS1(self)
+        # S1策略已移除: self.position_controller_s1 = PositionControllerS1(self)
 
         # 独立的监测状态变量，避免买入和卖出监测相互干扰
         self.is_monitoring_buy = False   # 是否在监测买入机会
@@ -94,6 +102,21 @@ class GridTrader:
         # 状态持久化相关 - 状态文件名与交易对挂钩
         state_filename = f"trader_state_{self.symbol.replace('/', '_')}.json"
         self.state_file_path = os.path.join(os.path.dirname(__file__), 'data', state_filename)
+
+        # AI策略初始化 (如果启用)
+        self.ai_strategy = None
+        if settings.AI_ENABLED and AI_STRATEGY_AVAILABLE:
+            try:
+                self.ai_strategy = AITradingStrategy(self)
+                self.logger.info("AI辅助策略已启用")
+            except Exception as e:
+                self.logger.error(f"AI策略初始化失败: {e}", exc_info=True)
+                self.ai_strategy = None
+        elif settings.AI_ENABLED and not AI_STRATEGY_AVAILABLE:
+            self.logger.warning("AI_ENABLED=true 但AI策略模块不可用")
+
+        # AI策略相关状态变量
+        self.last_volatility = 0  # 用于AI策略
 
     def _save_state(self):
         """【重构后】以原子方式安全地保存当前核心策略状态到文件"""
@@ -629,17 +652,13 @@ class GridTrader:
                 funding_balance = await self.exchange.fetch_funding_balance()
                 # ========== 新增结束 ==========
 
-                # --- 核心理念：维护任务与交易任务分离 ---
+                # --- 核心理念：网格策略独立运行，AI策略全局洞察并行决策 ---
 
                 # ------------------------------------------------------------------
                 # 阶段二：周期性维护模块 (始终运行，保证机器人认知更新)
                 # ------------------------------------------------------------------
 
-                # 1. 更新S1策略的每日高低点
-                await self.position_controller_s1.update_daily_s1_levels()
-
-                # 2. 检查是否需要调整网格大小 (包含波动率计算)
-                # 这个任务现在独立运行，不再被交易状态阻塞
+                # 1. 检查是否需要调整网格大小 (包含波动率计算)
                 dynamic_interval_seconds = await self._calculate_dynamic_interval_seconds()
                 if time.time() - self.last_grid_adjust_time > dynamic_interval_seconds:
                     self.logger.info(
@@ -649,7 +668,7 @@ class GridTrader:
                     self.last_grid_adjust_time = time.time() # 更新时间戳
 
                 # ------------------------------------------------------------------
-                # 阶段三：交易决策模块 (根据风控和市场信号执行)
+                # 阶段三：网格交易决策模块 (根据风控和市场信号执行)
                 # ------------------------------------------------------------------
 
                 # 1. 【核心】首先获取唯一的风控许可
@@ -674,10 +693,61 @@ class GridTrader:
                         if await self.execute_order('buy'):
                             trade_executed_this_loop = True
 
-                # 5. S1辅助策略：它也是一种交易，但独立于主网格
-                # 只有在本轮没有发生主网格交易时才考虑执行S1，避免冲突
-                if not trade_executed_this_loop:
-                    await self.position_controller_s1.check_and_execute(risk_state)
+                # ------------------------------------------------------------------
+                # 阶段四：AI策略独立决策 (与网格策略并行，全局洞察)
+                # ------------------------------------------------------------------
+                # AI策略作为"大脑"，了解网格运行状态，独立做出趋势判断和建议
+                # 与网格策略不冲突，可以同时执行
+
+                if self.ai_strategy:
+                    try:
+                        # 检查是否应该触发AI分析
+                        should_trigger, trigger_reason = await self.ai_strategy.should_trigger(current_price)
+
+                        if should_trigger:
+                            self.logger.info(f"🤖 触发AI分析 | 原因: {trigger_reason.value}")
+
+                            # 执行AI分析并获取建议
+                            # AI可以看到完整的网格状态、持仓情况、交易历史
+                            suggestion = await self.ai_strategy.analyze_and_suggest(trigger_reason)
+
+                            if suggestion and suggestion['confidence'] >= settings.AI_CONFIDENCE_THRESHOLD:
+                                action = suggestion['action']
+                                confidence = suggestion['confidence']
+                                amount_pct = suggestion['suggested_amount_pct']
+
+                                self.logger.info(
+                                    f"🤖 AI建议 | 操作: {action} | "
+                                    f"置信度: {confidence}% | "
+                                    f"金额比例: {amount_pct}% | "
+                                    f"理由: {suggestion['reason']}"
+                                )
+
+                                # AI策略独立执行，不受网格交易影响
+                                if action == 'buy':
+                                    # AI建议买入 - 检查风控许可后执行
+                                    if risk_state != RiskState.ALLOW_SELL_ONLY:
+                                        await self._execute_ai_trade('buy', amount_pct, suggestion)
+                                    else:
+                                        self.logger.warning("🤖 AI建议买入，但当前风控状态不允许")
+
+                                elif action == 'sell':
+                                    # AI建议卖出 - 检查风控许可后执行
+                                    if risk_state != RiskState.ALLOW_BUY_ONLY:
+                                        await self._execute_ai_trade('sell', amount_pct, suggestion)
+                                    else:
+                                        self.logger.warning("🤖 AI建议卖出，但当前风控状态不允许")
+
+                                else:  # hold
+                                    self.logger.info(f"🤖 AI建议持仓观望 | 理由: {suggestion.get('reason', 'N/A')}")
+                            else:
+                                if suggestion:
+                                    self.logger.info(
+                                        f"🤖 AI建议置信度不足 ({suggestion['confidence']}% < {settings.AI_CONFIDENCE_THRESHOLD}%)，不执行"
+                                    )
+                    except Exception as e:
+                        self.logger.error(f"🤖 AI策略执行异常: {e}", exc_info=True)
+                        # AI异常不影响网格策略继续运行
 
                 # --- 逻辑执行完毕 ---
 
@@ -2093,3 +2163,112 @@ class GridTrader:
         except Exception as e:
             self.logger.error(f"执行交易失败: {str(e)}")
             raise
+
+    async def _execute_ai_trade(self, side: str, amount_pct: float, suggestion: dict):
+        """
+        执行AI建议的交易
+
+        Args:
+            side: 'buy' 或 'sell'
+            amount_pct: 资金比例百分比 (0-100)
+            suggestion: AI建议字典
+        """
+        try:
+            # 获取当前账户资产
+            total_value = await self._get_pair_specific_assets_value()
+
+            # 计算交易金额 (USDT)
+            trade_amount_usdt = total_value * (amount_pct / 100)
+
+            # 检查最小交易金额
+            if trade_amount_usdt < settings.MIN_TRADE_AMOUNT:
+                self.logger.warning(
+                    f"AI建议交易金额过小 ({trade_amount_usdt:.2f} USDT < {settings.MIN_TRADE_AMOUNT} USDT)，跳过"
+                )
+                return False
+
+            current_price = self.current_price
+
+            if side == 'buy':
+                # 买入：计算可购买数量
+                amount = trade_amount_usdt / current_price
+
+                # 确保有足够的USDT
+                if not await self._ensure_sufficient_balance('buy', current_price, amount):
+                    self.logger.warning("AI建议买入但余额不足")
+                    return False
+
+            else:  # sell
+                # 卖出：计算卖出数量
+                amount = trade_amount_usdt / current_price
+
+                # 确保有足够的基础资产
+                if not await self._ensure_sufficient_balance('sell', current_price, amount):
+                    self.logger.warning("AI建议卖出但余额不足")
+                    return False
+
+            # 应用精度
+            if self.amount_precision:
+                amount = round(amount, self.amount_precision)
+
+            self.logger.info(
+                f"执行AI建议交易 | "
+                f"方向: {side} | "
+                f"价格: {current_price:.4f} | "
+                f"数量: {amount:.6f} | "
+                f"金额: {trade_amount_usdt:.2f} USDT | "
+                f"置信度: {suggestion['confidence']}%"
+            )
+
+            # 执行交易
+            order = await self._execute_trade(side, current_price, amount)
+
+            if order:
+                # 记录AI交易
+                self.order_tracker.add_order({
+                    'timestamp': time.time(),
+                    'side': side,
+                    'price': current_price,
+                    'amount': amount,
+                    'type': 'ai_assisted',
+                    'confidence': suggestion['confidence'],
+                    'reason': suggestion['reason'],
+                    'risk_level': suggestion.get('risk_level', 'unknown')
+                })
+
+                # 发送AI交易通知
+                ai_message = (
+                    f"🤖 AI辅助交易执行成功\n"
+                    f"交易对: {self.symbol}\n"
+                    f"操作: {side.upper()}\n"
+                    f"价格: {current_price:.4f} {self.quote_asset}\n"
+                    f"数量: {amount:.6f} {self.base_asset}\n"
+                    f"金额: {trade_amount_usdt:.2f} {self.quote_asset}\n"
+                    f"置信度: {suggestion['confidence']}%\n"
+                    f"理由: {suggestion['reason']}\n"
+                    f"风险等级: {suggestion.get('risk_level', 'N/A')}"
+                )
+
+                if suggestion.get('stop_loss'):
+                    ai_message += f"\n止损价: {suggestion['stop_loss']:.4f}"
+                if suggestion.get('take_profit'):
+                    ai_message += f"\n止盈价: {suggestion['take_profit']:.4f}"
+
+                send_pushplus_message(ai_message, "AI交易通知")
+
+                self.logger.info(f"AI交易执行成功 | 订单ID: {order.get('id', 'N/A')}")
+                return True
+
+            return False
+
+        except Exception as e:
+            self.logger.error(f"AI交易执行失败: {e}", exc_info=True)
+            send_pushplus_message(
+                f"AI交易执行失败\n"
+                f"交易对: {self.symbol}\n"
+                f"操作: {side}\n"
+                f"错误: {str(e)}",
+                "AI交易错误"
+            )
+            return False
+

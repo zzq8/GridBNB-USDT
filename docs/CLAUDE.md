@@ -1,14 +1,19 @@
 # GridBNB-USDT 项目 AI 上下文文档
 
-> **最后更新**: 2025-10-20 18:30:00
+> **最后更新**: 2025-10-21 10:00:00
 > **状态**: 生产环境运行中
-> **版本**: 主分支
+> **版本**: v2.1.0 (S1策略已移除)
 > **项目标准**: 使用 `docker compose` (Docker 20.10+)
+
+## ⚠️ 重要变更通知
+
+**2025-10-21**: **S1仓位控制策略已移除** - 系统现采用单一动态网格策略。详见 [STRATEGY_OPTIMIZATION_S1_REMOVAL.md](./STRATEGY_OPTIMIZATION_S1_REMOVAL.md)
 
 ## 变更记录 (Changelog)
 
 | 日期 | 变更内容 | 影响范围 |
 |------|---------|---------|
+| 2025-10-21 10:00 | **移除S1仓位控制策略**：简化交易逻辑,采用单一动态网格策略 | src/core/trader.py, src/strategies/position_controller_s1.py (已删除), src/services/web_server.py, tests/ |
 | 2025-10-20 18:30 | 确立项目技术标准：统一使用 docker compose（非 docker-compose） | README.md, docs/SCRIPT_OPTIMIZATION.md, docs/PROJECT_STANDARDS.md, scripts/start-with-nginx.sh |
 | 2025-10-20 17:00 | 完成企业级目录结构重构：模块化分层、测试覆盖31%、所有96个测试通过 | 全局目录结构, README.md, CLAUDE.md |
 | 2025-10-20 15:30 | 完成高优先级技术债务清理：测试覆盖、日志优化、配置重构 | tests/, src/config/settings.py, src/core/exchange_client.py, src/strategies/position_controller_s1.py, src/core/trader.py, CLAUDE.md |
