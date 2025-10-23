@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "openai"  # openai / anthropic
     AI_MODEL: str = "gpt-4-turbo"
     AI_API_KEY: Optional[str] = None
+    AI_OPENAI_BASE_URL: Optional[str] = None
     AI_CONFIDENCE_THRESHOLD: int = 70
     AI_TRIGGER_INTERVAL: int = 900  # 秒 (15分钟)
     AI_MAX_CALLS_PER_DAY: int = 100

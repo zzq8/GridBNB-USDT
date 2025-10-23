@@ -30,6 +30,7 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
+    openai = None
     logging.warning("OpenAI SDK未安装,无法使用OpenAI模型")
 
 try:
@@ -84,6 +85,7 @@ class AITradingStrategy:
         self.ai_provider = AIProvider(getattr(settings, 'AI_PROVIDER', 'openai'))
         self.ai_model = getattr(settings, 'AI_MODEL', 'gpt-4-turbo')
         self.ai_api_key = getattr(settings, 'AI_API_KEY', None)
+        self.ai_openai_base_url = getattr(settings, 'AI_OPENAI_BASE_URL', None)
         self.confidence_threshold = getattr(settings, 'AI_CONFIDENCE_THRESHOLD', 70)
         self.trigger_interval = getattr(settings, 'AI_TRIGGER_INTERVAL', 900)  # 15分钟
         self.max_calls_per_day = getattr(settings, 'AI_MAX_CALLS_PER_DAY', 100)
@@ -125,9 +127,21 @@ class AITradingStrategy:
                 self.ai_client = None
                 return
 
-            openai.api_key = self.ai_api_key
-            self.ai_client = openai
-            self.logger.info("OpenAI客户端初始化成功")
+            client_kwargs = {"api_key": self.ai_api_key}
+            if self.ai_openai_base_url:
+                client_kwargs["base_url"] = self.ai_openai_base_url
+
+            if hasattr(openai, "OpenAI"):
+                self.ai_client = openai.OpenAI(**client_kwargs)
+            else:
+                openai.api_key = self.ai_api_key
+                if self.ai_openai_base_url:
+                    setattr(openai, "base_url", self.ai_openai_base_url)
+                    setattr(openai, "api_base", self.ai_openai_base_url)
+                self.ai_client = openai
+
+            base_info = self.ai_openai_base_url or "默认"
+            self.logger.info(f"OpenAI客户端初始化成功 | Base URL: {base_info}")
 
         elif self.ai_provider == AIProvider.ANTHROPIC:
             if not ANTHROPIC_AVAILABLE:
