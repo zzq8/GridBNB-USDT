@@ -11,9 +11,18 @@ load_dotenv()
 class Settings(BaseSettings):
     """应用程序设置类，使用Pydantic进行类型验证和环境变量管理"""
 
+    # --- 交易所选择配置 (企业级多交易所支持) ---
+    EXCHANGE: str = "binance"  # 选择交易所: binance, okx
+
     # --- 从 .env 文件读取的必需配置 ---
+    # Binance API
     BINANCE_API_KEY: str = ""  # 添加默认值以便测试
     BINANCE_API_SECRET: str = ""  # 添加默认值以便测试
+
+    # OKX API (如果使用OKX)
+    OKX_API_KEY: str = ""
+    OKX_API_SECRET: str = ""
+    OKX_PASSPHRASE: str = ""  # OKX特有参数
 
     # --- 策略核心配置 (从 .env 读取) ---
     SYMBOLS: str = "BNB/USDT"  # 从 .env 读取交易对列表字符串
