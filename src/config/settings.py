@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # --- 初始状态设置 (从 .env 读取) ---
     INITIAL_PRINCIPAL: float = 0.0
 
+    # --- 🆕 全局资金分配器配置 (从 .env 读取) ---
+    ALLOCATION_STRATEGY: str = "equal"  # 分配策略: equal / weighted / dynamic
+    GLOBAL_MAX_USAGE: float = 0.95  # 全局最大资金使用率 (0-1之间)
+    ALLOCATION_WEIGHTS: Dict[str, float] = {}  # 权重配置（仅当strategy=weighted时使用）
+    REBALANCE_INTERVAL: int = 3600  # 动态重新平衡间隔（秒），默认1小时
+
     # --- 可选配置 (从 .env 读取) ---
     PUSHPLUS_TOKEN: Optional[str] = None
 
@@ -81,6 +87,17 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 raise ValueError("INITIAL_PARAMS_JSON 格式无效，必须是合法的JSON字符串。")
         return value if value else {}  # 如果为空，返回空字典
+
+    @field_validator('ALLOCATION_WEIGHTS', mode='before')
+    @classmethod
+    def parse_allocation_weights(cls, value):
+        """解析权重配置JSON字符串"""
+        if isinstance(value, str) and value:
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                raise ValueError("ALLOCATION_WEIGHTS 格式无效，必须是合法的JSON字符串。")
+        return value if value else {}
 
     @field_validator('GRID_PARAMS_JSON', 'GRID_CONTINUOUS_PARAMS_JSON', 'DYNAMIC_INTERVAL_PARAMS_JSON', mode='before')
     @classmethod
@@ -214,6 +231,37 @@ class Settings(BaseSettings):
             raise ValueError(f"AI_MAX_CALLS_PER_DAY 必须至少为1，当前设置为 {v}")
         if v > 500:
             logging.warning(f"AI_MAX_CALLS_PER_DAY 设置过高 ({v})，可能产生高额费用")
+        return v
+
+    # --- 🆕 全局资金分配器验证器 ---
+
+    @field_validator('ALLOCATION_STRATEGY')
+    @classmethod
+    def validate_allocation_strategy(cls, v):
+        """验证资金分配策略"""
+        valid_strategies = ['equal', 'weighted', 'dynamic']
+        if v not in valid_strategies:
+            raise ValueError(f"ALLOCATION_STRATEGY 必须是 {valid_strategies} 之一，当前设置为 {v}")
+        return v
+
+    @field_validator('GLOBAL_MAX_USAGE')
+    @classmethod
+    def validate_global_max_usage(cls, v):
+        """验证全局最大资金使用率"""
+        if v < 0.5 or v > 1.0:
+            raise ValueError(f"GLOBAL_MAX_USAGE 必须在 0.5-1.0 之间，当前设置为 {v}")
+        if v < 0.8:
+            logging.warning(f"GLOBAL_MAX_USAGE 设置过低 ({v:.1%})，可能导致资金利用率不足")
+        return v
+
+    @field_validator('REBALANCE_INTERVAL')
+    @classmethod
+    def validate_rebalance_interval(cls, v):
+        """验证重新平衡间隔"""
+        if v < 300:
+            raise ValueError(f"REBALANCE_INTERVAL 不能小于300秒（5分钟），当前设置为 {v}")
+        if v < 1800:
+            logging.warning(f"REBALANCE_INTERVAL 设置过短 ({v}秒)，可能导致频繁重新平衡")
         return v
 
     # --- 固定配置 (不常修改，保留在代码中) ---

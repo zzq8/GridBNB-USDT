@@ -24,11 +24,26 @@ except ImportError:
 
 
 class GridTrader:
-    def __init__(self, exchange, config, symbol: str):
-        """初始化网格交易器"""
+    def __init__(self, exchange, config, symbol: str, global_allocator=None):
+        """
+        初始化网格交易器
+
+        Args:
+            exchange: 交易所实例
+            config: 配置对象
+            symbol: 交易对符号
+            global_allocator: 全局资金分配器（可选）
+        """
         self.exchange = exchange
         self.config = config
         self.symbol = symbol  # 使用传入的symbol参数
+
+        # 🆕 保存全局资金分配器引用
+        self.global_allocator = global_allocator
+        if not self.global_allocator:
+            logging.getLogger(self.__class__.__name__).warning(
+                f"[{symbol}] 未使用全局资金分配器，多交易对可能存在资金竞争"
+            )
 
         # 解析并存储基础和计价货币
         try:
@@ -895,6 +910,18 @@ class GridTrader:
         # 保存状态
         self._save_state()
 
+        # 🆕 步骤2: 记录交易到全局分配器
+        if self.global_allocator:
+            amount_usdt = order_price * order_amount
+            await self.global_allocator.record_trade(
+                symbol=self.symbol,
+                amount=amount_usdt,
+                side=side
+            )
+            self.logger.debug(
+                f"已记录交易到全局分配器 | {side} {amount_usdt:.2f} USDT"
+            )
+
         # 5) 推送通知
         msg = format_trade_message(
             side='buy' if side == 'buy' else 'sell',
@@ -945,6 +972,23 @@ class GridTrader:
 
                 # 调整价格精度
                 order_price = self._adjust_price_precision(order_price)
+
+                # 🆕 步骤1: 全局资金分配检查（仅对买入检查）
+                if side == 'buy' and self.global_allocator:
+                    allowed, reason = await self.global_allocator.check_trade_allowed(
+                        symbol=self.symbol,
+                        required_amount=amount_quote,
+                        side='buy'
+                    )
+
+                    if not allowed:
+                        self.logger.warning(
+                            f"全局资金分配器拒绝交易 | "
+                            f"{side} {self.symbol} | "
+                            f"金额: {amount_quote:.2f} {self.quote_asset} | "
+                            f"原因: {reason}"
+                        )
+                        return False
 
                 # 检查余额是否足够 - 需要获取最新的余额信息
                 spot_balance = await self.exchange.fetch_balance({'type': 'spot'})

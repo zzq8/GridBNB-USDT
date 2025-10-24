@@ -26,6 +26,7 @@ from src.config.settings import TradingConfig, SYMBOLS_LIST, settings
 from src.utils.logging_config import get_logger
 from src.services.alerting import setup_alerts, get_alert_manager, AlertLevel
 from src.services.config_watcher import setup_config_watcher, get_config_watcher
+from src.strategies.global_allocator import GlobalFundAllocator  # 🆕 导入全局资金分配器
 
 # 获取 structlog logger
 logger = get_logger(__name__)
@@ -74,6 +75,34 @@ async def periodic_global_status_logger(interval_seconds: int = 60):
     if report_client:
         await report_client.close()
         logging.info("全局资产监控任务的客户端已关闭。")
+
+async def periodic_allocator_status_logger(allocator: GlobalFundAllocator, interval_seconds: int = 300):
+    """
+    定期打印全局资金分配器状态
+
+    Args:
+        allocator: 全局资金分配器实例
+        interval_seconds: 监控间隔（秒），默认300秒（5分钟）
+    """
+    logging.info(f"启动全局分配器监控任务，每 {interval_seconds} 秒检查一次。")
+
+    while True:
+        try:
+            # 打印分配器状态摘要
+            summary = await allocator.get_global_status_summary()
+            logging.info(summary)
+
+            # 尝试动态重新平衡（如果启用了dynamic策略）
+            await allocator.rebalance_if_needed()
+
+            await asyncio.sleep(interval_seconds)
+
+        except asyncio.CancelledError:
+            logging.info("全局分配器监控任务已取消。")
+            break
+        except Exception as e:
+            logging.error(f"全局分配器监控任务发生错误: {e}", exc_info=True)
+            await asyncio.sleep(interval_seconds * 2)
 
 # 在Windows平台上设置SelectorEventLoop
 if platform.system() == 'Windows':
@@ -137,14 +166,33 @@ async def main():
         await shared_exchange_client.load_markets()
         logger.info("markets_loaded", message="市场数据加载完成，开始创建交易器实例")
 
+        # 🆕 创建全局资金分配器
+        global_allocator = GlobalFundAllocator(
+            symbols=SYMBOLS_LIST,
+            total_capital=getattr(settings, 'INITIAL_PRINCIPAL', 1000.0),
+            strategy=getattr(settings, 'ALLOCATION_STRATEGY', 'equal'),
+            weights=getattr(settings, 'ALLOCATION_WEIGHTS', None),
+            max_global_usage=getattr(settings, 'GLOBAL_MAX_USAGE', 0.95)
+        )
+        logger.info("global_allocator_initialized", message="全局资金分配器已初始化")
+
         traders = {}  # 用于存储所有trader实例，供Web服务器使用
         tasks = []
 
         # 为每个交易对创建trader实例和任务
         for symbol in SYMBOLS_LIST:
             config = TradingConfig()
-            trader_instance = GridTrader(shared_exchange_client, config, symbol)
+            # 🆕 传入全局分配器
+            trader_instance = GridTrader(
+                shared_exchange_client,
+                config,
+                symbol,
+                global_allocator=global_allocator
+            )
             traders[symbol] = trader_instance
+
+            # 🆕 注册trader到分配器
+            global_allocator.register_trader(symbol, trader_instance)
 
             # 初始化trader
             await trader_instance.initialize()
@@ -180,6 +228,15 @@ async def main():
             periodic_global_status_logger(interval_seconds=60)
         )
         tasks.append(global_status_task)
+
+        # 🆕 启动全局分配器监控任务
+        allocator_monitor_task = asyncio.create_task(
+            periodic_allocator_status_logger(
+                allocator=global_allocator,
+                interval_seconds=getattr(settings, 'REBALANCE_INTERVAL', 300)
+            )
+        )
+        tasks.append(allocator_monitor_task)
 
         # 并发运行所有任务
         logger.info("starting_concurrent_tasks", symbol_count=len(SYMBOLS_LIST), total_tasks=len(tasks))
