@@ -133,6 +133,11 @@ class GridTrader:
         # AI策略相关状态变量
         self.last_volatility = 0  # 用于AI策略
 
+        # 🆕 止损相关状态变量
+        self.max_profit = 0.0  # 历史最高盈利（USDT）
+        self.stop_loss_triggered = False  # 止损是否已触发
+        self.stop_loss_price = None  # 止损价格缓存
+
     def _save_state(self):
         """【重构后】以原子方式安全地保存当前核心策略状态到文件"""
         state = {
@@ -152,7 +157,10 @@ class GridTrader:
             'is_monitoring_buy': self.is_monitoring_buy,
             'is_monitoring_sell': self.is_monitoring_sell,
             # 波动率平滑相关
-            'volatility_history': self.volatility_history
+            'volatility_history': self.volatility_history,
+            # 🆕 止损状态
+            'max_profit': self.max_profit,
+            'stop_loss_triggered': self.stop_loss_triggered
         }
 
         temp_file_path = self.state_file_path + ".tmp"
@@ -242,10 +250,20 @@ class GridTrader:
             if saved_volatility_history is not None and isinstance(saved_volatility_history, list):
                 self.volatility_history = saved_volatility_history
 
+            # 🆕 加载止损状态
+            saved_max_profit = state.get('max_profit')
+            if saved_max_profit is not None:
+                self.max_profit = float(saved_max_profit)
+
+            saved_stop_loss_triggered = state.get('stop_loss_triggered')
+            if saved_stop_loss_triggered is not None:
+                self.stop_loss_triggered = bool(saved_stop_loss_triggered)
+
             self.logger.info(
                 f"成功从文件加载状态。基准价: {self.base_price:.2f}, 网格: {self.grid_size:.2f}%, "
                 f"EWMA已初始化: {self.ewma_initialized}, 监测状态: 买入={self.is_monitoring_buy}, 卖出={self.is_monitoring_sell}, "
-                f"波动率历史记录数: {len(self.volatility_history)}"
+                f"波动率历史记录数: {len(self.volatility_history)}, "
+                f"最高盈利: {self.max_profit:.2f}, 止损已触发: {self.stop_loss_triggered}"
             )
         except Exception as e:
             self.logger.error(f"加载核心状态失败，将使用默认值: {e}")
@@ -668,6 +686,17 @@ class GridTrader:
                 # ========== 新增结束 ==========
 
                 # --- 核心理念：网格策略独立运行，AI策略全局洞察并行决策 ---
+
+                # ------------------------------------------------------------------
+                # 🆕 阶段零：止损检查 (最高优先级，优先于所有交易逻辑)
+                # ------------------------------------------------------------------
+                if settings.ENABLE_STOP_LOSS:
+                    should_stop, reason = await self._check_stop_loss()
+
+                    if should_stop:
+                        await self._emergency_liquidate(reason)
+                        # 止损后停止该交易对的运行
+                        break
 
                 # ------------------------------------------------------------------
                 # 阶段二：周期性维护模块 (始终运行，保证机器人认知更新)
@@ -2315,4 +2344,237 @@ class GridTrader:
                 "AI交易错误"
             )
             return False
+
+    # ============================================================================
+    # 🆕 止损机制相关方法
+    # ============================================================================
+
+    async def _calculate_current_profit(self) -> float:
+        """
+        计算当前盈利（USDT）
+
+        Returns:
+            当前盈利金额（正数表示盈利，负数表示亏损）
+        """
+        try:
+            # 获取当前总资产
+            total_assets = await self._get_pair_specific_assets_value()
+
+            # 如果设置了初始本金，用总资产减去初始本金
+            if settings.INITIAL_PRINCIPAL and settings.INITIAL_PRINCIPAL > 0:
+                profit = total_assets - settings.INITIAL_PRINCIPAL
+                self.logger.debug(
+                    f"盈利计算（基于初始本金） | "
+                    f"总资产: {total_assets:.2f} | "
+                    f"初始本金: {settings.INITIAL_PRINCIPAL:.2f} | "
+                    f"盈亏: {profit:+.2f}"
+                )
+            else:
+                # 如果没设置初始本金，使用交易历史计算累计盈利
+                profit = sum(t.get('profit', 0) for t in self.order_tracker.trade_history)
+                self.logger.debug(
+                    f"盈利计算（基于交易历史） | "
+                    f"累计盈利: {profit:+.2f}"
+                )
+
+            return profit
+
+        except Exception as e:
+            self.logger.error(f"计算盈利失败: {e}", exc_info=True)
+            return 0.0
+
+    async def _check_stop_loss(self) -> tuple[bool, str]:
+        """
+        检查是否需要触发止损
+
+        Returns:
+            (是否触发, 触发原因)
+        """
+        # 如果未启用止损，直接返回
+        if not settings.ENABLE_STOP_LOSS:
+            return False, ""
+
+        # 如果已经触发过止损，不再检查
+        if self.stop_loss_triggered:
+            return False, "已触发过止损"
+
+        current_price = self.current_price
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 1. 价格止损检查
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if settings.STOP_LOSS_PERCENTAGE > 0:
+            # 计算止损价格
+            stop_loss_price = self.base_price * (1 - settings.STOP_LOSS_PERCENTAGE / 100)
+
+            # 缓存止损价格，避免重复计算
+            self.stop_loss_price = stop_loss_price
+
+            # 当前价格跌破止损价
+            if current_price <= stop_loss_price:
+                drop_percentage = (self.base_price - current_price) / self.base_price * 100
+                reason = (
+                    f"价格止损触发 | "
+                    f"当前价: {current_price:.2f} | "
+                    f"止损价: {stop_loss_price:.2f} | "
+                    f"基准价: {self.base_price:.2f} | "
+                    f"跌幅: -{drop_percentage:.2f}%"
+                )
+                self.logger.warning(reason)
+                return True, reason
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 2. 回撤止损检查（止盈）
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if settings.TAKE_PROFIT_DRAWDOWN > 0:
+            # 计算当前盈利
+            current_profit = await self._calculate_current_profit()
+
+            # 更新历史最高盈利
+            if current_profit > self.max_profit:
+                old_max = self.max_profit
+                self.max_profit = current_profit
+                self.logger.info(
+                    f"更新最高盈利 | "
+                    f"{old_max:.2f} → {self.max_profit:.2f} USDT"
+                )
+
+            # 只有在有盈利的情况下才检查回撤
+            if self.max_profit > 0:
+                # 计算回撤比例
+                drawdown = (self.max_profit - current_profit) / self.max_profit
+
+                # 回撤超过阈值
+                if drawdown >= settings.TAKE_PROFIT_DRAWDOWN / 100:
+                    reason = (
+                        f"回撤止盈触发 | "
+                        f"最高盈利: {self.max_profit:.2f} | "
+                        f"当前盈利: {current_profit:.2f} | "
+                        f"回撤: {drawdown*100:.1f}% "
+                        f"(阈值: {settings.TAKE_PROFIT_DRAWDOWN}%)"
+                    )
+                    self.logger.warning(reason)
+                    return True, reason
+
+        # 未触发任何止损条件
+        return False, ""
+
+    async def _emergency_liquidate(self, reason: str):
+        """
+        紧急平仓 - 快速清空所有持仓
+
+        Args:
+            reason: 触发止损的原因
+        """
+        self.logger.critical(f"🚨 触发止损: {reason}")
+        self.stop_loss_triggered = True
+
+        try:
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤1: 取消所有挂单
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            self.logger.info("开始取消所有挂单...")
+            open_orders = await self.exchange.fetch_open_orders(self.symbol)
+
+            for order in open_orders:
+                try:
+                    await self.exchange.cancel_order(order['id'], self.symbol)
+                    self.logger.info(f"已取消订单: {order['id']}")
+                except Exception as e:
+                    self.logger.error(f"取消订单失败: {e}")
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤2: 市价单卖出所有基础资产
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            balance = await self.exchange.fetch_balance({'type': 'spot'})
+            base_balance = float(balance['free'].get(self.base_asset, 0))
+
+            if base_balance > 0:
+                # 调整精度
+                base_balance = self._adjust_amount_precision(base_balance)
+
+                # 检查是否大于最小交易量
+                min_amount = settings.MIN_AMOUNT_LIMIT
+                if base_balance < min_amount:
+                    self.logger.warning(
+                        f"基础资产余额 ({base_balance}) 低于最小交易量 ({min_amount})，跳过市价单卖出"
+                    )
+                else:
+                    self.logger.info(f"市价卖出 {base_balance} {self.base_asset}")
+
+                    # 市价单卖出（最多重试5次）
+                    max_retries = 5
+                    for attempt in range(max_retries):
+                        try:
+                            order = await self.exchange.create_order(
+                                self.symbol,
+                                'market',
+                                'sell',
+                                base_balance
+                            )
+
+                            self.logger.info(f"止损卖单已成交: {order}")
+                            break  # 成功后退出重试循环
+
+                        except Exception as e:
+                            if attempt < max_retries - 1:
+                                self.logger.warning(
+                                    f"市价单卖出失败（第{attempt+1}次），2秒后重试: {e}"
+                                )
+                                await asyncio.sleep(2)
+                            else:
+                                self.logger.error(f"市价单卖出失败（已重试{max_retries}次）: {e}")
+                                raise
+
+            else:
+                self.logger.info(f"没有可卖出的 {self.base_asset}，跳过")
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤3: 转移资金到理财（如果启用）
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            if settings.ENABLE_SAVINGS_FUNCTION:
+                self.logger.info("等待2秒，确保订单结算...")
+                await asyncio.sleep(2)
+
+                self.logger.info("转移多余资金到理财...")
+                await self._transfer_excess_funds()
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤4: 发送告警通知
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            alert_msg = f"""
+🚨 止损告警 🚨
+━━━━━━━━━━━━━━━━━━━━
+交易对: {self.symbol}
+触发原因: {reason}
+当前价格: {self.current_price:.2f} {self.quote_asset}
+基准价格: {self.base_price:.2f} {self.quote_asset}
+已卖出: {base_balance:.4f} {self.base_asset}
+━━━━━━━━━━━━━━━━━━━━
+系统已停止该交易对的交易
+请注意风险，及时复盘
+"""
+            send_pushplus_message(alert_msg, "🚨 止损告警")
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤5: 保存状态
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            self._save_state()
+
+            self.logger.critical(f"🚨 止损完成，{self.symbol} 交易已停止")
+
+        except Exception as e:
+            self.logger.error(f"紧急平仓失败: {e}", exc_info=True)
+
+            # 发送紧急告警
+            send_pushplus_message(
+                f"🆘 紧急告警\n"
+                f"交易对: {self.symbol}\n"
+                f"紧急平仓失败: {e}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"请立即人工介入！",
+                "🆘 紧急告警"
+            )
+            raise
+
 

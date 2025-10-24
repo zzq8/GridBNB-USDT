@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     AI_MAX_CALLS_PER_DAY: int = 100
     AI_FALLBACK_TO_GRID: bool = True
 
+    # --- 止损配置 ---
+    ENABLE_STOP_LOSS: bool = False  # 默认禁用，需要用户主动启用
+    STOP_LOSS_PERCENTAGE: float = 15.0  # 价格止损比例 (%)
+    TAKE_PROFIT_DRAWDOWN: float = 20.0  # 回撤止盈比例 (%)
+
     @field_validator('INITIAL_PARAMS_JSON', mode='before')
     @classmethod
     def parse_initial_params(cls, value):
@@ -262,6 +267,28 @@ class Settings(BaseSettings):
             raise ValueError(f"REBALANCE_INTERVAL 不能小于300秒（5分钟），当前设置为 {v}")
         if v < 1800:
             logging.warning(f"REBALANCE_INTERVAL 设置过短 ({v}秒)，可能导致频繁重新平衡")
+        return v
+
+    # --- 🆕 止损配置验证器 ---
+
+    @field_validator('STOP_LOSS_PERCENTAGE')
+    @classmethod
+    def validate_stop_loss_percentage(cls, v):
+        """验证价格止损比例"""
+        if v < 0 or v > 50:
+            raise ValueError(f"STOP_LOSS_PERCENTAGE 必须在 0-50 之间，当前设置为 {v}")
+        if v > 0 and v < 5:
+            logging.warning(f"STOP_LOSS_PERCENTAGE 设置过小 ({v}%)，可能频繁触发止损")
+        return v
+
+    @field_validator('TAKE_PROFIT_DRAWDOWN')
+    @classmethod
+    def validate_take_profit_drawdown(cls, v):
+        """验证回撤止盈比例"""
+        if v < 0 or v > 100:
+            raise ValueError(f"TAKE_PROFIT_DRAWDOWN 必须在 0-100 之间，当前设置为 {v}")
+        if v > 0 and v < 10:
+            logging.warning(f"TAKE_PROFIT_DRAWDOWN 设置过小 ({v}%)，可能过于敏感")
         return v
 
     # --- 固定配置 (不常修改，保留在代码中) ---

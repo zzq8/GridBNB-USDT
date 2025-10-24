@@ -1,18 +1,23 @@
 # GridBNB-USDT 项目 AI 上下文文档
 
-> **最后更新**: 2025-10-21 10:00:00
+> **最后更新**: 2025-10-24 18:00:00
 > **状态**: 生产环境运行中
-> **版本**: v2.1.0 (S1策略已移除)
+> **版本**: v3.1.0 (止损机制 + 企业级多交易所架构)
 > **项目标准**: 使用 `docker compose` (Docker 20.10+)
 
 ## ⚠️ 重要变更通知
 
-**2025-10-21**: **S1仓位控制策略已移除** - 系统现采用单一动态网格策略。详见 [STRATEGY_OPTIMIZATION_S1_REMOVAL.md](./STRATEGY_OPTIMIZATION_S1_REMOVAL.md)
+**2025-10-24 18:00**: **🛡️ 止损机制上线** - 新增价格止损和回撤止盈双重保护机制，17个单元测试覆盖，最大限度降低极端行情风险。详见 [止损机制设计](STOP_LOSS_DESIGN.md)
+
+**2025-10-24 15:00**: **🎉 企业级多交易所架构上线** - 现已支持 Binance (币安) 和 OKX (欧易) 交易所,采用插件化设计,可轻松扩展更多交易所。详见 [多交易所架构设计](./architecture/multi-exchange-design.md)
 
 ## 变更记录 (Changelog)
 
 | 日期 | 变更内容 | 影响范围 |
 |------|---------|---------|
+| 2025-10-24 18:00 | **🛡️ 止损机制实施**：新增价格止损和回撤止盈功能，紧急平仓机制，17个单元测试，完整的配置验证 | src/core/trader.py (新增3个方法, 修改main_loop), src/config/settings.py (新增3个配置项), config/.env.example (新增止损配置), tests/unit/test_stop_loss.py (新增17个测试), docs/STOP_LOSS_DESIGN.md (新增设计文档), README.md |
+| 2025-10-24 15:00 | **🎉 企业级多交易所架构上线**：支持 Binance 和 OKX,采用抽象工厂+适配器模式,1230+行企业级代码,100%类型注解,15+单元测试 | src/core/exchanges/ (新增), tests/unit/test_exchange_factory.py (新增), docs/architecture/ (新增), README.md, .env.multi-exchange.example |
+| 2025-10-23 12:00 | **添加 OpenAI 自定义 base_url 支持**：支持国内中转服务,提升 AI 策略可用性 | src/strategies/ai_strategy.py, config/.env |
 | 2025-10-21 10:00 | **移除S1仓位控制策略**：简化交易逻辑,采用单一动态网格策略 | src/core/trader.py, src/strategies/position_controller_s1.py (已删除), src/services/web_server.py, tests/ |
 | 2025-10-20 18:30 | 确立项目技术标准：统一使用 docker compose（非 docker-compose） | README.md, docs/SCRIPT_OPTIMIZATION.md, docs/PROJECT_STANDARDS.md, scripts/start-with-nginx.sh |
 | 2025-10-20 17:00 | 完成企业级目录结构重构：模块化分层、测试覆盖31%、所有96个测试通过 | 全局目录结构, README.md, CLAUDE.md |
@@ -50,14 +55,17 @@ docker-compose up -d
 
 ## 项目愿景
 
-GridBNB-USDT 是一个基于 Python 的**企业级自动化交易系统**，专为币安 (Binance) 交易所设计。采用先进的网格交易策略，结合动态波动率分析和多层风险管理，旨在稳定捕捉市场波动收益。
+GridBNB-USDT 是一个基于 Python 的**企业级自动化交易系统**，支持 **Binance (币安)** 和 **OKX (欧易)** 等多个交易所。采用先进的网格交易策略，结合动态波动率分析和多层风险管理，旨在稳定捕捉市场波动收益。
 
 **核心价值主张**：
-- 🚀 支持任意多币种并发交易（BNB/USDT, ETH/USDT, BTC/USDT 等）
-- 🧠 智能网格策略：基于52日年化波动率和 EWMA 混合算法
-- 🛡️ 多层风险管理：仓位限制、连续失败保护、实时监控
-- 🌐 企业级部署：Docker 容器化、Nginx 反向代理、健康检查
-- 📱 现代化 Web 界面：实时监控、多币种视图、响应式设计
+- 🏦 **多交易所支持**: Binance、OKX，即插即用，无需修改代码
+- 🚀 **多币种并发交易**: 支持任意多币种并发交易（BNB/USDT, ETH/USDT, BTC/USDT 等）
+- 🧠 **智能网格策略**: 基于7日4小时线波动率和 EWMA 混合算法
+- 🤖 **AI辅助交易**: 集成 OpenAI (GPT-4) 和 Anthropic (Claude) 智能分析
+- 🛡️ **多层风险管理**: 仓位限制、连续失败保护、实时监控
+- 🌐 **企业级部署**: Docker 容器化、Nginx 反向代理、健康检查
+- 📱 **现代化 Web 界面**: 实时监控、多币种视图、响应式设计
+- 🏗️ **企业级架构**: 抽象工厂+适配器模式，1230+行企业级代码，100%类型注解
 
 ---
 
@@ -70,10 +78,15 @@ GridBNB-USDT/
 ├── 核心交易层 (Core Trading Layer)
 │   ├── src/main.py                 # 应用入口，多币种并发管理
 │   ├── src/core/trader.py          # 网格交易核心逻辑（2042行）
-│   └── src/core/exchange_client.py # 币安 API 封装（542行）
+│   └── src/core/exchanges/         # 🆕 多交易所架构（1230+行）
+│       ├── base.py                 #     抽象基类和接口定义
+│       ├── factory.py              #     工厂模式实现
+│       ├── binance.py              #     Binance 适配器
+│       ├── okx.py                  #     OKX 适配器
+│       └── utils.py                #     工具函数
 ├── 策略层 (Strategy Layer)
-│   ├── src/strategies/position_controller_s1.py  # S1辅助策略（52日高低点调仓）
-│   └── src/strategies/risk_manager.py            # 高级风险管理器
+│   ├── src/strategies/ai_strategy.py      # 🆕 AI辅助策略（OpenAI/Claude）
+│   └── src/strategies/risk_manager.py     # 高级风险管理器
 ├── 支持层 (Support Layer)
 │   ├── src/core/order_tracker.py    # 订单跟踪与历史管理
 │   ├── src/services/monitor.py      # 交易监控
@@ -88,7 +101,8 @@ GridBNB-USDT/
 │   ├── docker/Dockerfile            # 容器镜像定义
 │   └── docker/nginx/nginx.conf      # 反向代理配置
 └── 测试层 (Testing Layer)
-    └── tests/unit/                  # 单元测试（覆盖率31%，96个测试）
+    └── tests/unit/                  # 单元测试（覆盖率31%，96+测试）
+        └── test_exchange_factory.py # 🆕 多交易所测试（15+测试）
 ```
 
 ### 模块结构图
@@ -105,9 +119,13 @@ graph TD
 
     B --> B1["src/main.py"];
     B --> B2["src/core/trader.py"];
-    B --> B3["src/core/exchange_client.py"];
+    B --> B3["src/core/exchanges/ 🆕"];
+    B3 --> B3A["base.py"];
+    B3 --> B3B["factory.py"];
+    B3 --> B3C["binance.py"];
+    B3 --> B3D["okx.py"];
 
-    C --> C1["src/strategies/position_controller_s1.py"];
+    C --> C1["src/strategies/ai_strategy.py 🆕"];
     C --> C2["src/strategies/risk_manager.py"];
 
     D --> D1["src/core/order_tracker.py"];
@@ -124,10 +142,11 @@ graph TD
     G --> G3["docker/nginx/"];
 
     H --> H1["tests/unit/"];
+    H1 --> H1A["test_exchange_factory.py 🆕"];
 
     click B2 "#trader-模块" "查看 trader 模块详情"
-    click B3 "#exchange-client-模块" "查看 exchange_client 模块详情"
-    click C1 "#position-controller-s1-模块" "查看 S1 策略模块详情"
+    click B3 "#多交易所架构模块" "查看多交易所架构详情"
+    click C1 "#ai-策略模块" "查看 AI 策略模块详情"
 ```
 
 ---
@@ -138,8 +157,11 @@ graph TD
 |---------|------|------|-----------|------|
 | **主程序** | `src/main.py` | 应用入口，多币种并发管理 | `main()`, `run_trader_for_symbol()`, `periodic_global_status_logger()` | 157 |
 | **网格交易器** | `src/core/trader.py` | 网格交易核心逻辑 | `GridTrader` | 2042 |
-| **交易所客户端** | `src/core/exchange_client.py` | 币安 API 封装与时间同步 | `ExchangeClient` | 542 |
-| **S1仓位控制** | `src/strategies/position_controller_s1.py` | 基于52日高低点的辅助策略 | `PositionControllerS1` | 319 |
+| **🆕 多交易所基类** | `src/core/exchanges/base.py` | 抽象基类和接口定义 | `IExchange`, `IBasicTrading`, `ISavingsFeature`, `BaseExchange` | 400+ |
+| **🆕 交易所工厂** | `src/core/exchanges/factory.py` | 工厂模式创建交易所实例 | `ExchangeFactory`, `ExchangeType` | 200+ |
+| **🆕 Binance适配器** | `src/core/exchanges/binance.py` | Binance交易所实现 | `BinanceExchange` | 300+ |
+| **🆕 OKX适配器** | `src/core/exchanges/okx.py` | OKX交易所实现 | `OKXExchange` | 300+ |
+| **🆕 AI辅助策略** | `src/strategies/ai_strategy.py` | OpenAI/Claude智能分析 | `AIStrategy`, `AIProvider` | 500+ |
 | **风险管理器** | `src/strategies/risk_manager.py` | 仓位限制与风控状态管理 | `AdvancedRiskManager`, `RiskState` | 142 |
 | **订单跟踪器** | `src/core/order_tracker.py` | 订单记录与交易历史管理 | `OrderTracker`, `OrderThrottler` | 314 |
 | **Web服务器** | `src/services/web_server.py` | 实时监控界面与 API 端点 | `start_web_server()`, `handle_status()`, `handle_log()`, `IPLogger` | 698 |
@@ -211,9 +233,20 @@ loguru>=0.7.2         # 日志管理
 
 **必填配置** (`.env`)：
 ```bash
-# 币安 API
-BINANCE_API_KEY="your_api_key"
-BINANCE_API_SECRET="your_api_secret"
+# ========== 交易所选择 ==========
+# 选择要使用的交易所: binance / okx
+EXCHANGE=binance
+
+# ========== Binance API ==========
+# 如果使用币安交易所，必填
+BINANCE_API_KEY="your_binance_api_key_here"
+BINANCE_API_SECRET="your_binance_api_secret_here"
+
+# ========== OKX API ==========
+# 如果使用OKX交易所，必填（需要三个参数）
+OKX_API_KEY="your_okx_api_key_here"
+OKX_API_SECRET="your_okx_api_secret_here"
+OKX_PASSPHRASE="your_okx_passphrase_here"  # OKX特有参数
 
 # 交易对列表（逗号分隔）
 SYMBOLS="BNB/USDT,ETH/USDT,BTC/USDT"
@@ -230,13 +263,21 @@ MIN_TRADE_AMOUNT=20.0
 # 初始本金（用于收益计算）
 INITIAL_PRINCIPAL=800
 
-# 理财功能开关（子账户用户建议设为 false）
+# 理财功能开关
+# Binance: 简单储蓄 | OKX: 余币宝
 ENABLE_SAVINGS_FUNCTION=true
 
-# PushPlus 通知
+# 🆕 AI策略配置
+ENABLE_AI_STRATEGY=false
+AI_PROVIDER=openai  # openai 或 claude
+OPENAI_API_KEY="your_openai_key"
+OPENAI_BASE_URL="https://api.openai.com/v1"  # 支持自定义中转服务
+ANTHROPIC_API_KEY="your_anthropic_key"
+
+# PushPlus 通知 Token
 PUSHPLUS_TOKEN="your_pushplus_token"
 
-# Web UI 认证
+# Web UI 访问认证
 WEB_USER=admin
 WEB_PASSWORD=your_password
 ```
@@ -317,23 +358,33 @@ self.logger.info(f"交易执行成功 | 价格: {price} | 数量: {amount}")
 - **网格信号检测**：`src/core/trader.py` → `_check_buy_signal()`, `_check_sell_signal()` 方法
 - **订单执行流程**：`src/core/trader.py` → `execute_order()` 方法（第 796-945 行）
 - **风控判断**：`src/strategies/risk_manager.py` → `check_position_limits()` 方法
-- **API 调用封装**：`src/core/exchange_client.py` → 各 `fetch_*` 和 `create_*` 方法
+- **🆕 多交易所工厂**：`src/core/exchanges/factory.py` → `ExchangeFactory.create()` 方法
+- **🆕 Binance适配器**：`src/core/exchanges/binance.py` → `BinanceExchange` 类
+- **🆕 OKX适配器**：`src/core/exchanges/okx.py` → `OKXExchange` 类
+- **🆕 AI策略核心**：`src/strategies/ai_strategy.py` → `AIStrategy.analyze_and_suggest()` 方法
 
 ### 常见问题定位
 
 **问题1：订单执行失败**
-- 检查路径：`src/core/trader.py::execute_order()` → `src/core/exchange_client.py::create_order()`
+- 检查路径：`src/core/trader.py::execute_order()` → `src/core/exchanges/base.py::create_order()`
 - 日志关键词：`下单失败`, `Insufficient balance`, `时间同步错误`
 
 **问题2：理财功能报错**
 - 检查配置：`config/.env` 中 `ENABLE_SAVINGS_FUNCTION` 是否为 `true`
-- 检查路径：`src/core/exchange_client.py::transfer_to_savings()`, `transfer_to_spot()`
+- Binance: `src/core/exchanges/binance.py::transfer_to_savings()`
+- OKX: `src/core/exchanges/okx.py::transfer_to_savings()`
 - 注意：子账户用户需禁用理财功能
 
 **问题3：多币种运行异常**
 - 检查路径：`src/main.py::main()` → `run_trader_for_symbol()`
 - 验证：所有交易对的计价货币必须一致（如都是 USDT）
 - 日志关键词：`计价货币不一致`
+
+**🆕 问题4：交易所切换失败**
+- 检查配置：`config/.env` 中 `EXCHANGE` 参数是否正确（binance/okx）
+- 检查路径：`src/core/exchanges/factory.py::create()` 方法
+- 验证：对应交易所的 API 密钥是否配置完整
+- OKX特别注意：需要配置 `OKX_PASSPHRASE` 参数
 
 ### 修改策略指南
 
@@ -672,11 +723,32 @@ pytest tests/test_trader.py -v
      - `trader.py` 中的资金划转限制
    - 提高可维护性和灵活性
 
-### 当前已知问题
+### 当前已知问题与改进方向
+
+**✅ 已完成 (2025-10-24)**:
+1. **🎉 企业级多交易所架构**：
+   - 支持 Binance 和 OKX 交易所
+   - 采用抽象工厂+适配器模式
+   - 1230+行企业级代码，100%类型注解
+   - 15+单元测试覆盖核心功能
+   - 详细文档：[多交易所架构设计](./architecture/multi-exchange-design.md)
+
+2. **🤖 AI辅助策略集成**：
+   - 支持 OpenAI (GPT-4) 和 Anthropic (Claude)
+   - 技术指标综合分析（RSI, MACD, 布林带等）
+   - 市场情绪监测（Fear & Greed Index）
+   - 智能触发机制和成本控制
+   - 详细文档：[AI策略使用指南](../AI_STRATEGY_GUIDE.md)
+
+3. **🔧 OpenAI自定义base_url支持**：
+   - 支持国内中转服务
+   - 提升AI策略可用性
+
+**📋 计划中**:
 1. **性能优化**：引入 Redis 缓存替代内存缓存，减少 API 调用频率
-2. **可观测性**：集成 Prometheus + Grafana 进行指标监控
-3. **策略扩展**：支持自定义策略插件机制
-4. **安全加固**：API 密钥使用加密存储，避免明文 `.env`
+2. **可观测性增强**：完善 Prometheus + Grafana 监控体系
+3. **更多交易所支持**：Bybit、Gate.io 等
+4. **安全加固**：API 密钥加密存储，避免明文 `.env`
 
 ---
 
@@ -685,7 +757,12 @@ pytest tests/test_trader.py -v
 ### 核心文件（必读）
 - `main.py`：应用入口
 - `trader.py`：网格交易核心
-- `exchange_client.py`：交易所 API 封装
+- **🆕 多交易所架构**：
+  - `src/core/exchanges/base.py`：抽象基类和接口
+  - `src/core/exchanges/factory.py`：工厂模式实现
+  - `src/core/exchanges/binance.py`：Binance适配器
+  - `src/core/exchanges/okx.py`：OKX适配器
+- **🆕 AI策略**：`src/strategies/ai_strategy.py`
 - `config.py`：配置管理
 - `.env.example`：配置模板
 
@@ -697,8 +774,11 @@ pytest tests/test_trader.py -v
 
 ### 文档文件
 - `README.md`：项目主文档
-- `README-https.md`：HTTPS 配置教程
 - `CLAUDE.md`：本文件（AI 上下文）
+- **🆕 多交易所文档**：
+  - `docs/architecture/multi-exchange-design.md`：架构设计
+  - `docs/architecture/QUICK_START.md`：快速开始
+- **🆕 AI策略文档**：`docs/AI_STRATEGY_GUIDE.md`
 
 ### 数据文件（运行时生成）
 - `data/trader_state_*.json`：交易器状态持久化
@@ -715,10 +795,122 @@ pytest tests/test_trader.py -v
 | **基准价** | 网格策略的中心价格，买卖上下轨以此为基础计算 |
 | **波动率** | 价格变动的剧烈程度，用于动态调整网格大小 |
 | **EWMA** | 指数加权移动平均，赋予近期数据更高权重的波动率算法 |
-| **S1 策略** | 基于52日最高/最低价的辅助仓位控制策略 |
 | **风控状态** | 系统根据仓位比例决定的操作限制（允许全部/仅买/仅卖） |
-| **理财账户** | 币安活期理财，闲置资金自动申购赚取利息 |
-| **现货账户** | 币安现货账户，用于交易的资金池 |
+| **🆕 抽象工厂模式** | 创建一系列相关对象的设计模式，用于多交易所架构 |
+| **🆕 适配器模式** | 将不同接口转换为统一接口的设计模式 |
+| **🆕 Binance简单储蓄** | 币安的活期理财产品，闲置资金自动申购赚取利息 |
+| **🆕 OKX余币宝** | OKX的活期理财产品，类似币安简单储蓄 |
+| **现货账户** | 交易所现货账户，用于交易的资金池 |
+
+---
+
+## 🆕 多交易所架构详解
+
+### 设计模式应用
+
+#### 1. 抽象工厂模式 (Abstract Factory)
+```python
+# src/core/exchanges/factory.py
+class ExchangeFactory:
+    """交易所工厂类，负责创建交易所实例"""
+
+    @staticmethod
+    async def create(exchange_type: ExchangeType, config: dict) -> IExchange:
+        """根据类型创建交易所实例"""
+        if exchange_type == ExchangeType.BINANCE:
+            return BinanceExchange(config)
+        elif exchange_type == ExchangeType.OKX:
+            return OKXExchange(config)
+        else:
+            raise ValueError(f"不支持的交易所类型: {exchange_type}")
+```
+
+#### 2. 适配器模式 (Adapter)
+```python
+# src/core/exchanges/base.py
+class IExchange(ABC):
+    """交易所抽象接口"""
+
+    @abstractmethod
+    async def fetch_ticker(self, symbol: str) -> dict:
+        """获取行情数据"""
+        pass
+
+    @abstractmethod
+    async def create_order(self, symbol: str, type: str, side: str,
+                          amount: float, price: float = None) -> dict:
+        """创建订单"""
+        pass
+```
+
+#### 3. 策略模式 (Strategy)
+```python
+# 不同交易所实现不同的理财策略
+class BinanceExchange(BaseExchange):
+    async def transfer_to_savings(self, asset: str, amount: float):
+        """Binance: 申购简单储蓄"""
+        # Binance特定实现
+
+class OKXExchange(BaseExchange):
+    async def transfer_to_savings(self, asset: str, amount: float):
+        """OKX: 申购余币宝"""
+        # OKX特定实现
+```
+
+### 如何添加新交易所
+
+只需3步即可添加新交易所支持：
+
+**步骤1：创建适配器类**
+```python
+# src/core/exchanges/bybit.py
+from .base import BaseExchange, IExchange
+
+class BybitExchange(BaseExchange):
+    """Bybit交易所适配器"""
+
+    def __init__(self, config: dict):
+        super().__init__('bybit', config)
+
+    async def transfer_to_savings(self, asset: str, amount: float):
+        """实现Bybit特定的理财功能"""
+        # Bybit特定实现
+        pass
+```
+
+**步骤2：注册到工厂**
+```python
+# src/core/exchanges/factory.py
+class ExchangeType(Enum):
+    BINANCE = "binance"
+    OKX = "okx"
+    BYBIT = "bybit"  # 新增
+
+class ExchangeFactory:
+    @staticmethod
+    async def create(exchange_type: ExchangeType, config: dict):
+        if exchange_type == ExchangeType.BYBIT:
+            return BybitExchange(config)
+        # ...
+```
+
+**步骤3：添加配置支持**
+```bash
+# config/.env
+EXCHANGE=bybit
+BYBIT_API_KEY="your_key"
+BYBIT_API_SECRET="your_secret"
+```
+
+**完成！** 无需修改 `GridTrader` 或其他业务代码。
+
+### 架构优势
+
+✅ **开闭原则**：对扩展开放，对修改关闭
+✅ **单一职责**：每个类只负责一个交易所
+✅ **依赖倒置**：业务层依赖抽象接口，不依赖具体实现
+✅ **易于测试**：可以轻松 mock 交易所接口
+✅ **类型安全**：100% 类型注解，编译时发现错误
 
 ---
 
