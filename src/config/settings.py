@@ -6,7 +6,8 @@ from pydantic_settings import BaseSettings
 from typing import Optional, Dict
 from pydantic import field_validator, ConfigDict, ConfigDict
 
-load_dotenv()
+from pathlib import Path
+load_dotenv(Path(__file__).resolve().parent.parent.parent / "config" / ".env")
 
 class Settings(BaseSettings):
     """应用程序设置类，使用Pydantic进行类型验证和环境变量管理"""
