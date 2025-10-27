@@ -201,6 +201,51 @@ class TradingMetrics:
             'Application uptime in seconds'
         )
 
+        # === AI策略指标 ===
+        # AI数据收集耗时
+        self.ai_data_collection_duration = Histogram(
+            'gridbnb_ai_data_collection_seconds',
+            'AI market data collection duration in seconds',
+            ['symbol', 'data_type'],
+            buckets=(0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0)
+        )
+
+        # AI决策调用次数
+        self.ai_decisions_total = Counter(
+            'gridbnb_ai_decisions_total',
+            'Total number of AI decision calls',
+            ['symbol', 'provider', 'status']
+        )
+
+        # AI决策延迟
+        self.ai_decision_latency = Histogram(
+            'gridbnb_ai_decision_latency_seconds',
+            'AI decision API call latency in seconds',
+            ['symbol', 'provider'],
+            buckets=(1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
+        )
+
+        # AI Token消耗
+        self.ai_tokens_used = Counter(
+            'gridbnb_ai_tokens_total',
+            'Total AI tokens consumed',
+            ['symbol', 'provider', 'token_type']  # token_type: prompt, completion, total
+        )
+
+        # AI Token消耗成本（美元）
+        self.ai_cost_usd = Counter(
+            'gridbnb_ai_cost_usd_total',
+            'Total AI API cost in USD',
+            ['symbol', 'provider']
+        )
+
+        # AI决策置信度
+        self.ai_confidence = Gauge(
+            'gridbnb_ai_confidence',
+            'Latest AI decision confidence score',
+            ['symbol', 'action']  # action: buy, sell, hold
+        )
+
         # 启动时间戳
         self.start_time = time.time()
 
@@ -310,6 +355,59 @@ class TradingMetrics:
     def set_total_account_value(self, value: float):
         """设置账户总价值"""
         self.total_account_value.set(value)
+
+    def record_ai_data_collection(self, symbol: str, data_type: str, duration: float):
+        """
+        记录AI数据收集性能
+
+        Args:
+            symbol: 交易对
+            data_type: 数据类型（multi_timeframe, orderbook, derivatives, correlation, all）
+            duration: 耗时（秒）
+        """
+        self.ai_data_collection_duration.labels(symbol=symbol, data_type=data_type).observe(duration)
+
+    def record_ai_decision(self, symbol: str, provider: str, status: str, latency: float = None,
+                          prompt_tokens: int = None, completion_tokens: int = None,
+                          total_tokens: int = None, cost_usd: float = None,
+                          confidence: float = None, action: str = None):
+        """
+        记录AI决策调用
+
+        Args:
+            symbol: 交易对
+            provider: AI提供商（openai, anthropic等）
+            status: 状态（success, error）
+            latency: API调用延迟（秒）
+            prompt_tokens: prompt token数量
+            completion_tokens: completion token数量
+            total_tokens: 总token数量
+            cost_usd: 成本（美元）
+            confidence: 决策置信度
+            action: 决策动作（buy, sell, hold）
+        """
+        # 记录调用次数
+        self.ai_decisions_total.labels(symbol=symbol, provider=provider, status=status).inc()
+
+        # 记录延迟
+        if latency is not None:
+            self.ai_decision_latency.labels(symbol=symbol, provider=provider).observe(latency)
+
+        # 记录token消耗
+        if prompt_tokens is not None:
+            self.ai_tokens_used.labels(symbol=symbol, provider=provider, token_type='prompt').inc(prompt_tokens)
+        if completion_tokens is not None:
+            self.ai_tokens_used.labels(symbol=symbol, provider=provider, token_type='completion').inc(completion_tokens)
+        if total_tokens is not None:
+            self.ai_tokens_used.labels(symbol=symbol, provider=provider, token_type='total').inc(total_tokens)
+
+        # 记录成本
+        if cost_usd is not None:
+            self.ai_cost_usd.labels(symbol=symbol, provider=provider).inc(cost_usd)
+
+        # 记录置信度
+        if confidence is not None and action is not None:
+            self.ai_confidence.labels(symbol=symbol, action=action).set(confidence)
 
     def get_metrics(self) -> bytes:
         """获取Prometheus格式的指标数据"""

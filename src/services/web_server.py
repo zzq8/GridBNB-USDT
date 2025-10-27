@@ -445,6 +445,81 @@ async def handle_log(request):
                     document.title = `监控 - ${{symbol}}`;
                 }}
 
+                // 更新AI决策数据
+                async function updateAIDecision() {{
+                    if (!currentSymbol) return;
+                    try {{
+                        const response = await fetch(`/api/ai-decision?symbol=${{currentSymbol}}`);
+                        const data = await response.json();
+
+                        if (data.error || !data.ai_enabled) {{
+                            document.getElementById('ai-decision-card').style.display = 'none';
+                            return;
+                        }}
+
+                        if (!data.has_decision) {{
+                            document.getElementById('ai-decision-card').style.display = 'none';
+                            return;
+                        }}
+
+                        // 显示AI决策卡片
+                        document.getElementById('ai-decision-card').style.display = 'block';
+
+                        // 更新时间戳
+                        const timestamp = new Date(data.timestamp * 1000);
+                        const now = new Date();
+                        const minutesAgo = Math.floor((now - timestamp) / 60000);
+                        document.getElementById('ai-timestamp').textContent = `(${{minutesAgo}}分钟前)`;
+
+                        // 更新AI建议
+                        const suggestion = data.suggestion;
+                        const actionEl = document.getElementById('ai-action');
+                        actionEl.textContent = suggestion.action === 'buy' ? '🔵 买入' :
+                                                suggestion.action === 'sell' ? '🔴 卖出' : '⚪ 持有';
+                        actionEl.style.color = suggestion.action === 'buy' ? '#10b981' :
+                                                suggestion.action === 'sell' ? '#ef4444' : '#6b7280';
+
+                        document.getElementById('ai-confidence').textContent = `${{(suggestion.confidence * 100).toFixed(0)}}%`;
+                        document.getElementById('ai-risk-level').textContent = suggestion.risk_level || '--';
+                        document.getElementById('ai-reason').textContent = suggestion.reason || '--';
+
+                        // 更新多时间周期
+                        const mtf = data.multi_timeframe;
+                        document.getElementById('ai-daily-trend').textContent = mtf.daily_trend || '--';
+                        document.getElementById('ai-4h-trend').textContent = mtf['4h_trend'] || '--';
+                        document.getElementById('ai-1h-trend').textContent = mtf['1h_trend'] || '--';
+                        document.getElementById('ai-alignment').textContent = mtf.alignment || '--';
+
+                        // 更新BTC相关性
+                        const btc = data.btc_correlation;
+                        document.getElementById('ai-btc-strength').textContent = btc.strength || '--';
+                        document.getElementById('ai-btc-corr').textContent = btc.coefficient ? btc.coefficient.toFixed(2) : '--';
+                        document.getElementById('ai-btc-trend').textContent = btc.btc_trend || '--';
+                        const btcChangeEl = document.getElementById('ai-btc-change');
+                        const btcChange = btc.btc_change || 0;
+                        btcChangeEl.textContent = `${{btcChange >= 0 ? '+' : ''}}${{btcChange.toFixed(2)}}%`;
+                        btcChangeEl.style.color = btcChange >= 0 ? '#10b981' : '#ef4444';
+
+                        // 更新订单簿和衍生品
+                        const ob = data.orderbook;
+                        const deriv = data.derivatives;
+                        document.getElementById('ai-liquidity').textContent = ob.liquidity_signal || '--';
+
+                        const imbalanceEl = document.getElementById('ai-imbalance');
+                        const imbalance = ob.imbalance || 0;
+                        imbalanceEl.textContent = imbalance > 0 ? '买方优势' : imbalance < 0 ? '卖方优势' : '均衡';
+                        imbalanceEl.style.color = imbalance > 0 ? '#10b981' : imbalance < 0 ? '#ef4444' : '#6b7280';
+
+                        document.getElementById('ai-funding').textContent = deriv.funding_rate || '--';
+                        document.getElementById('ai-oi-change').textContent = deriv.oi_change || '--';
+
+                        console.log('AI决策数据更新成功');
+                    }} catch (error) {{
+                        console.error('更新AI决策数据失败:', error);
+                        document.getElementById('ai-decision-card').style.display = 'none';
+                    }}
+                }}
+
                 // 更新整个页面的状态
                 async function updateStatus() {{
                     if (!currentSymbol) return;
@@ -564,9 +639,11 @@ async def handle_log(request):
 
                             // 首次加载数据
                             updateStatus();
+                            updateAIDecision();
 
                             // 启动定时更新
                             setInterval(updateStatus, 5000); // 5秒更新一次
+                            setInterval(updateAIDecision, 30000); // 30秒更新一次AI决策
                         }} else {{
                             document.body.innerHTML = '<h1 class="text-center text-2xl mt-12">没有正在运行的交易对。</h1>';
                         }}
@@ -580,6 +657,7 @@ async def handle_log(request):
                 symbolSelector.addEventListener('change', (event) => {{
                     currentSymbol = event.target.value;
                     updateStatus(); // 立即更新
+                    updateAIDecision(); // 立即更新AI决策
                 }});
 
                 // 页面加载时执行初始化

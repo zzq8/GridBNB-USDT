@@ -48,6 +48,14 @@ from src.strategies.derivatives_data import DerivativesDataFetcher
 from src.strategies.correlation_analyzer import CorrelationAnalyzer
 from src.config.settings import settings
 
+# 导入Prometheus指标
+try:
+    from src.monitoring.metrics import get_metrics
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    logging.warning("Prometheus指标模块不可用")
+
 
 class AIProvider(Enum):
     """AI提供商"""
@@ -428,28 +436,37 @@ class AITradingStrategy:
         # ============ 🆕 并行收集高级数据 ============
         self.logger.info("开始收集多维度市场数据...")
 
+        # 记录整体数据收集开始时间
+        collection_start_time = time.time()
+
         try:
             # 使用 asyncio.gather 并行收集所有高级数据
+            # 为每个数据收集任务添加计时
+            mtf_start = time.time()
             multi_timeframe_task = self.multi_timeframe_analyzer.analyze_timeframes(
                 self.trader.exchange,
                 self.trader.symbol,
                 current_price
             )
 
+            ob_start = time.time()
             orderbook_task = self.orderbook_analyzer.analyze_order_book(
                 self.trader.exchange,
                 self.trader.symbol,
                 current_price
             )
 
+            funding_start = time.time()
             funding_rate_task = self.derivatives_fetcher.fetch_funding_rate(
                 self.trader.symbol
             )
 
+            oi_start = time.time()
             open_interest_task = self.derivatives_fetcher.fetch_open_interest(
                 self.trader.symbol
             )
 
+            corr_start = time.time()
             btc_correlation_task = self.correlation_analyzer.analyze_btc_correlation(
                 self.trader.exchange,
                 self.trader.symbol,
@@ -476,6 +493,17 @@ class AITradingStrategy:
                 sentiment_task,
                 return_exceptions=True  # 容错处理
             )
+
+            # 记录各项数据收集性能
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    # 注意：由于并行执行，这里的时间测量不完全准确，但可以提供粗略估计
+                    # 实际应该在每个分析器内部进行精确计时
+                    total_duration = time.time() - collection_start_time
+                    metrics.record_ai_data_collection(self.trader.symbol, 'all', total_duration)
+                except Exception as me:
+                    self.logger.warning(f"记录性能指标失败: {me}")
 
             # 容错处理：如果某个数据源失败，使用空数据
             if isinstance(multi_timeframe_data, Exception):
@@ -618,6 +646,7 @@ class AITradingStrategy:
 
     async def _call_openai(self, prompt: str) -> Optional[str]:
         """调用OpenAI API"""
+        start_time = time.time()
         try:
             response = await asyncio.to_thread(
                 self.ai_client.chat.completions.create,
@@ -630,14 +659,69 @@ class AITradingStrategy:
                 max_tokens=500
             )
 
+            # 记录性能和token消耗
+            latency = time.time() - start_time
+
+            # 提取token使用情况
+            usage = response.usage
+            prompt_tokens = usage.prompt_tokens if usage else 0
+            completion_tokens = usage.completion_tokens if usage else 0
+            total_tokens = usage.total_tokens if usage else 0
+
+            # 计算成本（以GPT-4为例，实际价格需要根据模型调整）
+            # GPT-4-turbo: $10/1M prompt tokens, $30/1M completion tokens
+            cost_usd = 0
+            if 'gpt-4' in self.ai_model.lower():
+                cost_usd = (prompt_tokens * 0.00001) + (completion_tokens * 0.00003)
+            elif 'gpt-3.5' in self.ai_model.lower():
+                # GPT-3.5-turbo: $0.5/1M prompt tokens, $1.5/1M completion tokens
+                cost_usd = (prompt_tokens * 0.0000005) + (completion_tokens * 0.0000015)
+
+            # 记录到Prometheus
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    metrics.record_ai_decision(
+                        symbol=self.trader.symbol,
+                        provider='openai',
+                        status='success',
+                        latency=latency,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_tokens=total_tokens,
+                        cost_usd=cost_usd
+                    )
+                except Exception as me:
+                    self.logger.warning(f"记录AI指标失败: {me}")
+
+            self.logger.info(
+                f"OpenAI调用成功 | 耗时: {latency:.2f}s | "
+                f"Tokens: {total_tokens} (prompt:{prompt_tokens}, completion:{completion_tokens}) | "
+                f"成本: ${cost_usd:.6f}"
+            )
+
             return response.choices[0].message.content
 
         except Exception as e:
+            latency = time.time() - start_time
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    metrics.record_ai_decision(
+                        symbol=self.trader.symbol,
+                        provider='openai',
+                        status='error',
+                        latency=latency
+                    )
+                except Exception:
+                    pass
+
             self.logger.error(f"OpenAI API调用失败: {e}")
             return None
 
     async def _call_anthropic(self, prompt: str) -> Optional[str]:
         """调用Anthropic API"""
+        start_time = time.time()
         try:
             response = await asyncio.to_thread(
                 self.ai_client.messages.create,
@@ -648,8 +732,62 @@ class AITradingStrategy:
                 ]
             )
 
+            # 记录性能和token消耗
+            latency = time.time() - start_time
+
+            # 提取token使用情况
+            usage = response.usage
+            prompt_tokens = usage.input_tokens if usage else 0
+            completion_tokens = usage.output_tokens if usage else 0
+            total_tokens = prompt_tokens + completion_tokens
+
+            # 计算成本（Anthropic Claude价格）
+            # Claude-3.5-sonnet: $3/1M input tokens, $15/1M output tokens
+            cost_usd = 0
+            if 'claude-3' in self.ai_model.lower() or 'claude-sonnet' in self.ai_model.lower():
+                cost_usd = (prompt_tokens * 0.000003) + (completion_tokens * 0.000015)
+            elif 'claude-opus' in self.ai_model.lower():
+                # Claude-3-opus: $15/1M input tokens, $75/1M output tokens
+                cost_usd = (prompt_tokens * 0.000015) + (completion_tokens * 0.000075)
+
+            # 记录到Prometheus
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    metrics.record_ai_decision(
+                        symbol=self.trader.symbol,
+                        provider='anthropic',
+                        status='success',
+                        latency=latency,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_tokens=total_tokens,
+                        cost_usd=cost_usd
+                    )
+                except Exception as me:
+                    self.logger.warning(f"记录AI指标失败: {me}")
+
+            self.logger.info(
+                f"Anthropic调用成功 | 耗时: {latency:.2f}s | "
+                f"Tokens: {total_tokens} (input:{prompt_tokens}, output:{completion_tokens}) | "
+                f"成本: ${cost_usd:.6f}"
+            )
+
             return response.content[0].text
 
         except Exception as e:
+            latency = time.time() - start_time
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    metrics.record_ai_decision(
+                        symbol=self.trader.symbol,
+                        provider='anthropic',
+                        status='error',
+                        latency=latency
+                    )
+                except Exception:
+                    pass
+
             self.logger.error(f"Anthropic API调用失败: {e}")
             return None
