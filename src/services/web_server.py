@@ -20,6 +20,8 @@ except ImportError:
     METRICS_AVAILABLE = False
     logging.warning("Prometheus客户端未安装,/metrics端点将不可用")
 
+AIO_PROMETHEUS_CONTENT_TYPE = 'text/plain; version=0.0.4'
+
 def auth_required(func):
     """基础认证装饰器"""
     @wraps(func)
@@ -698,7 +700,7 @@ async def handle_metrics(request):
 
         return web.Response(
             body=metrics_data,
-            content_type=CONTENT_TYPE_LATEST
+            content_type=AIO_PROMETHEUS_CONTENT_TYPE
         )
 
     except Exception as e:
