@@ -25,10 +25,13 @@ class AIPromptBuilder:
         recent_trades: List[Dict],
         grid_status: Dict,
         risk_metrics: Dict,
-        multi_timeframe: Optional[Dict] = None  # 🆕 多时间周期数据
+        multi_timeframe: Optional[Dict] = None,  # 🆕 多时间周期数据
+        orderbook: Optional[Dict] = None,  # 🆕 订单簿数据
+        derivatives: Optional[Dict] = None,  # 🆕 衍生品数据
+        correlation: Optional[Dict] = None  # 🆕 BTC相关性数据
     ) -> Dict:
         """
-        构建发送给AI的结构化数据包
+        构建发送给AI的结构化数据包（增强版）
 
         Args:
             symbol: 交易对
@@ -40,6 +43,9 @@ class AIPromptBuilder:
             grid_status: 网格策略状态
             risk_metrics: 风险指标
             multi_timeframe: 🆕 多时间周期分析数据
+            orderbook: 🆕 订单簿深度数据
+            derivatives: 🆕 衍生品数据（资金费率、持仓量）
+            correlation: 🆕 BTC相关性数据
 
         Returns:
             结构化数据字典
@@ -59,6 +65,18 @@ class AIPromptBuilder:
         # 🆕 添加多时间周期数据
         if multi_timeframe:
             result["multi_timeframe_analysis"] = multi_timeframe
+
+        # 🆕 添加订单簿数据
+        if orderbook:
+            result["orderbook_analysis"] = orderbook
+
+        # 🆕 添加衍生品数据
+        if derivatives:
+            result["derivatives_data"] = derivatives
+
+        # 🆕 添加BTC相关性数据
+        if correlation:
+            result["btc_correlation"] = correlation
 
         return result
 
@@ -96,6 +114,12 @@ class AIPromptBuilder:
 - 24小时最低: {md.get('24h_low', 0):.2f} USDT
 
 {AIPromptBuilder._build_multi_timeframe_section(data)}
+
+{AIPromptBuilder._build_orderbook_section(data)}
+
+{AIPromptBuilder._build_derivatives_section(data)}
+
+{AIPromptBuilder._build_correlation_section(data)}
 
 【技术指标分析 (5分钟级别)】
 1. RSI(14): {ti['rsi']['value']:.1f} ({ti['rsi']['trend']})
@@ -163,30 +187,47 @@ class AIPromptBuilder:
 {AIPromptBuilder._format_recent_trades(data['recent_trades'])}
 
 【分析要求】
-作为"交易大脑",请综合分析当前市场环境,并给出建议。请特别注意:
+作为"深度市场分析大脑",请综合分析当前市场环境,并给出建议。你现在拥有**远超普通交易员**的数据维度:
 
-1. **与网格策略的协同性**:
+⚠️ **核心分析框架** (按重要性递减):
+
+1. **多时间周期共振分析** (最重要！):
+   - 日线、4小时、1小时三个周期是否一致?
+   - 是否存在危险背离? (如：日线下跌但1H反弹 = 接飞刀风险)
+   - 多周期共振信号最可靠，单周期信号需谨慎
+
+2. **订单簿压力分析**:
+   - 上方是否有大单墙阻力? 突破难度如何?
+   - 下方支撑是否扎实? 回调空间多大?
+   - 买卖失衡度显示真实压力方向
+
+3. **衍生品数据验证**:
+   - 资金费率是否显示过度多头/空头?
+   - 持仓量变化是否支持价格趋势?
+   - **关键组合判断**:
+     * 价格上涨 + OI增加 = 趋势健康
+     * 价格上涨 + OI下降 = ⚠️ 诱多风险
+     * Funding Rate > 0.05% = 多头过度拥挤
+
+4. **BTC联动性判断**:
+   - 相关性高(>0.7)时，必须参考BTC走势
+   - BTC下跌 + 高相关性 = 个币很难独善其身
+   - BTC/个币背离 + 高相关性 = 警惕反转
+
+5. **与网格策略的协同性**:
    - 网格策略会自动处理{grid.get('grid_size', 0):.2f}%左右的小幅波动
-   - 你应该关注更大的趋势机会(比如>5-10%的价格变动)
-   - 你的建议应该是对网格策略的"补充"而非"替代"
+   - 你应该关注更大的趋势机会(>5-10%的价格变动)
+   - 只在多维度数据共振时才建议交易
 
-2. **趋势判断**:
-   - 是否存在明确的上涨或下跌趋势?
-   - 技术指标是否形成多重共振信号?
-   - 市场情绪是否支持该方向?
+6. **综合风险评估**:
+   - 仓位比例({portfolio.get('position_ratio', 0)*100:.1f}%)是否合理?
+   - 是否值得在网格之外额外建仓?
+   - 风险收益比是否足够吸引?
 
-3. **仓位管理**:
-   - 当前仓位比例({portfolio.get('position_ratio', 0)*100:.1f}%)是否合理?
-   - 在当前趋势下,应该增仓、减仓还是持仓观望?
-
-4. **风险收益比**:
-   - 建议的交易机会是否有足够的风险收益比?
-   - 是否值得在网格策略之外额外建仓?
-
-5. **市场环境判断**:
-   - 当前是趋势市场还是震荡市场?
-   - 震荡市场: 建议hold,让网格策略发挥作用
-   - 趋势市场: 可以给出buy/sell建议,配合趋势
+💡 **决策优先级**:
+   震荡市场 (多时间周期不一致 + 订单簿平衡) → 建议 HOLD
+   危险背离 (日线空头但1H多头 + 高相关性BTC下跌) → 强烈建议 HOLD/SELL
+   完美共振 (三周期一致 + 订单簿支持 + OI健康 + BTC同向) → 可建议 BUY/SELL
 
 【输出格式要求】
 请严格按照以下JSON格式返回你的建议(只返回JSON,不要有其他文字):
@@ -390,6 +431,168 @@ class AIPromptBuilder:
    2. 4小时看波段 → 确定当前是反弹还是回调
    3. 15分钟找入场点 → 寻找精准的买卖时机
    4. 共振信号最可靠 → 多个时间周期同时指向一个方向时，成功率最高
+"""
+
+        return section
+
+    @staticmethod
+    def _build_orderbook_section(data: Dict) -> str:
+        """构建订单簿深度分析部分"""
+        ob = data.get('orderbook_analysis')
+
+        if not ob:
+            return "【📖 订单簿深度分析】\n⚠️ 数据暂时不可用\n"
+
+        section = f"""
+【📖 订单簿深度分析 - 市场微观结构】
+💡 **订单簿显示真实的买卖压力和大单墙**
+
+价差与流动性:
+- 买卖价差: {ob.get('spread', 0):.4f} USDT ({ob.get('spread_percent', 0):.4f}%)
+- 买盘深度: {ob.get('buy_depth', 0):.2f} (上下1%范围内)
+- 卖盘深度: {ob.get('sell_depth', 0):.2f}
+- 深度比率: {ob.get('depth_ratio', 1):.2f} (买盘/卖盘)
+- 买卖失衡度: {ob.get('imbalance', 0):.2%} {"(买盘强)" if ob.get('imbalance', 0) > 0 else "(卖盘强)" if ob.get('imbalance', 0) < 0 else "(平衡)"}
+
+流动性信号: {ob.get('liquidity_signal', 'unknown').upper()}
+
+上方阻力墙 (可能阻碍上涨):
+{chr(10).join(f"   - 价格 {wall['price']:.2f} USDT: {wall['amount']:.0f} 单位 (距离 +{wall['distance_percent']:.2f}%)"
+    for wall in ob.get('resistance_walls', [])) if ob.get('resistance_walls') else "   - 无明显大单墙"}
+
+下方支撑墙 (可能支撑下跌):
+{chr(10).join(f"   - 价格 {wall['price']:.2f} USDT: {wall['amount']:.0f} 单位 (距离 {wall['distance_percent']:.2f}%)"
+    for wall in ob.get('support_walls', [])) if ob.get('support_walls') else "   - 无明显大单墙"}
+
+交易洞察:
+{ob.get('trading_insight', '暂无特别洞察')}
+
+💡 **如何使用订单簿信息**:
+- 大单墙是价格阻力或支撑的直接证据
+- 买盘失衡>0.2 表示强买压，价格容易上涨
+- 卖盘失衡<-0.2 表示强卖压，价格容易下跌
+- 上方有大量抛压墙时，短期突破困难
+"""
+
+        return section
+
+    @staticmethod
+    def _build_derivatives_section(data: Dict) -> str:
+        """构建衍生品数据部分"""
+        deriv = data.get('derivatives_data', {})
+
+        if not deriv:
+            return "【💰 期货衍生品数据】\n⚠️ 数据暂时不可用\n"
+
+        funding = deriv.get('funding_rate', {})
+        oi = deriv.get('open_interest', {})
+
+        # 解读资金费率
+        funding_interpretation = ""
+        if funding.get('current_rate', 0) > 0.05:
+            funding_interpretation = "⚠️ 多头成本极高！可能面临空头反扑"
+        elif funding.get('current_rate', 0) > 0.01:
+            funding_interpretation = "多头情绪积极，但需警惕过度多头"
+        elif funding.get('current_rate', 0) < -0.05:
+            funding_interpretation = "⚠️ 空头成本极高！可能面临多头反攻"
+        elif funding.get('current_rate', 0) < -0.01:
+            funding_interpretation = "空头情绪积极，但需警惕过度空头"
+        else:
+            funding_interpretation = "资金费率中性，市场情绪平衡"
+
+        # 解读持仓量
+        oi_interpretation = ""
+        oi_change = oi.get('24h_change', 0)
+        if oi_change > 5:
+            oi_interpretation = "大量资金进入，趋势可能继续"
+        elif oi_change > 2:
+            oi_interpretation = "资金稳定进入，市场活跃"
+        elif oi_change < -5:
+            oi_interpretation = "⚠️ 大量资金撤离，趋势可能反转"
+        elif oi_change < -2:
+            oi_interpretation = "资金逐渐撤离，关注趋势变化"
+        else:
+            oi_interpretation = "持仓量稳定，市场观望"
+
+        section = f"""
+【💰 期货衍生品数据 - 资金与持仓】
+💡 **衍生品数据揭示大资金的真实动向**
+
+资金费率 (Funding Rate):
+- 当前费率: {funding.get('current_rate_display', 'N/A')} ({funding.get('sentiment', 'neutral')})
+- 下次结算: {funding.get('next_funding_time', 'N/A')}
+- 解读: {funding_interpretation}
+{f"- ⚠️ 警告: {funding.get('warning', 'N/A')}" if funding.get('warning') else ""}
+
+持仓量 (Open Interest):
+- 当前持仓量: {oi.get('current_display', 'N/A')} 张
+- 24小时变化: {oi.get('24h_change_display', 'N/A')} ({oi.get('trend', 'unknown')})
+- 资金信号: {oi.get('signal', 'unknown').replace('_', ' ').upper()}
+- 解读: {oi_interpretation}
+
+💡 **如何使用衍生品数据**:
+- 资金费率>0.05% 表示多头过度拥挤，易回调
+- 资金费率<-0.05% 表示空头过度拥挤，易反弹
+- 价格上涨+持仓量增加 = 趋势健康
+- 价格上涨+持仓量下降 = ⚠️ 诱多风险
+- 价格下跌+持仓量增加 = 下跌趋势加强
+- 价格下跌+持仓量下降 = 可能接近底部
+"""
+
+        return section
+
+    @staticmethod
+    def _build_correlation_section(data: Dict) -> str:
+        """构建BTC相关性分析部分"""
+        corr = data.get('btc_correlation')
+
+        if not corr:
+            return "【₿ BTC相关性分析】\n⚠️ 数据暂时不可用\n"
+
+        btc = corr.get('btc_current_state', {})
+        target = corr.get('target_state', {})
+        coef = corr.get('correlation_coefficient', 0)
+        strength = corr.get('correlation_strength', 'unknown')
+
+        # 相关性解读
+        if strength == "high":
+            corr_desc = f"高度相关 (系数{coef:.2f})，走势基本跟随BTC"
+        elif strength == "medium":
+            corr_desc = f"中度相关 (系数{coef:.2f})，部分受BTC影响"
+        else:
+            corr_desc = f"相关性低 (系数{coef:.2f})，走势相对独立"
+
+        section = f"""
+【₿ BTC关联性分析 - 大盘影响】
+💡 **加密货币市场高度联动，BTC是风向标**
+
+相关性强度:
+- 相关系数: {coef:.3f}
+- 相关强度: {strength.upper()}
+- BTC主导性: {corr.get('btc_dominance_impact', 'unknown').replace('_', ' ').upper()}
+- 解读: {corr_desc}
+
+BTC当前状态:
+- BTC价格: ${btc.get('price', 0):,.2f}
+- 24H变化: {btc.get('24h_change', 0):+.2f}%
+- 短期趋势: {btc.get('short_term_trend', 'unknown').replace('_', ' ').upper()}
+- 动能状态: {btc.get('momentum', 'unknown').upper()}
+
+目标币种 ({data.get('symbol', '')}) 状态:
+- 24H变化: {target.get('24h_change', 0):+.2f}%
+- 短期趋势: {target.get('short_term_trend', 'unknown').replace('_', ' ').upper()}
+- 相对强度: {target.get('relative_strength', 'unknown').upper()}
+
+{f"⚠️ 风险警告: {corr.get('risk_warning')}" if corr.get('risk_warning') else ""}
+
+交易洞察:
+{corr.get('trading_insight', '暂无特别洞察')}
+
+💡 **如何使用BTC相关性**:
+- 高相关性(>0.7) + BTC下跌 = ⚠️ 目标币种很难独善其身
+- 高相关性(>0.7) + BTC上涨 = 可顺势操作目标币种
+- BTC下跌但目标币种上涨 + 高相关性 = ⚠️ 背离风险，上涨可能不持续
+- 低相关性(<0.4) = 目标币种有独立行情，可忽略BTC影响
 """
 
         return section

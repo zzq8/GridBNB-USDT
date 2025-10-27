@@ -43,6 +43,9 @@ except ImportError:
 from src.strategies.technical_indicators import TechnicalIndicators
 from src.strategies.market_sentiment import get_market_sentiment
 from src.strategies.multi_timeframe import MultiTimeframeAnalyzer
+from src.strategies.market_microstructure import OrderBookAnalyzer
+from src.strategies.derivatives_data import DerivativesDataFetcher
+from src.strategies.correlation_analyzer import CorrelationAnalyzer
 from src.config.settings import settings
 
 
@@ -80,6 +83,16 @@ class AITradingStrategy:
 
         # 🆕 多时间周期分析器
         self.multi_timeframe_analyzer = MultiTimeframeAnalyzer()
+
+        # 🆕 订单簿深度分析器
+        self.orderbook_analyzer = OrderBookAnalyzer()
+
+        # 🆕 衍生品数据获取器
+        exchange_type = getattr(settings, 'EXCHANGE', 'binance').lower()
+        self.derivatives_fetcher = DerivativesDataFetcher(exchange_type=exchange_type)
+
+        # 🆕 BTC相关性分析器
+        self.correlation_analyzer = CorrelationAnalyzer()
 
         # 市场情绪数据获取器
         self.sentiment_data = get_market_sentiment()
@@ -372,7 +385,15 @@ class AITradingStrategy:
             return None
 
     async def _collect_analysis_data(self) -> Dict:
-        """收集AI分析所需的所有数据"""
+        """
+        收集AI分析所需的所有数据（增强版）
+
+        新增数据维度：
+        - 多时间周期分析
+        - 订单簿深度
+        - 衍生品数据（资金费率、持仓量）
+        - BTC相关性
+        """
         from src.strategies.ai_prompt import AIPromptBuilder
 
         # 获取K线数据 (当前使用5分钟作为基准)
@@ -380,18 +401,6 @@ class AITradingStrategy:
 
         # 计算技术指标 (基于5分钟)
         indicators = self.indicators_calculator.calculate_all_indicators(prices, volumes)
-
-        # 🆕 多时间周期分析
-        self.logger.info("开始多时间周期分析...")
-        multi_timeframe_data = await self.multi_timeframe_analyzer.analyze_multi_timeframe(
-            self.trader.exchange,
-            self.trader.symbol,
-            self.indicators_calculator
-        )
-        self.logger.info("多时间周期分析完成")
-
-        # 获取市场情绪
-        sentiment = await self.sentiment_data.get_comprehensive_sentiment()
 
         # 市场数据
         current_price = await self.trader._get_latest_price()
@@ -404,6 +413,95 @@ class AITradingStrategy:
             '24h_high': ticker.get('high', 0),
             '24h_low': ticker.get('low', 0)
         }
+
+        # ============ 🆕 并行收集高级数据 ============
+        self.logger.info("开始收集多维度市场数据...")
+
+        try:
+            # 使用 asyncio.gather 并行收集所有高级数据
+            multi_timeframe_task = self.multi_timeframe_analyzer.analyze_timeframes(
+                self.trader.exchange,
+                self.trader.symbol,
+                current_price
+            )
+
+            orderbook_task = self.orderbook_analyzer.analyze_order_book(
+                self.trader.exchange,
+                self.trader.symbol,
+                current_price
+            )
+
+            funding_rate_task = self.derivatives_fetcher.fetch_funding_rate(
+                self.trader.symbol
+            )
+
+            open_interest_task = self.derivatives_fetcher.fetch_open_interest(
+                self.trader.symbol
+            )
+
+            btc_correlation_task = self.correlation_analyzer.analyze_btc_correlation(
+                self.trader.exchange,
+                self.trader.symbol,
+                timeframe='1h',
+                current_price=current_price
+            )
+
+            sentiment_task = self.sentiment_data.get_comprehensive_sentiment()
+
+            # 并行执行所有任务
+            (
+                multi_timeframe_data,
+                orderbook_data,
+                funding_rate_data,
+                open_interest_data,
+                btc_correlation_data,
+                sentiment
+            ) = await asyncio.gather(
+                multi_timeframe_task,
+                orderbook_task,
+                funding_rate_task,
+                open_interest_task,
+                btc_correlation_task,
+                sentiment_task,
+                return_exceptions=True  # 容错处理
+            )
+
+            # 容错处理：如果某个数据源失败，使用空数据
+            if isinstance(multi_timeframe_data, Exception):
+                self.logger.error(f"多时间周期分析失败: {multi_timeframe_data}")
+                multi_timeframe_data = {}
+
+            if isinstance(orderbook_data, Exception):
+                self.logger.error(f"订单簿分析失败: {orderbook_data}")
+                orderbook_data = {}
+
+            if isinstance(funding_rate_data, Exception):
+                self.logger.error(f"资金费率获取失败: {funding_rate_data}")
+                funding_rate_data = {}
+
+            if isinstance(open_interest_data, Exception):
+                self.logger.error(f"持仓量获取失败: {open_interest_data}")
+                open_interest_data = {}
+
+            if isinstance(btc_correlation_data, Exception):
+                self.logger.error(f"BTC相关性分析失败: {btc_correlation_data}")
+                btc_correlation_data = {}
+
+            if isinstance(sentiment, Exception):
+                self.logger.error(f"市场情绪获取失败: {sentiment}")
+                sentiment = {}
+
+            self.logger.info("多维度市场数据收集完成")
+
+        except Exception as e:
+            self.logger.error(f"高级数据收集失败: {e}", exc_info=True)
+            multi_timeframe_data = {}
+            orderbook_data = {}
+            funding_rate_data = {}
+            open_interest_data = {}
+            btc_correlation_data = {}
+            sentiment = {}
+        # ============================================
 
         # 持仓状态
         total_value = await self.trader._get_pair_specific_assets_value()
@@ -480,7 +578,13 @@ class AITradingStrategy:
             recent_trades=recent_trades,
             grid_status=grid_status,
             risk_metrics=risk_metrics,
-            multi_timeframe=multi_timeframe_data  # 🆕 多时间周期数据
+            multi_timeframe=multi_timeframe_data,  # 🆕 多时间周期数据
+            orderbook=orderbook_data,  # 🆕 订单簿深度数据
+            derivatives={  # 🆕 衍生品数据
+                'funding_rate': funding_rate_data,
+                'open_interest': open_interest_data
+            },
+            correlation=btc_correlation_data  # 🆕 BTC相关性数据
         )
 
     async def _call_ai_model(self, prompt: str) -> Optional[str]:
