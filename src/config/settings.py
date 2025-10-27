@@ -130,28 +130,100 @@ class Settings(BaseSettings):
 
     @field_validator('BINANCE_API_KEY')
     @classmethod
-    def validate_api_key(cls, v):
-        """验证 Binance API Key 格式"""
+    def validate_api_key(cls, v, info):
+        """验证 Binance API Key 格式（仅当使用 Binance 交易所时）"""
         # 测试环境下允许空值
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
-        if not v:
-            raise ValueError("BINANCE_API_KEY 不能为空")
-        if len(v) < 64:
-            raise ValueError(f"BINANCE_API_KEY 格式无效: 长度应至少64位，当前 {len(v)} 位")
+
+        # 获取当前选择的交易所
+        exchange = info.data.get('EXCHANGE', 'binance').lower()
+
+        # 只在使用 Binance 交易所时进行验证
+        if exchange == 'binance':
+            if not v:
+                raise ValueError("BINANCE_API_KEY 不能为空（当前使用 Binance 交易所）")
+            if len(v) < 64:
+                raise ValueError(f"BINANCE_API_KEY 格式无效: 长度应至少64位，当前 {len(v)} 位")
+
         return v
 
     @field_validator('BINANCE_API_SECRET')
     @classmethod
-    def validate_api_secret(cls, v):
-        """验证 Binance API Secret 格式"""
+    def validate_api_secret(cls, v, info):
+        """验证 Binance API Secret 格式（仅当使用 Binance 交易所时）"""
         # 测试环境下允许空值
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
-        if not v:
-            raise ValueError("BINANCE_API_SECRET 不能为空")
-        if len(v) < 64:
-            raise ValueError(f"BINANCE_API_SECRET 格式无效: 长度应至少64位，当前 {len(v)} 位")
+
+        # 获取当前选择的交易所
+        exchange = info.data.get('EXCHANGE', 'binance').lower()
+
+        # 只在使用 Binance 交易所时进行验证
+        if exchange == 'binance':
+            if not v:
+                raise ValueError("BINANCE_API_SECRET 不能为空（当前使用 Binance 交易所）")
+            if len(v) < 64:
+                raise ValueError(f"BINANCE_API_SECRET 格式无效: 长度应至少64位，当前 {len(v)} 位")
+
+        return v
+
+    @field_validator('OKX_API_KEY')
+    @classmethod
+    def validate_okx_api_key(cls, v, info):
+        """验证 OKX API Key 格式（仅当使用 OKX 交易所时）"""
+        # 测试环境下允许空值
+        if os.getenv('PYTEST_CURRENT_TEST'):
+            return v
+
+        # 获取当前选择的交易所
+        exchange = info.data.get('EXCHANGE', 'binance').lower()
+
+        # 只在使用 OKX 交易所时进行验证
+        if exchange == 'okx':
+            if not v:
+                raise ValueError("OKX_API_KEY 不能为空（当前使用 OKX 交易所）")
+            if len(v) < 32:
+                raise ValueError(f"OKX_API_KEY 格式无效: 长度应至少32位，当前 {len(v)} 位")
+
+        return v
+
+    @field_validator('OKX_API_SECRET')
+    @classmethod
+    def validate_okx_api_secret(cls, v, info):
+        """验证 OKX API Secret 格式（仅当使用 OKX 交易所时）"""
+        # 测试环境下允许空值
+        if os.getenv('PYTEST_CURRENT_TEST'):
+            return v
+
+        # 获取当前选择的交易所
+        exchange = info.data.get('EXCHANGE', 'binance').lower()
+
+        # 只在使用 OKX 交易所时进行验证
+        if exchange == 'okx':
+            if not v:
+                raise ValueError("OKX_API_SECRET 不能为空（当前使用 OKX 交易所）")
+            if len(v) < 32:
+                raise ValueError(f"OKX_API_SECRET 格式无效: 长度应至少32位，当前 {len(v)} 位")
+
+        return v
+
+    @field_validator('OKX_PASSPHRASE')
+    @classmethod
+    def validate_okx_passphrase(cls, v, info):
+        """验证 OKX Passphrase（仅当使用 OKX 交易所时）"""
+        # 测试环境下允许空值
+        if os.getenv('PYTEST_CURRENT_TEST'):
+            return v
+
+        # 获取当前选择的交易所
+        exchange = info.data.get('EXCHANGE', 'binance').lower()
+
+        # 只在使用 OKX 交易所时进行验证
+        if exchange == 'okx':
+            if not v:
+                raise ValueError("OKX_PASSPHRASE 不能为空（当前使用 OKX 交易所）")
+
         return v
 
     @field_validator('MIN_TRADE_AMOUNT')
