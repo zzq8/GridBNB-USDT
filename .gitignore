@@ -125,3 +125,9 @@ data/
 *.exe.stackdump
 
 update_git.ps1
+
+# Claude Code 本地配置
+.claude/settings.local.json
+
+# Spec Workflow 会话数据
+.spec-workflow/session.json
