@@ -115,6 +115,7 @@ class AITradingStrategy:
         self.last_reset_date = datetime.now().date()
         self.consecutive_failures = 0
         self.ai_suggestions_history = []  # 保存历史建议用于学习
+        self.last_ai_decision = None  # 🆕 保存最新的AI决策详情（用于Web UI展示）
 
         # 初始化AI客户端
         self._initialize_ai_client()
@@ -369,6 +370,16 @@ class AITradingStrategy:
             self.ai_suggestions_history.append(suggestion)
             if len(self.ai_suggestions_history) > 100:
                 self.ai_suggestions_history.pop(0)
+
+            # 🆕 保存最新的AI决策详情（用于Web UI展示）
+            self.last_ai_decision = {
+                "suggestion": suggestion,
+                "market_data": analysis_data.get("multi_timeframe_analysis", {}),
+                "orderbook": analysis_data.get("orderbook_analysis", {}),
+                "derivatives": analysis_data.get("derivatives_data", {}),
+                "correlation": analysis_data.get("btc_correlation", {}),
+                "timestamp": datetime.now().isoformat()
+            }
 
             self.logger.info(
                 f"AI分析完成 | "
