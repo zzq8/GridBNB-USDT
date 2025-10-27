@@ -136,8 +136,8 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 获取当前选择的交易所
-        exchange = info.data.get('EXCHANGE', 'binance').lower()
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
 
         # 只在使用 Binance 交易所时进行验证
         if exchange == 'binance':
@@ -156,8 +156,8 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 获取当前选择的交易所
-        exchange = info.data.get('EXCHANGE', 'binance').lower()
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
 
         # 只在使用 Binance 交易所时进行验证
         if exchange == 'binance':
@@ -176,8 +176,8 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 获取当前选择的交易所
-        exchange = info.data.get('EXCHANGE', 'binance').lower()
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
 
         # 只在使用 OKX 交易所时进行验证
         if exchange == 'okx':
@@ -196,8 +196,8 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 获取当前选择的交易所
-        exchange = info.data.get('EXCHANGE', 'binance').lower()
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
 
         # 只在使用 OKX 交易所时进行验证
         if exchange == 'okx':
@@ -216,8 +216,8 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 获取当前选择的交易所
-        exchange = info.data.get('EXCHANGE', 'binance').lower()
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
 
         # 只在使用 OKX 交易所时进行验证
         if exchange == 'okx':

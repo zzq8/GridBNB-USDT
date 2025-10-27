@@ -10,40 +10,68 @@ class ExchangeClient:
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         # API密钥验证已由Pydantic在settings实例化时自动完成
-        
+
         # 获取代理配置，如果环境变量中没有设置，则使用None
         proxy = os.getenv('HTTP_PROXY')
-        
-        # 先初始化交易所实例
-        self.exchange = ccxt.binance({
-            'apiKey': settings.BINANCE_API_KEY,
-            'secret': settings.BINANCE_API_SECRET,
-            'enableRateLimit': True,
-            'timeout': 60000,  # 增加超时时间到60秒
-            'options': {
-                'defaultType': 'spot',
-                'fetchMarkets': {
-                    'spot': True,     # 启用现货市场
-                    'margin': False,  # 明确禁用杠杆
-                    'swap': False,   # 禁用合约
-                    'future': False  # 禁用期货
+
+        # 获取配置的交易所类型
+        exchange_name = settings.EXCHANGE.lower()
+        self.logger.info(f"正在初始化 {exchange_name.upper()} 交易所...")
+
+        # 根据配置选择交易所
+        if exchange_name == 'binance':
+            self.exchange = ccxt.binance({
+                'apiKey': settings.BINANCE_API_KEY,
+                'secret': settings.BINANCE_API_SECRET,
+                'enableRateLimit': True,
+                'timeout': 60000,  # 增加超时时间到60秒
+                'options': {
+                    'defaultType': 'spot',
+                    'fetchMarkets': {
+                        'spot': True,     # 启用现货市场
+                        'margin': False,  # 明确禁用杠杆
+                        'swap': False,   # 禁用合约
+                        'future': False  # 禁用期货
+                    },
+                    'fetchCurrencies': False,
+                    'recvWindow': 5000,  # 固定接收窗口
+                    'adjustForTimeDifference': True,  # 启用时间调整
+                    'warnOnFetchOpenOrdersWithoutSymbol': False,
+                    'createMarketBuyOrderRequiresPrice': False
                 },
-                'fetchCurrencies': False,
-                'recvWindow': 5000,  # 固定接收窗口
-                'adjustForTimeDifference': True,  # 启用时间调整
-                'warnOnFetchOpenOrdersWithoutSymbol': False,
-                'createMarketBuyOrderRequiresPrice': False
-            },
-            'aiohttp_proxy': proxy,  # 使用环境变量中的代理配置
-            'verbose': settings.DEBUG_MODE
-        })
+                'aiohttp_proxy': proxy,
+                'verbose': settings.DEBUG_MODE
+            })
+        elif exchange_name == 'okx':
+            self.exchange = ccxt.okx({
+                'apiKey': settings.OKX_API_KEY,
+                'secret': settings.OKX_API_SECRET,
+                'password': settings.OKX_PASSPHRASE,  # OKX特有参数
+                'enableRateLimit': True,
+                'timeout': 60000,
+                'options': {
+                    'defaultType': 'spot',
+                },
+                'aiohttp_proxy': proxy,
+                'verbose': settings.DEBUG_MODE
+            })
+        else:
+            raise ValueError(
+                f"不支持的交易所: {exchange_name}\n"
+                f"支持的交易所: binance, okx"
+            )
+
         if proxy:
             self.logger.info(f"使用代理: {proxy}")
+
         # 然后进行其他配置
         self.logger.setLevel(logging.INFO)
-        self.logger.info("交易所客户端初始化完成")
+        self.logger.info(f"{exchange_name.upper()} 交易所客户端初始化完成")
 
-        
+        # 保存交易所名称供后续使用
+        self.exchange_name = exchange_name
+
+
         self.markets_loaded = False
         self.time_diff = 0
         self.balance_cache = {'timestamp': 0, 'data': None}
@@ -158,7 +186,7 @@ class ExchangeClient:
             raise
 
     async def fetch_funding_balance(self):
-        """[已修复] 获取理财账户余额（支持分页）"""
+        """[已修复] 获取理财账户余额（支持分页和多交易所）"""
         # 功能开关检查
         if not settings.ENABLE_SAVINGS_FUNCTION:
             # 如果理财功能关闭，直接返回空字典，并确保缓存也是空的
@@ -172,35 +200,52 @@ class ExchangeClient:
             return self.funding_balance_cache['data']
 
         all_balances = {}
-        current_page = 1
-        size_per_page = 100  # 使用API允许的最大值以减少请求次数
 
         try:
-            while True:
-                params = {'current': current_page, 'size': size_per_page}
-                # 使用Simple Earn API，并传入分页参数
-                result = await self.exchange.sapi_get_simple_earn_flexible_position(params)
-                self.logger.debug(f"理财账户原始数据 (Page {current_page}): {result}")
+            # 根据交易所类型调用不同的API
+            if self.exchange_name == 'binance':
+                # Binance Simple Earn API（支持分页）
+                current_page = 1
+                size_per_page = 100  # 使用API允许的最大值以减少请求次数
 
-                rows = result.get('rows', [])
-                if not rows:
-                    # 如果当前页没有数据，说明已经获取完毕
-                    break
+                while True:
+                    params = {'current': current_page, 'size': size_per_page}
+                    # 使用Simple Earn API，并传入分页参数
+                    result = await self.exchange.sapi_get_simple_earn_flexible_position(params)
+                    self.logger.debug(f"理财账户原始数据 (Page {current_page}): {result}")
 
-                for item in rows:
-                    asset = item['asset']
-                    amount = float(item.get('totalAmount', 0) or 0)
-                    if asset in all_balances:
-                        all_balances[asset] += amount
-                    else:
-                        all_balances[asset] = amount
+                    rows = result.get('rows', [])
+                    if not rows:
+                        # 如果当前页没有数据，说明已经获取完毕
+                        break
 
-                # 如果当前页返回的记录数小于每页大小，说明是最后一页
-                if len(rows) < size_per_page:
-                    break
+                    for item in rows:
+                        asset = item['asset']
+                        amount = float(item.get('totalAmount', 0) or 0)
+                        if asset in all_balances:
+                            all_balances[asset] += amount
+                        else:
+                            all_balances[asset] = amount
 
-                current_page += 1
-                await asyncio.sleep(0.1)  # 避免请求过于频繁
+                    # 如果当前页返回的记录数小于每页大小，说明是最后一页
+                    if len(rows) < size_per_page:
+                        break
+
+                    current_page += 1
+                    await asyncio.sleep(0.1)  # 避免请求过于频繁
+
+            elif self.exchange_name == 'okx':
+                # OKX资金账户余额查询
+                result = await self.exchange.private_get_asset_balances({
+                    'ccy': ''  # 空表示获取所有币种
+                })
+
+                if result.get('code') == '0' and result.get('data'):
+                    for item in result['data']:
+                        asset = item['ccy']
+                        amount = float(item.get('bal', 0))
+                        if amount > 0:
+                            all_balances[asset] = amount
 
             # 只在余额发生显著变化时打印日志（使用智能相对变化检测）
             old_balances = self.funding_balance_cache.get('data', {})
@@ -334,7 +379,11 @@ class ExchangeClient:
             raise
 
     async def get_flexible_product_id(self, asset):
-        """获取指定资产的活期理财产品ID"""
+        """获取指定资产的活期理财产品ID（仅Binance需要）"""
+        if self.exchange_name != 'binance':
+            # OKX不需要产品ID
+            return None
+
         try:
             params = {
                 'asset': asset,
@@ -344,73 +393,117 @@ class ExchangeClient:
             }
             result = await self.exchange.sapi_get_simple_earn_flexible_list(params)
             products = result.get('rows', [])
-            
+
             # 查找对应资产的活期理财产品
             for product in products:
                 if product['asset'] == asset and product['status'] == 'PURCHASING':
                     self.logger.info(f"找到{asset}活期理财产品: {product['productId']}")
                     return product['productId']
-            
+
             raise ValueError(f"未找到{asset}的可用活期理财产品")
         except Exception as e:
             self.logger.error(f"获取活期理财产品失败: {str(e)}")
             raise
 
     async def transfer_to_spot(self, asset, amount):
-        """从活期理财赎回到现货账户"""
+        """从理财账户赎回/转账到现货账户（支持多交易所）"""
         try:
-            # 获取产品ID
-            product_id = await self.get_flexible_product_id(asset)
-            
-            # 使用配置化的精度格式化金额
-            formatted_amount = self._format_savings_amount(asset, amount)
-            
-            params = {
-                'asset': asset,
-                'amount': formatted_amount,
-                'productId': product_id,
-                'timestamp': int(time.time() * 1000 + self.time_diff),
-                'redeemType': 'FAST'  # 快速赎回
-            }
-            self.logger.info(f"开始赎回: {formatted_amount} {asset} 到现货")
-            result = await self.exchange.sapi_post_simple_earn_flexible_redeem(params)
-            self.logger.info(f"划转成功: {result}")
-            
-            # 赎回后清除余额缓存，确保下次获取最新余额
+            if self.exchange_name == 'binance':
+                # Binance: 从活期理财赎回
+                # 获取产品ID
+                product_id = await self.get_flexible_product_id(asset)
+
+                # 使用配置化的精度格式化金额
+                formatted_amount = self._format_savings_amount(asset, amount)
+
+                params = {
+                    'asset': asset,
+                    'amount': formatted_amount,
+                    'productId': product_id,
+                    'timestamp': int(time.time() * 1000 + self.time_diff),
+                    'redeemType': 'FAST'  # 快速赎回
+                }
+                self.logger.info(f"开始赎回: {formatted_amount} {asset} 到现货")
+                result = await self.exchange.sapi_post_simple_earn_flexible_redeem(params)
+                self.logger.info(f"赎回成功: {result}")
+
+            elif self.exchange_name == 'okx':
+                # OKX: 从资金账户转回交易账户
+                import uuid
+                params = {
+                    'ccy': asset,
+                    'amt': str(amount),
+                    'from': '6',  # 资金账户
+                    'to': '18',   # 交易账户
+                    'type': '0',
+                    'clientId': str(uuid.uuid4())[:32]
+                }
+
+                self.logger.info(f"OKX转回交易账户: {amount} {asset}")
+                result = await self.exchange.private_post_asset_transfer(params)
+
+                if result.get('code') != '0':
+                    raise Exception(f"OKX转账失败: {result.get('msg', 'Unknown error')}")
+
+                self.logger.info(f"转账成功: {result}")
+
+            # 赎回/转账后清除余额缓存，确保下次获取最新余额
             self.balance_cache = {'timestamp': 0, 'data': None}
             self.funding_balance_cache = {'timestamp': 0, 'data': {}}
-            
+
             return result
         except Exception as e:
-            self.logger.error(f"赎回失败: {str(e)}")
+            self.logger.error(f"转回现货账户失败: {str(e)}")
             raise
 
     async def transfer_to_savings(self, asset, amount):
-        """从现货账户申购活期理财"""
+        """从现货账户转入理财账户（支持多交易所）"""
         try:
-            # 获取产品ID
-            product_id = await self.get_flexible_product_id(asset)
-            
-            # 使用配置化的精度格式化金额
-            formatted_amount = self._format_savings_amount(asset, amount)
-            
-            params = {
-                'asset': asset,
-                'amount': formatted_amount,
-                'productId': product_id,
-                'timestamp': int(time.time() * 1000 + self.time_diff)
-            }
-            self.logger.info(f"开始申购: {formatted_amount} {asset} 到活期理财")
-            result = await self.exchange.sapi_post_simple_earn_flexible_subscribe(params)
-            self.logger.info(f"划转成功: {result}")
-            
-            # 申购后清除余额缓存，确保下次获取最新余额
+            if self.exchange_name == 'binance':
+                # Binance: 申购活期理财
+                # 获取产品ID
+                product_id = await self.get_flexible_product_id(asset)
+
+                # 使用配置化的精度格式化金额
+                formatted_amount = self._format_savings_amount(asset, amount)
+
+                params = {
+                    'asset': asset,
+                    'amount': formatted_amount,
+                    'productId': product_id,
+                    'timestamp': int(time.time() * 1000 + self.time_diff)
+                }
+                self.logger.info(f"开始申购: {formatted_amount} {asset} 到活期理财")
+                result = await self.exchange.sapi_post_simple_earn_flexible_subscribe(params)
+                self.logger.info(f"申购成功: {result}")
+
+            elif self.exchange_name == 'okx':
+                # OKX: 从交易账户转入资金账户
+                import uuid
+                params = {
+                    'ccy': asset,
+                    'amt': str(amount),
+                    'from': '18',  # 交易账户
+                    'to': '6',     # 资金账户
+                    'type': '0',
+                    'clientId': str(uuid.uuid4())[:32]
+                }
+
+                self.logger.info(f"OKX转入资金账户: {amount} {asset}")
+                result = await self.exchange.private_post_asset_transfer(params)
+
+                if result.get('code') != '0':
+                    raise Exception(f"OKX转账失败: {result.get('msg', 'Unknown error')}")
+
+                self.logger.info(f"转账成功: {result}")
+
+            # 申购/转账后清除余额缓存，确保下次获取最新余额
             self.balance_cache = {'timestamp': 0, 'data': None}
             self.funding_balance_cache = {'timestamp': 0, 'data': {}}
-            
+
             return result
         except Exception as e:
-            self.logger.error(f"申购失败: {str(e)}")
+            self.logger.error(f"转入理财账户失败: {str(e)}")
             raise
 
     async def fetch_my_trades(self, symbol, limit=10):
