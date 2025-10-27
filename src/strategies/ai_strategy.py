@@ -42,6 +42,7 @@ except ImportError:
 
 from src.strategies.technical_indicators import TechnicalIndicators
 from src.strategies.market_sentiment import get_market_sentiment
+from src.strategies.multi_timeframe import MultiTimeframeAnalyzer
 from src.config.settings import settings
 
 
@@ -76,6 +77,9 @@ class AITradingStrategy:
 
         # 技术指标计算器
         self.indicators_calculator = TechnicalIndicators()
+
+        # 🆕 多时间周期分析器
+        self.multi_timeframe_analyzer = MultiTimeframeAnalyzer()
 
         # 市场情绪数据获取器
         self.sentiment_data = get_market_sentiment()
@@ -371,11 +375,20 @@ class AITradingStrategy:
         """收集AI分析所需的所有数据"""
         from src.strategies.ai_prompt import AIPromptBuilder
 
-        # 获取K线数据
+        # 获取K线数据 (当前使用5分钟作为基准)
         prices, volumes = await self._fetch_recent_klines()
 
-        # 计算技术指标
+        # 计算技术指标 (基于5分钟)
         indicators = self.indicators_calculator.calculate_all_indicators(prices, volumes)
+
+        # 🆕 多时间周期分析
+        self.logger.info("开始多时间周期分析...")
+        multi_timeframe_data = await self.multi_timeframe_analyzer.analyze_multi_timeframe(
+            self.trader.exchange,
+            self.trader.symbol,
+            self.indicators_calculator
+        )
+        self.logger.info("多时间周期分析完成")
 
         # 获取市场情绪
         sentiment = await self.sentiment_data.get_comprehensive_sentiment()
@@ -466,7 +479,8 @@ class AITradingStrategy:
             portfolio=portfolio,
             recent_trades=recent_trades,
             grid_status=grid_status,
-            risk_metrics=risk_metrics
+            risk_metrics=risk_metrics,
+            multi_timeframe=multi_timeframe_data  # 🆕 多时间周期数据
         )
 
     async def _call_ai_model(self, prompt: str) -> Optional[str]:

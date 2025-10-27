@@ -24,7 +24,8 @@ class AIPromptBuilder:
         portfolio: Dict,
         recent_trades: List[Dict],
         grid_status: Dict,
-        risk_metrics: Dict
+        risk_metrics: Dict,
+        multi_timeframe: Optional[Dict] = None  # 🆕 多时间周期数据
     ) -> Dict:
         """
         构建发送给AI的结构化数据包
@@ -38,11 +39,12 @@ class AIPromptBuilder:
             recent_trades: 最近交易记录
             grid_status: 网格策略状态
             risk_metrics: 风险指标
+            multi_timeframe: 🆕 多时间周期分析数据
 
         Returns:
             结构化数据字典
         """
-        return {
+        result = {
             "timestamp": datetime.now().isoformat(),
             "symbol": symbol,
             "market_data": market_data,
@@ -53,6 +55,12 @@ class AIPromptBuilder:
             "grid_strategy_status": grid_status,
             "risk_metrics": risk_metrics
         }
+
+        # 🆕 添加多时间周期数据
+        if multi_timeframe:
+            result["multi_timeframe_analysis"] = multi_timeframe
+
+        return result
 
     @staticmethod
     def build_prompt(data: Dict) -> str:
@@ -82,12 +90,14 @@ class AIPromptBuilder:
 【市场数据】
 - 交易对: {data['symbol']}
 - 当前价格: {md.get('current_price', 0):.2f} USDT
-- 24小时涨跌: {md.get('24h_change', 0)}
+- 24小时涨跌: {md.get('24h_change', 0)}%
 - 24小时成交量: {md.get('24h_volume', 0)}
 - 24小时最高: {md.get('24h_high', 0):.2f} USDT
 - 24小时最低: {md.get('24h_low', 0):.2f} USDT
 
-【技术指标分析】
+{AIPromptBuilder._build_multi_timeframe_section(data)}
+
+【技术指标分析 (5分钟级别)】
 1. RSI(14): {ti['rsi']['value']:.1f} ({ti['rsi']['trend']})
    - 信号: {ti['rsi']['signal']}
 
@@ -307,3 +317,79 @@ class AIPromptBuilder:
             return False, f"低置信度({suggestion['confidence']}%)不应建议交易"
 
         return True, None
+
+    @staticmethod
+    def _build_multi_timeframe_section(data: Dict) -> str:
+        """
+        构建多时间周期分析部分的 Prompt
+
+        这是给AI最重要的"市场全景"信息
+        """
+        mtf = data.get('multi_timeframe_analysis')
+
+        if not mtf:
+            return "【多时间周期分析】\n⚠️ 数据暂时不可用\n"
+
+        macro = mtf.get('macro_trend', {})
+        meso = mtf.get('meso_trend', {})
+        micro = mtf.get('micro_trend', {})
+        overall = mtf.get('overall_context', {})
+
+        section = f"""
+【🔭 多时间周期分析 - 市场全景】
+⚠️ **这是最重要的部分！不同时间周期给你"立体"的市场视角**
+
+📅 宏观趋势 (日线级别 - 定大方向):
+   状态: {macro.get('direction', 'unknown').upper()} ({macro.get('strength', 'weak')} strength)
+   描述: {macro.get('description', 'N/A')}
+   关键位: EMA200={macro.get('key_levels', {}).get('ema_200', 0):.2f},
+         阻力={macro.get('key_levels', {}).get('resistance', 0):.2f},
+         支撑={macro.get('key_levels', {}).get('support', 0):.2f}
+   MACD状态: {macro.get('macd_state', 'neutral')}
+   RSI状态: {macro.get('rsi_extreme', 'neutral')}
+
+   💡 解读: {"日线多头，大方向向上" if macro.get('direction') == 'bullish' else
+            "日线空头，大方向向下" if macro.get('direction') == 'bearish' else
+            "日线震荡，方向不明"}
+
+⏰ 中观波段 (4小时级别 - 看波段):
+   波段方向: {meso.get('wave_direction', 'unknown').upper()}
+   描述: {meso.get('description', 'N/A')}
+   均线排列: {meso.get('ema_alignment', 'N/A')}
+   MACD信号: {meso.get('macd_signal', 'N/A')}
+   波段高点: {meso.get('recent_swing_high', 0):.2f}
+   波段低点: {meso.get('recent_swing_low', 0):.2f}
+
+   💡 解读: {"4小时上升波段" if meso.get('wave_direction') == 'upward' else
+            "4小时下降波段" if meso.get('wave_direction') == 'downward' else
+            "4小时横盘震荡"}
+
+⚡ 微观入场点 (15分钟级别 - 找入场):
+   入场信号: {micro.get('entry_signal', 'wait').upper()}
+   描述: {micro.get('description', 'N/A')}
+   RSI: {micro.get('rsi_value', 50):.1f}
+   布林带位置: {micro.get('bb_position', 'middle')}
+   成交量状态: {micro.get('volume_state', 'normal')}
+
+   💡 解读: {"可能有买入机会" if micro.get('entry_signal') == 'buy_opportunity' else
+            "可能有卖出机会" if micro.get('entry_signal') == 'sell_opportunity' else
+            "等待更好的时机"}
+
+🎯 综合判断:
+   市场状态: {overall.get('market_state', 'unknown')}
+   置信度: {overall.get('confidence_level', 'low').upper()}
+   交易建议: {overall.get('trading_advice', 'N/A')}
+
+   {"✨ 多周期共振信号:" if overall.get('resonance_signals') and len(overall.get('resonance_signals', [])) > 0 and overall['resonance_signals'][0] != "无特殊共振信号" else ""}
+   {chr(10).join(f"   - {signal}" for signal in overall.get('resonance_signals', []) if signal != "无特殊共振信号")}
+
+   📊 总结: {overall.get('summary', 'N/A')}
+
+💡 **如何使用多时间周期信息**:
+   1. 日线定大方向 → 如果日线多头，优先考虑做多；日线空头，谨慎做多
+   2. 4小时看波段 → 确定当前是反弹还是回调
+   3. 15分钟找入场点 → 寻找精准的买卖时机
+   4. 共振信号最可靠 → 多个时间周期同时指向一个方向时，成功率最高
+"""
+
+        return section
