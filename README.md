@@ -4,11 +4,29 @@
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Exchanges](https://img.shields.io/badge/Exchanges-Binance%20%7C%20OKX-green.svg)](https://www.binance.com/)
-[![Version](https://img.shields.io/badge/Version-v3.0.0-brightgreen.svg)](https://github.com/EBOLABOY/GridBNB-USDT/releases)
+[![Version](https://img.shields.io/badge/Version-v3.2.0-brightgreen.svg)](https://github.com/EBOLABOY/GridBNB-USDT/releases)
 
 一个基于 Python 的**企业级**自动化交易程序，支持 **Binance (币安)** 和 **OKX (欧易)** 等多个交易所。采用先进的网格交易策略，结合动态波动率分析和多层风险管理，旨在稳定捕捉市场波动收益。
 
-## 🎉 最新更新 (v3.1.0 - 2025-10-24)
+## 🎉 最新更新 (v3.2.0 - 2025-10-28)
+
+### 🧪 测试网/模拟盘支持 (新增)
+- ✅ **Binance 测试网**: 支持 Binance 官方测试网环境，使用测试币无风险测试
+- ✅ **OKX 模拟盘**: 支持 OKX Demo Trading 模拟交易
+- ✅ **一键切换**: 通过 `TESTNET_MODE=true` 轻松切换到测试环境
+- ✅ **完全隔离**: 测试网与实盘环境完全独立，保证资金安全
+- ✅ **新手友好**: 在测试网中学习和验证策略，零风险
+- 📖 **详细文档**: [CLAUDE.md - 测试网使用指南](docs/CLAUDE.md#-测试网模拟盘使用指南)
+
+### 💰 智能配置优化
+- ✅ **INITIAL_PRINCIPAL 自动检测**: 设置为0时自动检测账户总资产，无需手动配置
+- ✅ **LOG_LEVEL 字符串支持**: 支持 `LOG_LEVEL=INFO` 等直观的字符串配置
+- ✅ **配置合并优化**: 修复 DYNAMIC_INTERVAL_PARAMS 配置合并逻辑
+- ✅ **更友好的错误提示**: 增强配置验证和错误信息
+
+---
+
+## 🎉 历史更新 (v3.1.0 - 2025-10-24)
 
 ### 🛡️ 止损机制 (新增)
 - ✅ **价格止损**: 当价格跌破基准价特定比例时自动平仓
@@ -310,10 +328,20 @@ GridBNB-USDT/
 # 选择要使用的交易所: binance / okx
 EXCHANGE=binance
 
+# ========== 测试网/模拟盘配置 🆕 ==========
+# 是否使用测试网（true=模拟盘测试, false=实盘交易）
+# 测试网使用测试币，不会影响真实资金，适合调试和学习
+TESTNET_MODE=false
+
 # ========== Binance API ==========
 # 如果使用币安交易所，必填
 BINANCE_API_KEY="your_binance_api_key_here"
 BINANCE_API_SECRET="your_binance_api_secret_here"
+
+# Binance 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）🆕
+# 测试网申请地址: https://testnet.binance.vision/
+# BINANCE_TESTNET_API_KEY="your_testnet_api_key_here"
+# BINANCE_TESTNET_API_SECRET="your_testnet_api_secret_here"
 
 # ========== OKX API ==========
 # 如果使用OKX交易所，必填
@@ -321,6 +349,13 @@ BINANCE_API_SECRET="your_binance_api_secret_here"
 OKX_API_KEY="your_okx_api_key_here"
 OKX_API_SECRET="your_okx_api_secret_here"
 OKX_PASSPHRASE="your_okx_passphrase_here"
+
+# OKX 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）🆕
+# OKX Demo环境需要单独申请API密钥
+# 申请地址: https://www.okx.com/account/my-api (选择"Demo Trading"模式)
+# OKX_TESTNET_API_KEY="your_okx_demo_api_key_here"
+# OKX_TESTNET_API_SECRET="your_okx_demo_api_secret_here"
+# OKX_TESTNET_PASSPHRASE="your_okx_demo_passphrase_here"
 
 # ========== 策略核心配置 ==========
 # 要运行的交易对列表，用英文逗号分隔
@@ -340,11 +375,19 @@ INITIAL_GRID=2.0
 MIN_TRADE_AMOUNT=20.0
 
 # ========== 初始状态设置 ==========
-# 初始本金 (USDT)，用于计算总盈亏和盈亏率。如果不知道，可以留空或设为0。
-INITIAL_PRINCIPAL=1000.0
+# 🆕 初始本金（用于计算总盈亏和盈亏率，单位: USDT）
+# 设置为0或不设置时，系统会在启动时自动检测账户总资产
+# 建议：首次运行设置为0自动检测，之后可固定为启动时的总资产以便准确计算盈亏
+INITIAL_PRINCIPAL=0
+
+# ========== 日志配置 🆕 ==========
+# 日志级别（可选值: DEBUG, INFO, WARNING, ERROR, CRITICAL）
+# 支持字符串或对应的整数值（10=DEBUG, 20=INFO, 30=WARNING, 40=ERROR, 50=CRITICAL）
+# 建议生产环境使用 INFO，调试时使用 DEBUG
+LOG_LEVEL=INFO
 
 # ========== 可选配置 ==========
-# 🆕 AI策略配置
+# AI策略配置
 ENABLE_AI_STRATEGY=false
 AI_PROVIDER=openai  # openai 或 claude
 OPENAI_API_KEY="your_openai_key"
