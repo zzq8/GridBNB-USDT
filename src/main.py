@@ -166,10 +166,36 @@ async def main():
         await shared_exchange_client.load_markets()
         logger.info("markets_loaded", message="市场数据加载完成，开始创建交易器实例")
 
+        # 🆕 自动检测初始本金（如果未设置）
+        initial_principal = getattr(settings, 'INITIAL_PRINCIPAL', 0.0)
+        if initial_principal <= 0:
+            logger.info("auto_detect_principal", message="INITIAL_PRINCIPAL未设置或为0，正在自动检测账户总资产...")
+            try:
+                initial_principal = await shared_exchange_client.calculate_total_account_value(quote_currency='USDT')
+                if initial_principal > 0:
+                    logger.info(
+                        "auto_detect_principal_success",
+                        message=f"自动检测到账户总资产: {initial_principal:.2f} USDT",
+                        total_value=initial_principal
+                    )
+                else:
+                    logger.warning(
+                        "auto_detect_principal_zero",
+                        message="自动检测到的账户总资产为0，使用默认值1000 USDT"
+                    )
+                    initial_principal = 1000.0
+            except Exception as e:
+                logger.error(
+                    "auto_detect_principal_failed",
+                    error=str(e),
+                    message="自动检测账户总资产失败，使用默认值1000 USDT"
+                )
+                initial_principal = 1000.0
+
         # 🆕 创建全局资金分配器
         global_allocator = GlobalFundAllocator(
             symbols=SYMBOLS_LIST,
-            total_capital=getattr(settings, 'INITIAL_PRINCIPAL', 1000.0),
+            total_capital=initial_principal,
             strategy=getattr(settings, 'ALLOCATION_STRATEGY', 'equal'),
             weights=getattr(settings, 'ALLOCATION_WEIGHTS', None),
             max_global_usage=getattr(settings, 'GLOBAL_MAX_USAGE', 0.95)

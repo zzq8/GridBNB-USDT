@@ -264,10 +264,12 @@ class Settings(BaseSettings):
     @field_validator('INITIAL_PRINCIPAL')
     @classmethod
     def validate_initial_principal(cls, v):
-        """验证初始本金"""
+        """验证初始本金（允许0表示自动检测）"""
         if v < 0:
             raise ValueError(f"INITIAL_PRINCIPAL 不能为负数，当前设置为 {v}")
-        if v > 0 and v < 100:
+        if v == 0:
+            logging.info("INITIAL_PRINCIPAL 设置为0，将在运行时自动检测账户总资产")
+        elif v > 0 and v < 100:
             logging.warning(f"INITIAL_PRINCIPAL 设置过小 ({v} USDT)，建议至少 500 USDT")
         return v
 
@@ -478,20 +480,22 @@ class TradingConfig:
     # 成交量加权波动率计算开关
     ENABLE_VOLUME_WEIGHTING = settings.ENABLE_VOLUME_WEIGHTING
 
-    # 动态时间间隔参数
-    DYNAMIC_INTERVAL_PARAMS = settings.DYNAMIC_INTERVAL_PARAMS_JSON if settings.DYNAMIC_INTERVAL_PARAMS_JSON else {
-        # 定义波动率区间与对应调整间隔（小时）的映射关系
+    # 动态时间间隔参数（使用配置合并策略）
+    # 默认配置
+    _DEFAULT_DYNAMIC_INTERVAL_PARAMS = {
+        'default_interval_hours': 1.0,  # 默认间隔
         'volatility_to_interval_hours': [
-            # 格式: {'range': [最低波动率(含), 最高波动率(不含)], 'interval_hours': 对应的小时间隔}
-            # --- 与新的网格映射保持一致的时间间隔 ---
             {'range': [0, 0.10], 'interval_hours': 1.0},      # 波动率 < 10%，每 1 小时检查一次
             {'range': [0.10, 0.20], 'interval_hours': 0.5},   # 波动率 10-20%，每 30 分钟检查一次
             {'range': [0.20, 0.30], 'interval_hours': 0.25},  # 波动率 20-30%，每 15 分钟检查一次
             {'range': [0.30, 999], 'interval_hours': 0.125},  # 波动率 > 30%，每 7.5 分钟检查一次
-        ],
-        # 定义一个默认间隔，以防波动率计算失败或未匹配到任何区间
-        'default_interval_hours': 1.0
+        ]
     }
+
+    # 合并用户配置（如果有）
+    DYNAMIC_INTERVAL_PARAMS = _DEFAULT_DYNAMIC_INTERVAL_PARAMS.copy()
+    if settings.DYNAMIC_INTERVAL_PARAMS_JSON:
+        DYNAMIC_INTERVAL_PARAMS.update(settings.DYNAMIC_INTERVAL_PARAMS_JSON)
 
     # 保留的策略相关基础值
     BASE_AMOUNT = 50.0  # 基础交易金额（可调整）
