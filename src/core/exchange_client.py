@@ -16,13 +16,29 @@ class ExchangeClient:
 
         # 获取配置的交易所类型
         exchange_name = settings.EXCHANGE.lower()
-        self.logger.info(f"正在初始化 {exchange_name.upper()} 交易所...")
+        is_testnet = settings.TESTNET_MODE
+
+        if is_testnet:
+            self.logger.warning(
+                f"⚠️  测试网模式已启用 | 交易所: {exchange_name.upper()} | "
+                "使用测试币，不会影响真实资金"
+            )
+        else:
+            self.logger.info(f"正在初始化 {exchange_name.upper()} 交易所...")
 
         # 根据配置选择交易所
         if exchange_name == 'binance':
-            self.exchange = ccxt.binance({
-                'apiKey': settings.BINANCE_API_KEY,
-                'secret': settings.BINANCE_API_SECRET,
+            # 根据模式选择API密钥
+            if is_testnet:
+                api_key = settings.BINANCE_TESTNET_API_KEY or settings.BINANCE_API_KEY
+                api_secret = settings.BINANCE_TESTNET_API_SECRET or settings.BINANCE_API_SECRET
+            else:
+                api_key = settings.BINANCE_API_KEY
+                api_secret = settings.BINANCE_API_SECRET
+
+            config = {
+                'apiKey': api_key,
+                'secret': api_secret,
                 'enableRateLimit': True,
                 'timeout': 60000,  # 增加超时时间到60秒
                 'options': {
@@ -41,12 +57,34 @@ class ExchangeClient:
                 },
                 'aiohttp_proxy': proxy,
                 'verbose': settings.DEBUG_MODE
-            })
+            }
+
+            # 测试网使用不同的端点
+            if is_testnet:
+                config['urls'] = {
+                    'api': {
+                        'public': 'https://testnet.binance.vision/api/v3',
+                        'private': 'https://testnet.binance.vision/api/v3',
+                    }
+                }
+                self.logger.info(f"使用币安测试网端点: https://testnet.binance.vision")
+
+            self.exchange = ccxt.binance(config)
         elif exchange_name == 'okx':
-            self.exchange = ccxt.okx({
-                'apiKey': settings.OKX_API_KEY,
-                'secret': settings.OKX_API_SECRET,
-                'password': settings.OKX_PASSPHRASE,  # OKX特有参数
+            # 根据模式选择API密钥
+            if is_testnet:
+                api_key = settings.OKX_TESTNET_API_KEY or settings.OKX_API_KEY
+                api_secret = settings.OKX_TESTNET_API_SECRET or settings.OKX_API_SECRET
+                passphrase = settings.OKX_TESTNET_PASSPHRASE or settings.OKX_PASSPHRASE
+            else:
+                api_key = settings.OKX_API_KEY
+                api_secret = settings.OKX_API_SECRET
+                passphrase = settings.OKX_PASSPHRASE
+
+            config = {
+                'apiKey': api_key,
+                'secret': api_secret,
+                'password': passphrase,  # OKX特有参数
                 'enableRateLimit': True,
                 'timeout': 60000,
                 'options': {
@@ -54,7 +92,14 @@ class ExchangeClient:
                 },
                 'aiohttp_proxy': proxy,
                 'verbose': settings.DEBUG_MODE
-            })
+            }
+
+            # OKX测试网使用demo环境
+            if is_testnet:
+                config['hostname'] = 'www.okx.com'  # OKX的demo环境使用相同域名但不同的API密钥
+                self.logger.info(f"使用OKX模拟盘（需使用demo环境的API密钥）")
+
+            self.exchange = ccxt.okx(config)
         else:
             raise ValueError(
                 f"不支持的交易所: {exchange_name}\n"

@@ -14,15 +14,27 @@ class Settings(BaseSettings):
     # --- 交易所选择配置 (企业级多交易所支持) ---
     EXCHANGE: str = "binance"  # 选择交易所: binance, okx
 
+    # --- 测试网/模拟盘配置 ---
+    TESTNET_MODE: bool = False  # 是否使用测试网（模拟盘）
+
     # --- 从 .env 文件读取的必需配置 ---
-    # Binance API
+    # Binance API（实盘）
     BINANCE_API_KEY: str = ""  # 添加默认值以便测试
     BINANCE_API_SECRET: str = ""  # 添加默认值以便测试
 
-    # OKX API (如果使用OKX)
+    # Binance 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）
+    BINANCE_TESTNET_API_KEY: str = ""
+    BINANCE_TESTNET_API_SECRET: str = ""
+
+    # OKX API（实盘，如果使用OKX）
     OKX_API_KEY: str = ""
     OKX_API_SECRET: str = ""
     OKX_PASSPHRASE: str = ""  # OKX特有参数
+
+    # OKX 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）
+    OKX_TESTNET_API_KEY: str = ""
+    OKX_TESTNET_API_SECRET: str = ""
+    OKX_TESTNET_PASSPHRASE: str = ""
 
     # --- 策略核心配置 (从 .env 读取) ---
     SYMBOLS: str = "BNB/USDT"  # 从 .env 读取交易对列表字符串
