@@ -1,11 +1,13 @@
 # GridBNB-USDT 项目 AI 上下文文档
 
-> **最后更新**: 2025-10-24 18:00:00
+> **最后更新**: 2025-10-28 15:00:00
 > **状态**: 生产环境运行中
-> **版本**: v3.1.0 (止损机制 + 企业级多交易所架构)
+> **版本**: v3.2.0 (测试网支持 + 智能配置优化)
 > **项目标准**: 使用 `docker compose` (Docker 20.10+)
 
 ## ⚠️ 重要变更通知
+
+**2025-10-28 15:00**: **🧪 测试网/模拟盘支持上线** - 新增 TESTNET_MODE 配置，支持 Binance 测试网和 OKX 模拟盘，无风险测试策略。同时优化配置管理，INITIAL_PRINCIPAL 支持自动检测账户资产，LOG_LEVEL 支持字符串配置。详见下方"测试网/模拟盘使用指南"
 
 **2025-10-24 18:00**: **🛡️ 止损机制上线** - 新增价格止损和回撤止盈双重保护机制，17个单元测试覆盖，最大限度降低极端行情风险。详见 [止损机制设计](STOP_LOSS_DESIGN.md)
 
@@ -15,6 +17,10 @@
 
 | 日期 | 变更内容 | 影响范围 |
 |------|---------|---------|
+| 2025-10-28 15:00 | **🧪 测试网/模拟盘支持**：新增 TESTNET_MODE 配置，支持 Binance 测试网和 OKX 模拟盘，无需真实资金即可测试策略 | src/config/settings.py (新增测试网配置), src/core/exchange_client.py (新增端点切换逻辑), .env.example (新增测试网配置示例), docs/CLAUDE.md |
+| 2025-10-28 15:00 | **💰 INITIAL_PRINCIPAL 自动检测**：当设置为0时，系统启动时自动检测账户总资产，无需手动配置 | src/main.py (新增自动检测逻辑), src/config/settings.py (更新验证器), .env.example |
+| 2025-10-28 15:00 | **📝 LOG_LEVEL 字符串支持**：支持使用 INFO/DEBUG/WARNING/ERROR/CRITICAL 等字符串配置日志级别，更加直观 | src/config/settings.py (新增 Pydantic 验证器), .env.example |
+| 2025-10-28 15:00 | **🔧 DYNAMIC_INTERVAL_PARAMS 配置优化**：修复配置合并逻辑，支持部分配置覆盖，避免 KeyError | src/config/settings.py (修改合并策略) |
 | 2025-10-24 18:00 | **🛡️ 止损机制实施**：新增价格止损和回撤止盈功能，紧急平仓机制，17个单元测试，完整的配置验证 | src/core/trader.py (新增3个方法, 修改main_loop), src/config/settings.py (新增3个配置项), config/.env.example (新增止损配置), tests/unit/test_stop_loss.py (新增17个测试), docs/STOP_LOSS_DESIGN.md (新增设计文档), README.md |
 | 2025-10-24 15:00 | **🎉 企业级多交易所架构上线**：支持 Binance 和 OKX,采用抽象工厂+适配器模式,1230+行企业级代码,100%类型注解,15+单元测试 | src/core/exchanges/ (新增), tests/unit/test_exchange_factory.py (新增), docs/architecture/ (新增), README.md, .env.multi-exchange.example |
 | 2025-10-23 12:00 | **添加 OpenAI 自定义 base_url 支持**：支持国内中转服务,提升 AI 策略可用性 | src/strategies/ai_strategy.py, config/.env |
@@ -237,16 +243,33 @@ loguru>=0.7.2         # 日志管理
 # 选择要使用的交易所: binance / okx
 EXCHANGE=binance
 
+# ========== 测试网/模拟盘配置 🆕 ==========
+# 是否使用测试网（true=模拟盘测试, false=实盘交易）
+# 测试网使用测试币，不会影响真实资金，适合调试和学习
+TESTNET_MODE=false
+
 # ========== Binance API ==========
 # 如果使用币安交易所，必填
 BINANCE_API_KEY="your_binance_api_key_here"
 BINANCE_API_SECRET="your_binance_api_secret_here"
+
+# Binance 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）🆕
+# 测试网申请地址: https://testnet.binance.vision/
+# BINANCE_TESTNET_API_KEY="your_testnet_api_key_here"
+# BINANCE_TESTNET_API_SECRET="your_testnet_api_secret_here"
 
 # ========== OKX API ==========
 # 如果使用OKX交易所，必填（需要三个参数）
 OKX_API_KEY="your_okx_api_key_here"
 OKX_API_SECRET="your_okx_api_secret_here"
 OKX_PASSPHRASE="your_okx_passphrase_here"  # OKX特有参数
+
+# OKX 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）🆕
+# OKX Demo环境需要单独申请API密钥
+# 申请地址: https://www.okx.com/account/my-api (选择"Demo Trading"模式)
+# OKX_TESTNET_API_KEY="your_okx_demo_api_key_here"
+# OKX_TESTNET_API_SECRET="your_okx_demo_api_secret_here"
+# OKX_TESTNET_PASSPHRASE="your_okx_demo_passphrase_here"
 
 # 交易对列表（逗号分隔）
 SYMBOLS="BNB/USDT,ETH/USDT,BTC/USDT"
@@ -260,8 +283,15 @@ MIN_TRADE_AMOUNT=20.0
 
 **可选配置**：
 ```bash
-# 初始本金（用于收益计算）
-INITIAL_PRINCIPAL=800
+# 初始本金（用于收益计算，单位: USDT）🆕
+# 设置为0或不设置时，系统会在启动时自动检测账户总资产
+# 建议：首次运行设置为0自动检测，之后可固定为启动时的总资产以便准确计算盈亏
+INITIAL_PRINCIPAL=0
+
+# 日志级别 🆕
+# 可选值: DEBUG, INFO, WARNING, ERROR, CRITICAL（支持字符串或整数）
+# 建议生产环境使用 INFO，调试时使用 DEBUG
+LOG_LEVEL=INFO
 
 # 理财功能开关
 # Binance: 简单储蓄 | OKX: 余币宝
@@ -281,6 +311,157 @@ PUSHPLUS_TOKEN="your_pushplus_token"
 WEB_USER=admin
 WEB_PASSWORD=your_password
 ```
+
+---
+
+## 🧪 测试网/模拟盘使用指南
+
+### 什么是测试网/模拟盘？
+
+测试网（Testnet）和模拟盘（Demo Trading）是交易所提供的模拟交易环境，使用虚拟资金进行交易，完全不会影响真实资产。这是学习、测试和调试交易策略的理想环境。
+
+**主要特点**：
+- ✅ 使用测试币/虚拟资金，零风险
+- ✅ 真实交易所 API 接口，完全模拟实盘环境
+- ✅ 可以反复测试策略参数，快速迭代优化
+- ✅ 适合新手学习和策略验证
+
+### 支持的测试环境
+
+#### 1. Binance 测试网
+- **申请地址**: https://testnet.binance.vision/
+- **API 端点**: https://testnet.binance.vision
+- **特点**:
+  - 完全独立的测试环境
+  - 需要单独注册并申请 API 密钥
+  - 测试币可以从水龙头免费获取
+  - 与实盘环境完全隔离
+
+#### 2. OKX 模拟盘（Demo Trading）
+- **申请地址**: https://www.okx.com/account/my-api
+- **特点**:
+  - 在真实 OKX 账户中创建 Demo API 密钥
+  - 创建 API 时选择 "Demo Trading" 模式
+  - 使用相同的域名但不同的 API 密钥
+  - 账户会自动分配虚拟资金
+
+### 快速开始
+
+#### 步骤 1: 申请测试网 API 密钥
+
+**Binance 测试网**：
+1. 访问 https://testnet.binance.vision/
+2. 使用 GitHub 账号登录
+3. 生成 API Key 和 API Secret
+4. 从测试网水龙头获取测试币（USDT、BNB等）
+
+**OKX 模拟盘**：
+1. 登录 OKX 账户
+2. 进入 API 管理页面：https://www.okx.com/account/my-api
+3. 创建 API 密钥时，选择 "Demo Trading" 模式
+4. 保存 API Key、Secret Key 和 Passphrase
+
+#### 步骤 2: 配置环境变量
+
+编辑 `.env` 文件：
+
+```bash
+# 启用测试网模式
+TESTNET_MODE=true
+
+# === 使用 Binance 测试网 ===
+EXCHANGE=binance
+BINANCE_TESTNET_API_KEY="your_testnet_api_key_here"
+BINANCE_TESTNET_API_SECRET="your_testnet_api_secret_here"
+
+# === 或使用 OKX 模拟盘 ===
+# EXCHANGE=okx
+# OKX_TESTNET_API_KEY="your_demo_api_key_here"
+# OKX_TESTNET_API_SECRET="your_demo_api_secret_here"
+# OKX_TESTNET_PASSPHRASE="your_demo_passphrase_here"
+
+# 其他配置保持不变
+SYMBOLS="BNB/USDT"
+MIN_TRADE_AMOUNT=20.0
+INITIAL_PRINCIPAL=0  # 自动检测测试网账户余额
+```
+
+#### 步骤 3: 启动程序
+
+```bash
+# Python 直接运行
+python src/main.py
+
+# 或使用 Docker
+docker compose up -d
+```
+
+**启动时会看到测试网模式提示**：
+```
+⚠️  测试网模式已启用 | 交易所: BINANCE | 使用测试币，不会影响真实资金
+使用币安测试网端点: https://testnet.binance.vision
+```
+
+### 注意事项
+
+#### ⚠️ 重要提醒
+
+1. **API 密钥隔离**：
+   - 测试网和实盘使用不同的 API 密钥
+   - 切换环境时必须同时修改 `TESTNET_MODE` 和对应的 API 密钥
+   - 不要混用实盘和测试网的 API 密钥
+
+2. **环境切换检查清单**：
+   ```bash
+   # 切换到实盘前，务必确认：
+   □ TESTNET_MODE=false
+   □ 使用正确的实盘 API 密钥
+   □ 已充分测试策略参数
+   □ 理解所有风险
+   ```
+
+3. **测试网限制**：
+   - Binance 测试网可能不定期重置数据
+   - OKX 模拟盘虚拟资金有限，可能需要重置
+   - 测试网市场深度可能与实盘不同
+   - 某些功能（如理财）在测试网可能不可用
+
+4. **API 密钥降级逻辑**：
+   ```python
+   # 如果未配置测试网专用密钥，系统会自动降级使用实盘密钥
+   # 但强烈建议使用独立的测试网密钥
+   if is_testnet:
+       api_key = settings.BINANCE_TESTNET_API_KEY or settings.BINANCE_API_KEY  # ⚠️
+   ```
+
+### 测试建议
+
+**建议的测试流程**：
+
+1. **基础功能测试**（1-2天）：
+   - 验证程序能正常启动
+   - 检查账户余额读取
+   - 测试买卖订单执行
+   - 验证 Web 监控界面
+
+2. **参数调优测试**（3-7天）：
+   - 测试不同的网格大小（1.0% - 4.0%）
+   - 调整交易金额参数
+   - 验证风控机制触发
+   - 观察策略表现
+
+3. **稳定性测试**（7-14天）：
+   - 长时间运行测试
+   - 观察不同市场行情下的表现
+   - 检查日志和异常处理
+   - 确认无内存泄漏
+
+4. **切换到实盘**：
+   - 在测试网中验证所有功能正常
+   - 确认参数设置合理
+   - 修改 `TESTNET_MODE=false`
+   - 更换为实盘 API 密钥
+   - 从小金额开始实盘测试
 
 ---
 
@@ -358,10 +539,14 @@ self.logger.info(f"交易执行成功 | 价格: {price} | 数量: {amount}")
 - **网格信号检测**：`src/core/trader.py` → `_check_buy_signal()`, `_check_sell_signal()` 方法
 - **订单执行流程**：`src/core/trader.py` → `execute_order()` 方法（第 796-945 行）
 - **风控判断**：`src/strategies/risk_manager.py` → `check_position_limits()` 方法
-- **🆕 多交易所工厂**：`src/core/exchanges/factory.py` → `ExchangeFactory.create()` 方法
-- **🆕 Binance适配器**：`src/core/exchanges/binance.py` → `BinanceExchange` 类
-- **🆕 OKX适配器**：`src/core/exchanges/okx.py` → `OKXExchange` 类
-- **🆕 AI策略核心**：`src/strategies/ai_strategy.py` → `AIStrategy.analyze_and_suggest()` 方法
+- **多交易所工厂**：`src/core/exchanges/factory.py` → `ExchangeFactory.create()` 方法
+- **Binance适配器**：`src/core/exchanges/binance.py` → `BinanceExchange` 类
+- **OKX适配器**：`src/core/exchanges/okx.py` → `OKXExchange` 类
+- **AI策略核心**：`src/strategies/ai_strategy.py` → `AIStrategy.analyze_and_suggest()` 方法
+- **🆕 测试网配置**：`src/config/settings.py` → `TESTNET_MODE`, `BINANCE_TESTNET_API_KEY` 等字段
+- **🆕 测试网端点切换**：`src/core/exchange_client.py` → `__init__()` 方法（第 18-117 行）
+- **🆕 自动检测本金**：`src/main.py` → 启动逻辑（第 60-85 行，调用 `calculate_total_account_value()`）
+- **🆕 LOG_LEVEL验证器**：`src/config/settings.py` → `validate_log_level()` 方法（第 380-404 行）
 
 ### 常见问题定位
 
@@ -385,6 +570,21 @@ self.logger.info(f"交易执行成功 | 价格: {price} | 数量: {amount}")
 - 检查路径：`src/core/exchanges/factory.py::create()` 方法
 - 验证：对应交易所的 API 密钥是否配置完整
 - OKX特别注意：需要配置 `OKX_PASSPHRASE` 参数
+
+**🆕 问题5：测试网配置错误**
+- 检查配置：`config/.env` 中 `TESTNET_MODE` 是否正确设置
+- 验证 API 密钥：测试网需要使用专用的测试网 API 密钥
+- 检查端点：查看日志中是否显示正确的测试网端点
+  - Binance: `https://testnet.binance.vision`
+  - OKX: Demo Trading 使用相同域名但不同密钥
+- 日志关键词：`测试网模式已启用`, `使用币安测试网端点`
+
+**🆕 问题6：INITIAL_PRINCIPAL 自动检测失败**
+- 检查配置：`INITIAL_PRINCIPAL=0` 或未设置
+- 检查路径：`src/main.py` → 自动检测逻辑
+- 验证账户：确保账户中有资产可供检测
+- 降级处理：检测失败时自动使用默认值 1000 USDT
+- 日志关键词：`auto_detect_principal`, `自动检测到账户总资产`
 
 ### 修改策略指南
 
@@ -796,11 +996,15 @@ pytest tests/test_trader.py -v
 | **波动率** | 价格变动的剧烈程度，用于动态调整网格大小 |
 | **EWMA** | 指数加权移动平均，赋予近期数据更高权重的波动率算法 |
 | **风控状态** | 系统根据仓位比例决定的操作限制（允许全部/仅买/仅卖） |
-| **🆕 抽象工厂模式** | 创建一系列相关对象的设计模式，用于多交易所架构 |
-| **🆕 适配器模式** | 将不同接口转换为统一接口的设计模式 |
-| **🆕 Binance简单储蓄** | 币安的活期理财产品，闲置资金自动申购赚取利息 |
-| **🆕 OKX余币宝** | OKX的活期理财产品，类似币安简单储蓄 |
+| **抽象工厂模式** | 创建一系列相关对象的设计模式，用于多交易所架构 |
+| **适配器模式** | 将不同接口转换为统一接口的设计模式 |
+| **Binance简单储蓄** | 币安的活期理财产品，闲置资金自动申购赚取利息 |
+| **OKX余币宝** | OKX的活期理财产品，类似币安简单储蓄 |
 | **现货账户** | 交易所现货账户，用于交易的资金池 |
+| **🆕 测试网 (Testnet)** | 交易所提供的模拟交易环境，使用测试币，不影响真实资金 |
+| **🆕 模拟盘 (Demo Trading)** | 类似测试网，使用虚拟资金进行模拟交易，用于策略测试 |
+| **🆕 Pydantic Validator** | Pydantic 库的验证器，用于配置数据验证和类型转换 |
+| **🆕 自动检测 (Auto-detection)** | 系统启动时自动检测账户余额，无需手动配置初始本金 |
 
 ---
 
