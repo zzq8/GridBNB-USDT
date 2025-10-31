@@ -20,6 +20,8 @@ except ImportError:
     METRICS_AVAILABLE = False
     logging.warning("Prometheus客户端未安装,/metrics端点将不可用")
 
+AIO_PROMETHEUS_CONTENT_TYPE = 'text/plain; version=0.0.4'
+
 def auth_required(func):
     """基础认证装饰器"""
     @wraps(func)
@@ -180,6 +182,96 @@ async def handle_log(request):
                     <select id="symbol-selector" class="ml-4 p-2 border rounded-md bg-white">
                         <option value="">选择交易对...</option>
                     </select>
+                </div>
+
+                <!-- AI决策分析卡片 -->
+                <div class="card mb-8" id="ai-decision-card" style="display: none;">
+                    <h2 class="text-lg font-semibold mb-4">🤖 AI 决策分析 <span class="text-sm text-gray-500" id="ai-timestamp">--</span></h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- AI建议 -->
+                        <div class="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
+                            <div class="text-sm font-semibold text-gray-700 mb-2">💡 AI建议</div>
+                            <div class="text-2xl font-bold mb-1" id="ai-action">--</div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">置信度:</span>
+                                <span class="font-semibold" id="ai-confidence">--</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">风险等级:</span>
+                                <span class="font-semibold" id="ai-risk-level">--</span>
+                            </div>
+                            <div class="mt-2 text-sm text-gray-700 italic" id="ai-reason">--</div>
+                        </div>
+
+                        <!-- 多时间周期 -->
+                        <div class="p-4 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg">
+                            <div class="text-sm font-semibold text-gray-700 mb-2">📊 多时间周期</div>
+                            <div class="space-y-1 text-sm">
+                                <div class="flex justify-between">
+                                    <span>日线趋势:</span>
+                                    <span class="font-semibold" id="ai-daily-trend">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>4小时趋势:</span>
+                                    <span class="font-semibold" id="ai-4h-trend">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>1小时趋势:</span>
+                                    <span class="font-semibold" id="ai-1h-trend">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>趋势一致性:</span>
+                                    <span class="font-semibold" id="ai-alignment">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BTC相关性 -->
+                        <div class="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg">
+                            <div class="text-sm font-semibold text-gray-700 mb-2">₿ BTC相关性</div>
+                            <div class="space-y-1 text-sm">
+                                <div class="flex justify-between">
+                                    <span>关联强度:</span>
+                                    <span class="font-semibold" id="ai-btc-strength">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>关联系数:</span>
+                                    <span class="font-semibold" id="ai-btc-corr">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>BTC趋势:</span>
+                                    <span class="font-semibold" id="ai-btc-trend">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>BTC 24h变化:</span>
+                                    <span class="font-semibold" id="ai-btc-change">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 订单簿 & 衍生品 -->
+                        <div class="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
+                            <div class="text-sm font-semibold text-gray-700 mb-2">📖 市场深度 & 衍生品</div>
+                            <div class="space-y-1 text-sm">
+                                <div class="flex justify-between">
+                                    <span>流动性信号:</span>
+                                    <span class="font-semibold" id="ai-liquidity">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>买卖压力:</span>
+                                    <span class="font-semibold" id="ai-imbalance">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>资金费率:</span>
+                                    <span class="font-semibold" id="ai-funding">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>持仓量变化:</span>
+                                    <span class="font-semibold" id="ai-oi-change">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 状态卡片 -->
@@ -353,6 +445,81 @@ async def handle_log(request):
                     document.title = `监控 - ${{symbol}}`;
                 }}
 
+                // 更新AI决策数据
+                async function updateAIDecision() {{
+                    if (!currentSymbol) return;
+                    try {{
+                        const response = await fetch(`/api/ai-decision?symbol=${{currentSymbol}}`);
+                        const data = await response.json();
+
+                        if (data.error || !data.ai_enabled) {{
+                            document.getElementById('ai-decision-card').style.display = 'none';
+                            return;
+                        }}
+
+                        if (!data.has_decision) {{
+                            document.getElementById('ai-decision-card').style.display = 'none';
+                            return;
+                        }}
+
+                        // 显示AI决策卡片
+                        document.getElementById('ai-decision-card').style.display = 'block';
+
+                        // 更新时间戳
+                        const timestamp = new Date(data.timestamp * 1000);
+                        const now = new Date();
+                        const minutesAgo = Math.floor((now - timestamp) / 60000);
+                        document.getElementById('ai-timestamp').textContent = `(${{minutesAgo}}分钟前)`;
+
+                        // 更新AI建议
+                        const suggestion = data.suggestion;
+                        const actionEl = document.getElementById('ai-action');
+                        actionEl.textContent = suggestion.action === 'buy' ? '🔵 买入' :
+                                                suggestion.action === 'sell' ? '🔴 卖出' : '⚪ 持有';
+                        actionEl.style.color = suggestion.action === 'buy' ? '#10b981' :
+                                                suggestion.action === 'sell' ? '#ef4444' : '#6b7280';
+
+                        document.getElementById('ai-confidence').textContent = `${{(suggestion.confidence * 100).toFixed(0)}}%`;
+                        document.getElementById('ai-risk-level').textContent = suggestion.risk_level || '--';
+                        document.getElementById('ai-reason').textContent = suggestion.reason || '--';
+
+                        // 更新多时间周期
+                        const mtf = data.multi_timeframe;
+                        document.getElementById('ai-daily-trend').textContent = mtf.daily_trend || '--';
+                        document.getElementById('ai-4h-trend').textContent = mtf['4h_trend'] || '--';
+                        document.getElementById('ai-1h-trend').textContent = mtf['1h_trend'] || '--';
+                        document.getElementById('ai-alignment').textContent = mtf.alignment || '--';
+
+                        // 更新BTC相关性
+                        const btc = data.btc_correlation;
+                        document.getElementById('ai-btc-strength').textContent = btc.strength || '--';
+                        document.getElementById('ai-btc-corr').textContent = btc.coefficient ? btc.coefficient.toFixed(2) : '--';
+                        document.getElementById('ai-btc-trend').textContent = btc.btc_trend || '--';
+                        const btcChangeEl = document.getElementById('ai-btc-change');
+                        const btcChange = btc.btc_change || 0;
+                        btcChangeEl.textContent = `${{btcChange >= 0 ? '+' : ''}}${{btcChange.toFixed(2)}}%`;
+                        btcChangeEl.style.color = btcChange >= 0 ? '#10b981' : '#ef4444';
+
+                        // 更新订单簿和衍生品
+                        const ob = data.orderbook;
+                        const deriv = data.derivatives;
+                        document.getElementById('ai-liquidity').textContent = ob.liquidity_signal || '--';
+
+                        const imbalanceEl = document.getElementById('ai-imbalance');
+                        const imbalance = ob.imbalance || 0;
+                        imbalanceEl.textContent = imbalance > 0 ? '买方优势' : imbalance < 0 ? '卖方优势' : '均衡';
+                        imbalanceEl.style.color = imbalance > 0 ? '#10b981' : imbalance < 0 ? '#ef4444' : '#6b7280';
+
+                        document.getElementById('ai-funding').textContent = deriv.funding_rate || '--';
+                        document.getElementById('ai-oi-change').textContent = deriv.oi_change || '--';
+
+                        console.log('AI决策数据更新成功');
+                    }} catch (error) {{
+                        console.error('更新AI决策数据失败:', error);
+                        document.getElementById('ai-decision-card').style.display = 'none';
+                    }}
+                }}
+
                 // 更新整个页面的状态
                 async function updateStatus() {{
                     if (!currentSymbol) return;
@@ -472,9 +639,11 @@ async def handle_log(request):
 
                             // 首次加载数据
                             updateStatus();
+                            updateAIDecision();
 
                             // 启动定时更新
                             setInterval(updateStatus, 5000); // 5秒更新一次
+                            setInterval(updateAIDecision, 30000); // 30秒更新一次AI决策
                         }} else {{
                             document.body.innerHTML = '<h1 class="text-center text-2xl mt-12">没有正在运行的交易对。</h1>';
                         }}
@@ -488,6 +657,7 @@ async def handle_log(request):
                 symbolSelector.addEventListener('change', (event) => {{
                     currentSymbol = event.target.value;
                     updateStatus(); // 立即更新
+                    updateAIDecision(); // 立即更新AI决策
                 }});
 
                 // 页面加载时执行初始化
@@ -652,6 +822,105 @@ async def handle_symbols(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
+@auth_required
+async def handle_ai_decision(request):
+    """
+    🆕 获取AI决策数据（用于Web UI可视化）
+
+    返回最新的AI决策详情，包括多维度市场数据和AI建议
+    """
+    try:
+        traders = request.app['traders']
+
+        # 从查询参数获取交易对
+        symbol = request.query.get('symbol')
+
+        if not symbol:
+            # 默认使用第一个交易对
+            symbol = list(traders.keys())[0] if traders else None
+
+        if not symbol or symbol not in traders:
+            return web.json_response({
+                "error": "Invalid symbol or no traders available"
+            }, status=404)
+
+        trader = traders[symbol]
+
+        # 检查trader是否启用了AI策略
+        if not hasattr(trader, 'ai_strategy') or trader.ai_strategy is None:
+            return web.json_response({
+                "ai_enabled": False,
+                "message": "AI策略未启用"
+            })
+
+        # 获取最新的AI决策数据
+        ai_strategy = trader.ai_strategy
+        last_decision = getattr(ai_strategy, 'last_ai_decision', None)
+
+        if not last_decision:
+            return web.json_response({
+                "ai_enabled": True,
+                "has_decision": False,
+                "message": "暂无AI决策数据"
+            })
+
+        # 提取关键数据用于展示
+        suggestion = last_decision.get("suggestion", {})
+        market_data = last_decision.get("market_data", {})
+        orderbook = last_decision.get("orderbook", {})
+        derivatives = last_decision.get("derivatives", {})
+        correlation = last_decision.get("correlation", {})
+
+        # 构建简化的展示数据
+        response = {
+            "ai_enabled": True,
+            "has_decision": True,
+            "timestamp": last_decision.get("timestamp"),
+            "suggestion": {
+                "action": suggestion.get("action"),
+                "confidence": suggestion.get("confidence"),
+                "reason": suggestion.get("reason"),
+                "risk_level": suggestion.get("risk_level")
+            },
+            "multi_timeframe": {
+                "alignment": market_data.get("alignment", "unknown"),
+                "daily_trend": market_data.get("macro_daily", {}).get("trend", "unknown"),
+                "4h_trend": market_data.get("medium_4h", {}).get("trend", "unknown"),
+                "1h_trend": market_data.get("micro_1h", {}).get("trend", "unknown"),
+                "overall_strength": market_data.get("overall_strength", 0),
+                "recommendation": market_data.get("trading_recommendation", "")
+            },
+            "orderbook": {
+                "liquidity_signal": orderbook.get("liquidity_signal", "unknown"),
+                "imbalance": orderbook.get("imbalance", 0),
+                "spread_percent": orderbook.get("spread_percent", 0),
+                "resistance_walls_count": len(orderbook.get("resistance_walls", [])),
+                "support_walls_count": len(orderbook.get("support_walls", [])),
+                "insight": orderbook.get("trading_insight", "")
+            },
+            "derivatives": {
+                "funding_rate": derivatives.get("funding_rate", {}).get("current_rate_display", "N/A"),
+                "funding_sentiment": derivatives.get("funding_rate", {}).get("sentiment", "unknown"),
+                "oi_change": derivatives.get("open_interest", {}).get("24h_change_display", "N/A"),
+                "oi_signal": derivatives.get("open_interest", {}).get("signal", "unknown")
+            },
+            "btc_correlation": {
+                "coefficient": correlation.get("correlation_coefficient", 0),
+                "strength": correlation.get("correlation_strength", "unknown"),
+                "btc_trend": correlation.get("btc_current_state", {}).get("short_term_trend", "unknown"),
+                "btc_change": correlation.get("btc_current_state", {}).get("24h_change", 0),
+                "warning": correlation.get("risk_warning"),
+                "insight": correlation.get("trading_insight", "")
+            }
+        }
+
+        return web.json_response(response)
+
+    except Exception as e:
+        logging.error(f"获取AI决策数据失败: {str(e)}", exc_info=True)
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_metrics(request):
     """Prometheus指标端点(无需认证)"""
     if not METRICS_AVAILABLE:
@@ -698,7 +967,7 @@ async def handle_metrics(request):
 
         return web.Response(
             body=metrics_data,
-            content_type=CONTENT_TYPE_LATEST
+            content_type=AIO_PROMETHEUS_CONTENT_TYPE
         )
 
     except Exception as e:
@@ -738,6 +1007,7 @@ async def start_web_server(traders):
     app.router.add_get('/api/logs', handle_log_content)
     app.router.add_get('/api/status', handle_status)
     app.router.add_get('/api/symbols', handle_symbols)
+    app.router.add_get('/api/ai-decision', handle_ai_decision)  # 🆕 AI决策API
     app.router.add_get('/health', handle_health)  # 健康检查端点（无需认证）
     app.router.add_get('/api/health', handle_health)  # 备用路径
     app.router.add_get('/version', handle_version)  # 版本信息端点（无需认证）

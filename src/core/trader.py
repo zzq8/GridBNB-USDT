@@ -24,11 +24,26 @@ except ImportError:
 
 
 class GridTrader:
-    def __init__(self, exchange, config, symbol: str):
-        """初始化网格交易器"""
+    def __init__(self, exchange, config, symbol: str, global_allocator=None):
+        """
+        初始化网格交易器
+
+        Args:
+            exchange: 交易所实例
+            config: 配置对象
+            symbol: 交易对符号
+            global_allocator: 全局资金分配器（可选）
+        """
         self.exchange = exchange
         self.config = config
         self.symbol = symbol  # 使用传入的symbol参数
+
+        # 🆕 保存全局资金分配器引用
+        self.global_allocator = global_allocator
+        if not self.global_allocator:
+            logging.getLogger(self.__class__.__name__).warning(
+                f"[{symbol}] 未使用全局资金分配器，多交易对可能存在资金竞争"
+            )
 
         # 解析并存储基础和计价货币
         try:
@@ -118,6 +133,14 @@ class GridTrader:
         # AI策略相关状态变量
         self.last_volatility = 0  # 用于AI策略
 
+        # 🆕 止损相关状态变量
+        self.max_profit = 0.0  # 历史最高盈利（USDT）
+        self.stop_loss_triggered = False  # 止损是否已触发
+        self.stop_loss_price = None  # 止损价格缓存
+
+        # 资金锁：防止并发交易的资金竞态条件
+        self._balance_lock = asyncio.Lock()
+
     def _save_state(self):
         """【重构后】以原子方式安全地保存当前核心策略状态到文件"""
         state = {
@@ -137,7 +160,10 @@ class GridTrader:
             'is_monitoring_buy': self.is_monitoring_buy,
             'is_monitoring_sell': self.is_monitoring_sell,
             # 波动率平滑相关
-            'volatility_history': self.volatility_history
+            'volatility_history': self.volatility_history,
+            # 🆕 止损状态
+            'max_profit': self.max_profit,
+            'stop_loss_triggered': self.stop_loss_triggered
         }
 
         temp_file_path = self.state_file_path + ".tmp"
@@ -227,10 +253,20 @@ class GridTrader:
             if saved_volatility_history is not None and isinstance(saved_volatility_history, list):
                 self.volatility_history = saved_volatility_history
 
+            # 🆕 加载止损状态
+            saved_max_profit = state.get('max_profit')
+            if saved_max_profit is not None:
+                self.max_profit = float(saved_max_profit)
+
+            saved_stop_loss_triggered = state.get('stop_loss_triggered')
+            if saved_stop_loss_triggered is not None:
+                self.stop_loss_triggered = bool(saved_stop_loss_triggered)
+
             self.logger.info(
                 f"成功从文件加载状态。基准价: {self.base_price:.2f}, 网格: {self.grid_size:.2f}%, "
                 f"EWMA已初始化: {self.ewma_initialized}, 监测状态: 买入={self.is_monitoring_buy}, 卖出={self.is_monitoring_sell}, "
-                f"波动率历史记录数: {len(self.volatility_history)}"
+                f"波动率历史记录数: {len(self.volatility_history)}, "
+                f"最高盈利: {self.max_profit:.2f}, 止损已触发: {self.stop_loss_triggered}"
             )
         except Exception as e:
             self.logger.error(f"加载核心状态失败，将使用默认值: {e}")
@@ -264,9 +300,18 @@ class GridTrader:
 
             # 从市场信息中获取精度
             if self.symbol_info and 'precision' in self.symbol_info:
-                self.amount_precision = self.symbol_info['precision'].get('amount')
-                self.price_precision = self.symbol_info['precision'].get('price')
-                self.logger.info(f"交易对精度: 数量 {self.amount_precision}, 价格 {self.price_precision}")
+                try:
+                    amount_precision = self.symbol_info['precision'].get('amount')
+                    price_precision = self.symbol_info['precision'].get('price')
+
+                    self.amount_precision = int(float(amount_precision)) if amount_precision is not None else None
+                    self.price_precision = int(float(price_precision)) if price_precision is not None else None
+                    self.logger.info(f"交易对精度: 数量 {self.amount_precision}, 价格 {self.price_precision}")
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(f"精度转换失败: amount={amount_precision}, price={price_precision}, error={e}")
+                    self.logger.warning("使用默认精度: 数量 6, 价格 2")
+                    self.amount_precision = 6
+                    self.price_precision = 2
             else:
                 self.logger.warning("无法获取交易对精度信息，将使用默认值")
                 # 使用动态默认精度，而不是硬编码BNB/USDT精度
@@ -655,6 +700,17 @@ class GridTrader:
                 # --- 核心理念：网格策略独立运行，AI策略全局洞察并行决策 ---
 
                 # ------------------------------------------------------------------
+                # 🆕 阶段零：止损检查 (最高优先级，优先于所有交易逻辑)
+                # ------------------------------------------------------------------
+                if settings.ENABLE_STOP_LOSS:
+                    should_stop, reason = await self._check_stop_loss()
+
+                    if should_stop:
+                        await self._emergency_liquidate(reason)
+                        # 止损后停止该交易对的运行
+                        break
+
+                # ------------------------------------------------------------------
                 # 阶段二：周期性维护模块 (始终运行，保证机器人认知更新)
                 # ------------------------------------------------------------------
 
@@ -895,6 +951,18 @@ class GridTrader:
         # 保存状态
         self._save_state()
 
+        # 🆕 步骤2: 记录交易到全局分配器
+        if self.global_allocator:
+            amount_usdt = order_price * order_amount
+            await self.global_allocator.record_trade(
+                symbol=self.symbol,
+                amount=amount_usdt,
+                side=side
+            )
+            self.logger.debug(
+                f"已记录交易到全局分配器 | {side} {amount_usdt:.2f} USDT"
+            )
+
         # 5) 推送通知
         msg = format_trade_message(
             side='buy' if side == 'buy' else 'sell',
@@ -945,6 +1013,23 @@ class GridTrader:
 
                 # 调整价格精度
                 order_price = self._adjust_price_precision(order_price)
+
+                # 🆕 步骤1: 全局资金分配检查（仅对买入检查）
+                if side == 'buy' and self.global_allocator:
+                    allowed, reason = await self.global_allocator.check_trade_allowed(
+                        symbol=self.symbol,
+                        required_amount=amount_quote,
+                        side='buy'
+                    )
+
+                    if not allowed:
+                        self.logger.warning(
+                            f"全局资金分配器拒绝交易 | "
+                            f"{side} {self.symbol} | "
+                            f"金额: {amount_quote:.2f} {self.quote_asset} | "
+                            f"原因: {reason}"
+                        )
+                        return False
 
                 # 检查余额是否足够 - 需要获取最新的余额信息
                 spot_balance = await self.exchange.fetch_balance({'type': 'spot'})
@@ -1448,7 +1533,101 @@ class GridTrader:
             return self.exchange.exchange.amount_to_precision(self.symbol, amount)
         except Exception as e:
             self.logger.error(f"精度调整失败: {e}, 使用默认精度")
-            return float(f"{amount:.{self.amount_precision}f}")
+            precision = int(self.amount_precision) if self.amount_precision is not None else 3
+            return float(f"{amount:.{precision}f}")
+
+    def _normalize_order_amount(self, amount: float, price: float) -> tuple[str | float, float, float] | None:
+        """应用交易所限制并返回下单数量、浮点数量和名义金额"""
+        if amount is None or price is None or price <= 0:
+            return None
+
+        try:
+            normalized_amount = float(amount)
+        except (TypeError, ValueError):
+            return None
+
+        if normalized_amount <= 0:
+            return None
+
+        limits = (self.symbol_info or {}).get('limits') or {}
+        amount_limits = limits.get('amount') or {}
+        cost_limits = limits.get('cost') or {}
+
+        def _safe_float(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        min_amount = _safe_float(amount_limits.get('min'))
+        max_amount = _safe_float(amount_limits.get('max'))
+        min_cost = _safe_float(cost_limits.get('min'))
+        max_cost = _safe_float(cost_limits.get('max'))
+
+        if min_amount is not None and normalized_amount < min_amount:
+            normalized_amount = min_amount
+        if min_cost is not None and min_cost > 0:
+            min_amount_from_cost = min_cost / price
+            if normalized_amount < min_amount_from_cost:
+                normalized_amount = min_amount_from_cost
+
+        if max_amount is not None and max_amount > 0 and normalized_amount > max_amount:
+            normalized_amount = max_amount
+        if max_cost is not None and max_cost > 0:
+            max_amount_from_cost = max_cost / price
+            if normalized_amount > max_amount_from_cost:
+                normalized_amount = max_amount_from_cost
+
+        precision_amount = self._adjust_amount_precision(normalized_amount)
+
+        try:
+            amount_float = float(precision_amount)
+        except (TypeError, ValueError):
+            return None
+
+        if amount_float <= 0:
+            return None
+
+        if min_amount is not None and amount_float < min_amount:
+            precision_amount = self._adjust_amount_precision(min_amount)
+            try:
+                amount_float = float(precision_amount)
+            except (TypeError, ValueError):
+                return None
+            if amount_float < min_amount:
+                return None
+
+        if min_cost is not None and min_cost > 0 and amount_float * price < min_cost:
+            target_amount = min_cost / price
+            precision_amount = self._adjust_amount_precision(target_amount)
+            try:
+                amount_float = float(precision_amount)
+            except (TypeError, ValueError):
+                return None
+            if amount_float * price < min_cost:
+                return None
+
+        if max_amount is not None and max_amount > 0 and amount_float > max_amount:
+            precision_amount = self._adjust_amount_precision(max_amount)
+            try:
+                amount_float = float(precision_amount)
+            except (TypeError, ValueError):
+                return None
+            if amount_float > max_amount:
+                return None
+
+        if max_cost is not None and max_cost > 0 and amount_float * price > max_cost:
+            target_amount = max_cost / price
+            precision_amount = self._adjust_amount_precision(target_amount)
+            try:
+                amount_float = float(precision_amount)
+            except (TypeError, ValueError):
+                return None
+            if amount_float * price > max_cost:
+                return None
+
+        notional = amount_float * price
+        return precision_amount, amount_float, notional
 
     def _adjust_price_precision(self, price):
         """根据交易所精度动态调整价格"""
@@ -1462,7 +1641,8 @@ class GridTrader:
             return self.exchange.exchange.price_to_precision(self.symbol, price)
         except Exception as e:
             self.logger.error(f"价格精度调整失败: {e}, 使用默认精度")
-            return float(f"{price:.{self.price_precision}f}")
+            precision = int(self.price_precision) if self.price_precision is not None else 2
+            return float(f"{price:.{precision}f}")
 
     async def calculate_trade_amount(self, side, order_price):
         # 获取必要参数
@@ -2051,6 +2231,60 @@ class GridTrader:
             self.logger.error(f"获取ADX数据失败: {str(e)}")
             return None
 
+    async def _ensure_sufficient_balance(self, side: str, price: float, amount: float) -> bool:
+        """AI交易余额检查包装，复用标准资金校验流程"""
+        try:
+            if price is None or price <= 0:
+                self.logger.error("价格无效，无法执行余额检查。")
+                return False
+
+            # 强制刷新余额缓存，避免使用过期数据导致余额误判
+            self.exchange.balance_cache = {'timestamp': 0, 'data': None}
+            self.exchange.funding_balance_cache = {'timestamp': 0, 'data': {}}
+
+            self.logger.info(f"🔍 AI交易余额检查 | 方向: {side} | 价格: {price:.4f} | 数量: {amount:.6f}")
+
+            spot_balance = await self.exchange.fetch_balance({'type': 'spot'})
+            funding_balance = await self.exchange.fetch_funding_balance()
+
+            # 记录关键余额信息用于调试
+            spot_usdt = float(spot_balance.get('free', {}).get(self.quote_asset, 0) or 0)
+            spot_base = float(spot_balance.get('free', {}).get(self.base_asset, 0) or 0)
+            funding_usdt = float(funding_balance.get(self.quote_asset, 0) or 0)
+            funding_base = float(funding_balance.get(self.base_asset, 0) or 0)
+
+            self.logger.info(
+                f"💰 实时余额 | 现货 {self.quote_asset}: {spot_usdt:.4f} | "
+                f"理财 {self.quote_asset}: {funding_usdt:.4f} | "
+                f"现货 {self.base_asset}: {spot_base:.6f} | "
+                f"理财 {self.base_asset}: {funding_base:.6f}"
+            )
+
+            if side == 'buy':
+                required_quote = float(price) * float(amount)
+                return await self._ensure_balance_for_trade(
+                    side='buy',
+                    spot_balance=spot_balance,
+                    funding_balance=funding_balance,
+                    required_quote=required_quote
+                )
+            elif side == 'sell':
+                required_base = float(amount)
+                required_quote = float(price) * required_base
+                return await self._ensure_balance_for_trade(
+                    side='sell',
+                    spot_balance=spot_balance,
+                    funding_balance=funding_balance,
+                    required_quote=required_quote,
+                    required_base=required_base
+                )
+            else:
+                self.logger.error(f"未知交易方向: {side}")
+                return False
+        except Exception as e:
+            self.logger.error(f"AI余额检查失败({side}): {e}", exc_info=True)
+            return False
+
     def _calculate_ema(self, data, period):
         """计算EMA"""
         if not data or len(data) == 0:
@@ -2062,23 +2296,34 @@ class GridTrader:
             ema = (price - ema) * multiplier + ema
         return ema
 
-    async def _ensure_balance_for_trade(self, side: str, spot_balance: dict, funding_balance: dict) -> bool:
+    async def _ensure_balance_for_trade(
+        self,
+        side: str,
+        spot_balance: dict,
+        funding_balance: dict,
+        *,
+        required_quote: float | None = None,
+        required_base: float | None = None
+    ) -> bool:
         """
         【重构后】统一检查买卖双方的余额，并在需要时从理财赎回。
         """
         try:
             # 1. 确定所需资产和数量
-            amount_quote = await self._calculate_order_amount(side)
+            amount_quote = required_quote if required_quote is not None else await self._calculate_order_amount(side)
             if side == 'buy':
                 asset_needed = self.quote_asset
                 required_amount = amount_quote
                 spot_balance_asset = float(spot_balance.get('free', {}).get(self.quote_asset, 0) or 0)
             else: # side == 'sell'
-                if not self.current_price or self.current_price <= 0:
-                    self.logger.error(f"价格无效，无法计算卖出所需 {self.base_asset} 数量。")
-                    return False
+                if required_base is not None:
+                    required_amount = required_base
+                else:
+                    if not self.current_price or self.current_price <= 0:
+                        self.logger.error(f"价格无效，无法计算卖出所需 {self.base_asset} 数量。")
+                        return False
+                    required_amount = amount_quote / self.current_price
                 asset_needed = self.base_asset
-                required_amount = amount_quote / self.current_price
                 spot_balance_asset = float(spot_balance.get('free', {}).get(self.base_asset, 0) or 0)
 
             self.logger.info(f"{side}前余额检查 | 所需 {asset_needed}: {required_amount:.4f} | 现货可用: {spot_balance_asset:.4f}")
@@ -2188,53 +2433,64 @@ class GridTrader:
                 return False
 
             current_price = self.current_price
+            if current_price is None or current_price <= 0:
+                self.logger.error("当前价格无效，无法执行AI交易")
+                return False
 
-            if side == 'buy':
-                # 买入：计算可购买数量
-                amount = trade_amount_usdt / current_price
+            normalized = self._normalize_order_amount(trade_amount_usdt / current_price, current_price)
+            if not normalized:
+                self.logger.warning("AI建议交易数量在精度调整后无效，跳过")
+                return False
 
-                # 确保有足够的USDT
-                if not await self._ensure_sufficient_balance('buy', current_price, amount):
-                    self.logger.warning("AI建议买入但余额不足")
-                    return False
+            amount_for_order, amount_float, actual_notional = normalized
 
-            else:  # sell
-                # 卖出：计算卖出数量
-                amount = trade_amount_usdt / current_price
+            if amount_float <= 0:
+                self.logger.warning("AI建议交易数量调整后为0，跳过")
+                return False
 
-                # 确保有足够的基础资产
-                if not await self._ensure_sufficient_balance('sell', current_price, amount):
-                    self.logger.warning("AI建议卖出但余额不足")
-                    return False
+            trade_amount_usdt = actual_notional
 
-            # 应用精度
-            if self.amount_precision:
-                amount = round(amount, self.amount_precision)
+            if trade_amount_usdt < settings.MIN_TRADE_AMOUNT:
+                self.logger.warning(
+                    f"AI建议交易金额经调整后过小 ({trade_amount_usdt:.2f} USDT < {settings.MIN_TRADE_AMOUNT} USDT)，跳过"
+                )
+                return False
 
             self.logger.info(
                 f"执行AI建议交易 | "
                 f"方向: {side} | "
                 f"价格: {current_price:.4f} | "
-                f"数量: {amount:.6f} | "
+                f"数量: {amount_float:.6f} | "
                 f"金额: {trade_amount_usdt:.2f} USDT | "
                 f"置信度: {suggestion['confidence']}%"
             )
 
-            # 执行交易
-            order = await self._execute_trade(side, current_price, amount)
+            # 使用资金锁保护余额检查和下单的原子操作，防止并发竞态条件
+            async with self._balance_lock:
+                # 余额检查
+                if side == 'buy':
+                    if not await self._ensure_sufficient_balance('buy', current_price, amount_float):
+                        self.logger.warning("AI建议买入但余额不足")
+                        return False
+                else:  # sell
+                    if not await self._ensure_sufficient_balance('sell', current_price, amount_float):
+                        self.logger.warning("AI建议卖出但余额不足")
+                        return False
 
+                # 立即执行交易（在锁保护期间，防止其他操作占用资金）
+                order = await self._execute_trade(side, current_price, amount_for_order)
+
+            # 锁释放后处理订单记录
             if order:
-                # 记录AI交易
-                self.order_tracker.add_order({
-                    'timestamp': time.time(),
-                    'side': side,
-                    'price': current_price,
-                    'amount': amount,
-                    'type': 'ai_assisted',
-                    'confidence': suggestion['confidence'],
-                    'reason': suggestion['reason'],
-                    'risk_level': suggestion.get('risk_level', 'unknown')
-                })
+                # 修复 KeyError: 使用真实订单对象，添加 AI 相关字段
+                order_to_track = order.copy()  # 复制订单对象
+                order_to_track['type'] = 'ai_assisted'
+                order_to_track['confidence'] = suggestion['confidence']
+                order_to_track['reason'] = suggestion['reason']
+                order_to_track['risk_level'] = suggestion.get('risk_level', 'unknown')
+
+                # 记录AI交易（包含原始订单的 'id' 字段）
+                self.order_tracker.add_order(order_to_track)
 
                 # 发送AI交易通知
                 ai_message = (
@@ -2242,7 +2498,7 @@ class GridTrader:
                     f"交易对: {self.symbol}\n"
                     f"操作: {side.upper()}\n"
                     f"价格: {current_price:.4f} {self.quote_asset}\n"
-                    f"数量: {amount:.6f} {self.base_asset}\n"
+                    f"数量: {amount_float:.6f} {self.base_asset}\n"
                     f"金额: {trade_amount_usdt:.2f} {self.quote_asset}\n"
                     f"置信度: {suggestion['confidence']}%\n"
                     f"理由: {suggestion['reason']}\n"
@@ -2271,4 +2527,237 @@ class GridTrader:
                 "AI交易错误"
             )
             return False
+
+    # ============================================================================
+    # 🆕 止损机制相关方法
+    # ============================================================================
+
+    async def _calculate_current_profit(self) -> float:
+        """
+        计算当前盈利（USDT）
+
+        Returns:
+            当前盈利金额（正数表示盈利，负数表示亏损）
+        """
+        try:
+            # 获取当前总资产
+            total_assets = await self._get_pair_specific_assets_value()
+
+            # 如果设置了初始本金，用总资产减去初始本金
+            if settings.INITIAL_PRINCIPAL and settings.INITIAL_PRINCIPAL > 0:
+                profit = total_assets - settings.INITIAL_PRINCIPAL
+                self.logger.debug(
+                    f"盈利计算（基于初始本金） | "
+                    f"总资产: {total_assets:.2f} | "
+                    f"初始本金: {settings.INITIAL_PRINCIPAL:.2f} | "
+                    f"盈亏: {profit:+.2f}"
+                )
+            else:
+                # 如果没设置初始本金，使用交易历史计算累计盈利
+                profit = sum(t.get('profit', 0) for t in self.order_tracker.trade_history)
+                self.logger.debug(
+                    f"盈利计算（基于交易历史） | "
+                    f"累计盈利: {profit:+.2f}"
+                )
+
+            return profit
+
+        except Exception as e:
+            self.logger.error(f"计算盈利失败: {e}", exc_info=True)
+            return 0.0
+
+    async def _check_stop_loss(self) -> tuple[bool, str]:
+        """
+        检查是否需要触发止损
+
+        Returns:
+            (是否触发, 触发原因)
+        """
+        # 如果未启用止损，直接返回
+        if not settings.ENABLE_STOP_LOSS:
+            return False, ""
+
+        # 如果已经触发过止损，不再检查
+        if self.stop_loss_triggered:
+            return False, "已触发过止损"
+
+        current_price = self.current_price
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 1. 价格止损检查
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if settings.STOP_LOSS_PERCENTAGE > 0:
+            # 计算止损价格
+            stop_loss_price = self.base_price * (1 - settings.STOP_LOSS_PERCENTAGE / 100)
+
+            # 缓存止损价格，避免重复计算
+            self.stop_loss_price = stop_loss_price
+
+            # 当前价格跌破止损价
+            if current_price <= stop_loss_price:
+                drop_percentage = (self.base_price - current_price) / self.base_price * 100
+                reason = (
+                    f"价格止损触发 | "
+                    f"当前价: {current_price:.2f} | "
+                    f"止损价: {stop_loss_price:.2f} | "
+                    f"基准价: {self.base_price:.2f} | "
+                    f"跌幅: -{drop_percentage:.2f}%"
+                )
+                self.logger.warning(reason)
+                return True, reason
+
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # 2. 回撤止损检查（止盈）
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if settings.TAKE_PROFIT_DRAWDOWN > 0:
+            # 计算当前盈利
+            current_profit = await self._calculate_current_profit()
+
+            # 更新历史最高盈利
+            if current_profit > self.max_profit:
+                old_max = self.max_profit
+                self.max_profit = current_profit
+                self.logger.info(
+                    f"更新最高盈利 | "
+                    f"{old_max:.2f} → {self.max_profit:.2f} USDT"
+                )
+
+            # 只有在有盈利的情况下才检查回撤
+            if self.max_profit > 0:
+                # 计算回撤比例
+                drawdown = (self.max_profit - current_profit) / self.max_profit
+
+                # 回撤超过阈值
+                if drawdown >= settings.TAKE_PROFIT_DRAWDOWN / 100:
+                    reason = (
+                        f"回撤止盈触发 | "
+                        f"最高盈利: {self.max_profit:.2f} | "
+                        f"当前盈利: {current_profit:.2f} | "
+                        f"回撤: {drawdown*100:.1f}% "
+                        f"(阈值: {settings.TAKE_PROFIT_DRAWDOWN}%)"
+                    )
+                    self.logger.warning(reason)
+                    return True, reason
+
+        # 未触发任何止损条件
+        return False, ""
+
+    async def _emergency_liquidate(self, reason: str):
+        """
+        紧急平仓 - 快速清空所有持仓
+
+        Args:
+            reason: 触发止损的原因
+        """
+        self.logger.critical(f"🚨 触发止损: {reason}")
+        self.stop_loss_triggered = True
+
+        try:
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤1: 取消所有挂单
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            self.logger.info("开始取消所有挂单...")
+            open_orders = await self.exchange.fetch_open_orders(self.symbol)
+
+            for order in open_orders:
+                try:
+                    await self.exchange.cancel_order(order['id'], self.symbol)
+                    self.logger.info(f"已取消订单: {order['id']}")
+                except Exception as e:
+                    self.logger.error(f"取消订单失败: {e}")
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤2: 市价单卖出所有基础资产
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            balance = await self.exchange.fetch_balance({'type': 'spot'})
+            base_balance = float(balance['free'].get(self.base_asset, 0))
+
+            if base_balance > 0:
+                # 调整精度
+                base_balance = self._adjust_amount_precision(base_balance)
+
+                # 检查是否大于最小交易量
+                min_amount = settings.MIN_AMOUNT_LIMIT
+                if base_balance < min_amount:
+                    self.logger.warning(
+                        f"基础资产余额 ({base_balance}) 低于最小交易量 ({min_amount})，跳过市价单卖出"
+                    )
+                else:
+                    self.logger.info(f"市价卖出 {base_balance} {self.base_asset}")
+
+                    # 市价单卖出（最多重试5次）
+                    max_retries = 5
+                    for attempt in range(max_retries):
+                        try:
+                            order = await self.exchange.create_order(
+                                self.symbol,
+                                'market',
+                                'sell',
+                                base_balance
+                            )
+
+                            self.logger.info(f"止损卖单已成交: {order}")
+                            break  # 成功后退出重试循环
+
+                        except Exception as e:
+                            if attempt < max_retries - 1:
+                                self.logger.warning(
+                                    f"市价单卖出失败（第{attempt+1}次），2秒后重试: {e}"
+                                )
+                                await asyncio.sleep(2)
+                            else:
+                                self.logger.error(f"市价单卖出失败（已重试{max_retries}次）: {e}")
+                                raise
+
+            else:
+                self.logger.info(f"没有可卖出的 {self.base_asset}，跳过")
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤3: 转移资金到理财（如果启用）
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            if settings.ENABLE_SAVINGS_FUNCTION:
+                self.logger.info("等待2秒，确保订单结算...")
+                await asyncio.sleep(2)
+
+                self.logger.info("转移多余资金到理财...")
+                await self._transfer_excess_funds()
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤4: 发送告警通知
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            alert_msg = f"""
+🚨 止损告警 🚨
+━━━━━━━━━━━━━━━━━━━━
+交易对: {self.symbol}
+触发原因: {reason}
+当前价格: {self.current_price:.2f} {self.quote_asset}
+基准价格: {self.base_price:.2f} {self.quote_asset}
+已卖出: {base_balance:.4f} {self.base_asset}
+━━━━━━━━━━━━━━━━━━━━
+系统已停止该交易对的交易
+请注意风险，及时复盘
+"""
+            send_pushplus_message(alert_msg, "🚨 止损告警")
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # 步骤5: 保存状态
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            self._save_state()
+
+            self.logger.critical(f"🚨 止损完成，{self.symbol} 交易已停止")
+
+        except Exception as e:
+            self.logger.error(f"紧急平仓失败: {e}", exc_info=True)
+
+            # 发送紧急告警
+            send_pushplus_message(
+                f"🆘 紧急告警\n"
+                f"交易对: {self.symbol}\n"
+                f"紧急平仓失败: {e}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"请立即人工介入！",
+                "🆘 紧急告警"
+            )
+            raise
+
 

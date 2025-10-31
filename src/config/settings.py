@@ -3,8 +3,8 @@ from dotenv import load_dotenv
 import logging
 import json
 from pydantic_settings import BaseSettings
-from typing import Optional, Dict
-from pydantic import field_validator, ConfigDict, ConfigDict
+from typing import Optional, Dict, Union
+from pydantic import field_validator, ConfigDict
 
 from pathlib import Path
 load_dotenv(Path(__file__).resolve().parent.parent.parent / "config" / ".env")
@@ -15,15 +15,27 @@ class Settings(BaseSettings):
     # --- 交易所选择配置 (企业级多交易所支持) ---
     EXCHANGE: str = "binance"  # 选择交易所: binance, okx
 
+    # --- 测试网/模拟盘配置 ---
+    TESTNET_MODE: bool = False  # 是否使用测试网（模拟盘）
+
     # --- 从 .env 文件读取的必需配置 ---
-    # Binance API
+    # Binance API（实盘）
     BINANCE_API_KEY: str = ""  # 添加默认值以便测试
     BINANCE_API_SECRET: str = ""  # 添加默认值以便测试
 
-    # OKX API (如果使用OKX)
+    # Binance 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）
+    BINANCE_TESTNET_API_KEY: str = ""
+    BINANCE_TESTNET_API_SECRET: str = ""
+
+    # OKX API（实盘，如果使用OKX）
     OKX_API_KEY: str = ""
     OKX_API_SECRET: str = ""
     OKX_PASSPHRASE: str = ""  # OKX特有参数
+
+    # OKX 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）
+    OKX_TESTNET_API_KEY: str = ""
+    OKX_TESTNET_API_SECRET: str = ""
+    OKX_TESTNET_PASSPHRASE: str = ""
 
     # --- 策略核心配置 (从 .env 读取) ---
     SYMBOLS: str = "BNB/USDT"  # 从 .env 读取交易对列表字符串
@@ -36,6 +48,12 @@ class Settings(BaseSettings):
 
     # --- 初始状态设置 (从 .env 读取) ---
     INITIAL_PRINCIPAL: float = 0.0
+
+    # --- 🆕 全局资金分配器配置 (从 .env 读取) ---
+    ALLOCATION_STRATEGY: str = "equal"  # 分配策略: equal / weighted / dynamic
+    GLOBAL_MAX_USAGE: float = 0.95  # 全局最大资金使用率 (0-1之间)
+    ALLOCATION_WEIGHTS: Dict[str, float] = {}  # 权重配置（仅当strategy=weighted时使用）
+    REBALANCE_INTERVAL: int = 3600  # 动态重新平衡间隔（秒），默认1小时
 
     # --- 可选配置 (从 .env 读取) ---
     PUSHPLUS_TOKEN: Optional[str] = None
@@ -72,6 +90,11 @@ class Settings(BaseSettings):
     AI_MAX_CALLS_PER_DAY: int = 100
     AI_FALLBACK_TO_GRID: bool = True
 
+    # --- 止损配置 ---
+    ENABLE_STOP_LOSS: bool = False  # 默认禁用，需要用户主动启用
+    STOP_LOSS_PERCENTAGE: float = 15.0  # 价格止损比例 (%)
+    TAKE_PROFIT_DRAWDOWN: float = 20.0  # 回撤止盈比例 (%)
+
     @field_validator('INITIAL_PARAMS_JSON', mode='before')
     @classmethod
     def parse_initial_params(cls, value):
@@ -82,6 +105,17 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 raise ValueError("INITIAL_PARAMS_JSON 格式无效，必须是合法的JSON字符串。")
         return value if value else {}  # 如果为空，返回空字典
+
+    @field_validator('ALLOCATION_WEIGHTS', mode='before')
+    @classmethod
+    def parse_allocation_weights(cls, value):
+        """解析权重配置JSON字符串"""
+        if isinstance(value, str) and value:
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                raise ValueError("ALLOCATION_WEIGHTS 格式无效，必须是合法的JSON字符串。")
+        return value if value else {}
 
     @field_validator('GRID_PARAMS_JSON', 'GRID_CONTINUOUS_PARAMS_JSON', 'DYNAMIC_INTERVAL_PARAMS_JSON', mode='before')
     @classmethod
@@ -109,28 +143,100 @@ class Settings(BaseSettings):
 
     @field_validator('BINANCE_API_KEY')
     @classmethod
-    def validate_api_key(cls, v):
-        """验证 Binance API Key 格式"""
+    def validate_api_key(cls, v, info):
+        """验证 Binance API Key 格式（仅当使用 Binance 交易所时）"""
         # 测试环境下允许空值
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
-        if not v:
-            raise ValueError("BINANCE_API_KEY 不能为空")
-        if len(v) < 64:
-            raise ValueError(f"BINANCE_API_KEY 格式无效: 长度应至少64位，当前 {len(v)} 位")
+
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
+
+        # 只在使用 Binance 交易所时进行验证
+        if exchange == 'binance':
+            if not v:
+                raise ValueError("BINANCE_API_KEY 不能为空（当前使用 Binance 交易所）")
+            if len(v) < 64:
+                raise ValueError(f"BINANCE_API_KEY 格式无效: 长度应至少64位，当前 {len(v)} 位")
+
         return v
 
     @field_validator('BINANCE_API_SECRET')
     @classmethod
-    def validate_api_secret(cls, v):
-        """验证 Binance API Secret 格式"""
+    def validate_api_secret(cls, v, info):
+        """验证 Binance API Secret 格式（仅当使用 Binance 交易所时）"""
         # 测试环境下允许空值
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
-        if not v:
-            raise ValueError("BINANCE_API_SECRET 不能为空")
-        if len(v) < 64:
-            raise ValueError(f"BINANCE_API_SECRET 格式无效: 长度应至少64位，当前 {len(v)} 位")
+
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
+
+        # 只在使用 Binance 交易所时进行验证
+        if exchange == 'binance':
+            if not v:
+                raise ValueError("BINANCE_API_SECRET 不能为空（当前使用 Binance 交易所）")
+            if len(v) < 64:
+                raise ValueError(f"BINANCE_API_SECRET 格式无效: 长度应至少64位，当前 {len(v)} 位")
+
+        return v
+
+    @field_validator('OKX_API_KEY')
+    @classmethod
+    def validate_okx_api_key(cls, v, info):
+        """验证 OKX API Key 格式（仅当使用 OKX 交易所时）"""
+        # 测试环境下允许空值
+        if os.getenv('PYTEST_CURRENT_TEST'):
+            return v
+
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
+
+        # 只在使用 OKX 交易所时进行验证
+        if exchange == 'okx':
+            if not v:
+                raise ValueError("OKX_API_KEY 不能为空（当前使用 OKX 交易所）")
+            if len(v) < 32:
+                raise ValueError(f"OKX_API_KEY 格式无效: 长度应至少32位，当前 {len(v)} 位")
+
+        return v
+
+    @field_validator('OKX_API_SECRET')
+    @classmethod
+    def validate_okx_api_secret(cls, v, info):
+        """验证 OKX API Secret 格式（仅当使用 OKX 交易所时）"""
+        # 测试环境下允许空值
+        if os.getenv('PYTEST_CURRENT_TEST'):
+            return v
+
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
+
+        # 只在使用 OKX 交易所时进行验证
+        if exchange == 'okx':
+            if not v:
+                raise ValueError("OKX_API_SECRET 不能为空（当前使用 OKX 交易所）")
+            if len(v) < 32:
+                raise ValueError(f"OKX_API_SECRET 格式无效: 长度应至少32位，当前 {len(v)} 位")
+
+        return v
+
+    @field_validator('OKX_PASSPHRASE')
+    @classmethod
+    def validate_okx_passphrase(cls, v, info):
+        """验证 OKX Passphrase（仅当使用 OKX 交易所时）"""
+        # 测试环境下允许空值
+        if os.getenv('PYTEST_CURRENT_TEST'):
+            return v
+
+        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
+        exchange = os.getenv('EXCHANGE', 'binance').lower()
+
+        # 只在使用 OKX 交易所时进行验证
+        if exchange == 'okx':
+            if not v:
+                raise ValueError("OKX_PASSPHRASE 不能为空（当前使用 OKX 交易所）")
+
         return v
 
     @field_validator('MIN_TRADE_AMOUNT')
@@ -171,10 +277,12 @@ class Settings(BaseSettings):
     @field_validator('INITIAL_PRINCIPAL')
     @classmethod
     def validate_initial_principal(cls, v):
-        """验证初始本金"""
+        """验证初始本金（允许0表示自动检测）"""
         if v < 0:
             raise ValueError(f"INITIAL_PRINCIPAL 不能为负数，当前设置为 {v}")
-        if v > 0 and v < 100:
+        if v == 0:
+            logging.info("INITIAL_PRINCIPAL 设置为0，将在运行时自动检测账户总资产")
+        elif v > 0 and v < 100:
             logging.warning(f"INITIAL_PRINCIPAL 设置过小 ({v} USDT)，建议至少 500 USDT")
         return v
 
@@ -217,6 +325,85 @@ class Settings(BaseSettings):
             logging.warning(f"AI_MAX_CALLS_PER_DAY 设置过高 ({v})，可能产生高额费用")
         return v
 
+    # --- 🆕 全局资金分配器验证器 ---
+
+    @field_validator('ALLOCATION_STRATEGY')
+    @classmethod
+    def validate_allocation_strategy(cls, v):
+        """验证资金分配策略"""
+        valid_strategies = ['equal', 'weighted', 'dynamic']
+        if v not in valid_strategies:
+            raise ValueError(f"ALLOCATION_STRATEGY 必须是 {valid_strategies} 之一，当前设置为 {v}")
+        return v
+
+    @field_validator('GLOBAL_MAX_USAGE')
+    @classmethod
+    def validate_global_max_usage(cls, v):
+        """验证全局最大资金使用率"""
+        if v < 0.5 or v > 1.0:
+            raise ValueError(f"GLOBAL_MAX_USAGE 必须在 0.5-1.0 之间，当前设置为 {v}")
+        if v < 0.8:
+            logging.warning(f"GLOBAL_MAX_USAGE 设置过低 ({v:.1%})，可能导致资金利用率不足")
+        return v
+
+    @field_validator('REBALANCE_INTERVAL')
+    @classmethod
+    def validate_rebalance_interval(cls, v):
+        """验证重新平衡间隔"""
+        if v < 300:
+            raise ValueError(f"REBALANCE_INTERVAL 不能小于300秒（5分钟），当前设置为 {v}")
+        if v < 1800:
+            logging.warning(f"REBALANCE_INTERVAL 设置过短 ({v}秒)，可能导致频繁重新平衡")
+        return v
+
+    # --- 🆕 止损配置验证器 ---
+
+    @field_validator('STOP_LOSS_PERCENTAGE')
+    @classmethod
+    def validate_stop_loss_percentage(cls, v):
+        """验证价格止损比例"""
+        if v < 0 or v > 50:
+            raise ValueError(f"STOP_LOSS_PERCENTAGE 必须在 0-50 之间，当前设置为 {v}")
+        if v > 0 and v < 5:
+            logging.warning(f"STOP_LOSS_PERCENTAGE 设置过小 ({v}%)，可能频繁触发止损")
+        return v
+
+    @field_validator('TAKE_PROFIT_DRAWDOWN')
+    @classmethod
+    def validate_take_profit_drawdown(cls, v):
+        """验证回撤止盈比例"""
+        if v < 0 or v > 100:
+            raise ValueError(f"TAKE_PROFIT_DRAWDOWN 必须在 0-100 之间，当前设置为 {v}")
+        if v > 0 and v < 10:
+            logging.warning(f"TAKE_PROFIT_DRAWDOWN 设置过小 ({v}%)，可能过于敏感")
+        return v
+
+    @field_validator('LOG_LEVEL')
+    @classmethod
+    def validate_log_level(cls, v):
+        """验证日志级别，支持字符串(INFO/DEBUG等)或整数"""
+        if isinstance(v, str):
+            # 字符串映射到logging常量
+            level_map = {
+                'DEBUG': logging.DEBUG,
+                'INFO': logging.INFO,
+                'WARNING': logging.WARNING,
+                'ERROR': logging.ERROR,
+                'CRITICAL': logging.CRITICAL
+            }
+            level = level_map.get(v.upper())
+            if level is None:
+                raise ValueError(f"LOG_LEVEL 必须是 DEBUG/INFO/WARNING/ERROR/CRITICAL 之一，当前值: {v}")
+            return level
+        elif isinstance(v, int):
+            # 验证整数值是否有效
+            valid_levels = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL]
+            if v not in valid_levels:
+                raise ValueError(f"LOG_LEVEL 整数值必须是有效的logging级别，当前值: {v}")
+            return v
+        else:
+            raise ValueError(f"LOG_LEVEL 必须是字符串或整数，当前类型: {type(v)}")
+
     # --- 固定配置 (不常修改，保留在代码中) ---
     MIN_POSITION_PERCENT: float = 0.05
     MAX_POSITION_PERCENT: float = 0.15
@@ -226,7 +413,7 @@ class Settings(BaseSettings):
     SAFETY_MARGIN: float = 0.95
     AUTO_ADJUST_BASE_PRICE: bool = False
     PUSHPLUS_TIMEOUT: int = 5
-    LOG_LEVEL: int = logging.INFO
+    LOG_LEVEL: Union[int, str] = logging.INFO  # 支持字符串(INFO/DEBUG等)或整数
     DEBUG_MODE: bool = False
     API_TIMEOUT: int = 10000
     RECV_WINDOW: int = 5000
@@ -306,20 +493,22 @@ class TradingConfig:
     # 成交量加权波动率计算开关
     ENABLE_VOLUME_WEIGHTING = settings.ENABLE_VOLUME_WEIGHTING
 
-    # 动态时间间隔参数
-    DYNAMIC_INTERVAL_PARAMS = settings.DYNAMIC_INTERVAL_PARAMS_JSON if settings.DYNAMIC_INTERVAL_PARAMS_JSON else {
-        # 定义波动率区间与对应调整间隔（小时）的映射关系
+    # 动态时间间隔参数（使用配置合并策略）
+    # 默认配置
+    _DEFAULT_DYNAMIC_INTERVAL_PARAMS = {
+        'default_interval_hours': 1.0,  # 默认间隔
         'volatility_to_interval_hours': [
-            # 格式: {'range': [最低波动率(含), 最高波动率(不含)], 'interval_hours': 对应的小时间隔}
-            # --- 与新的网格映射保持一致的时间间隔 ---
             {'range': [0, 0.10], 'interval_hours': 1.0},      # 波动率 < 10%，每 1 小时检查一次
             {'range': [0.10, 0.20], 'interval_hours': 0.5},   # 波动率 10-20%，每 30 分钟检查一次
             {'range': [0.20, 0.30], 'interval_hours': 0.25},  # 波动率 20-30%，每 15 分钟检查一次
             {'range': [0.30, 999], 'interval_hours': 0.125},  # 波动率 > 30%，每 7.5 分钟检查一次
-        ],
-        # 定义一个默认间隔，以防波动率计算失败或未匹配到任何区间
-        'default_interval_hours': 1.0
+        ]
     }
+
+    # 合并用户配置（如果有）
+    DYNAMIC_INTERVAL_PARAMS = _DEFAULT_DYNAMIC_INTERVAL_PARAMS.copy()
+    if settings.DYNAMIC_INTERVAL_PARAMS_JSON:
+        DYNAMIC_INTERVAL_PARAMS.update(settings.DYNAMIC_INTERVAL_PARAMS_JSON)
 
     # 保留的策略相关基础值
     BASE_AMOUNT = 50.0  # 基础交易金额（可调整）

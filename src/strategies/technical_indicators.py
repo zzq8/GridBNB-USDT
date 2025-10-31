@@ -8,6 +8,11 @@
 - 布林带 (Bollinger Bands)
 - EMA (指数移动平均线)
 - 成交量分析
+
+🆕 支持多时间周期分析:
+- 宏观周期 (Daily/Weekly) - 定大方向
+- 中观周期 (4H/1H) - 当前波段
+- 微观周期 (15m/5m) - 精准入场点
 """
 
 import numpy as np

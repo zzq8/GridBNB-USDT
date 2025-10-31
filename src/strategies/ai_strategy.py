@@ -42,7 +42,19 @@ except ImportError:
 
 from src.strategies.technical_indicators import TechnicalIndicators
 from src.strategies.market_sentiment import get_market_sentiment
+from src.strategies.multi_timeframe_analyzer import MultiTimeframeAnalyzer
+from src.strategies.market_microstructure import OrderBookAnalyzer
+from src.strategies.derivatives_data import DerivativesDataFetcher
+from src.strategies.correlation_analyzer import CorrelationAnalyzer
 from src.config.settings import settings
+
+# 导入Prometheus指标
+try:
+    from src.monitoring.metrics import get_metrics
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    logging.warning("Prometheus指标模块不可用")
 
 
 class AIProvider(Enum):
@@ -77,6 +89,19 @@ class AITradingStrategy:
         # 技术指标计算器
         self.indicators_calculator = TechnicalIndicators()
 
+        # 🆕 多时间周期分析器
+        self.multi_timeframe_analyzer = MultiTimeframeAnalyzer()
+
+        # 🆕 订单簿深度分析器
+        self.orderbook_analyzer = OrderBookAnalyzer()
+
+        # 🆕 衍生品数据获取器
+        exchange_type = getattr(settings, 'EXCHANGE', 'binance').lower()
+        self.derivatives_fetcher = DerivativesDataFetcher(exchange_type=exchange_type)
+
+        # 🆕 BTC相关性分析器
+        self.correlation_analyzer = CorrelationAnalyzer()
+
         # 市场情绪数据获取器
         self.sentiment_data = get_market_sentiment()
 
@@ -98,6 +123,7 @@ class AITradingStrategy:
         self.last_reset_date = datetime.now().date()
         self.consecutive_failures = 0
         self.ai_suggestions_history = []  # 保存历史建议用于学习
+        self.last_ai_decision = None  # 🆕 保存最新的AI决策详情（用于Web UI展示）
 
         # 初始化AI客户端
         self._initialize_ai_client()
@@ -353,6 +379,16 @@ class AITradingStrategy:
             if len(self.ai_suggestions_history) > 100:
                 self.ai_suggestions_history.pop(0)
 
+            # 🆕 保存最新的AI决策详情（用于Web UI展示）
+            self.last_ai_decision = {
+                "suggestion": suggestion,
+                "market_data": analysis_data.get("multi_timeframe_analysis", {}),
+                "orderbook": analysis_data.get("orderbook_analysis", {}),
+                "derivatives": analysis_data.get("derivatives_data", {}),
+                "correlation": analysis_data.get("btc_correlation", {}),
+                "timestamp": datetime.now().isoformat()
+            }
+
             self.logger.info(
                 f"AI分析完成 | "
                 f"建议: {suggestion['action']} | "
@@ -368,17 +404,22 @@ class AITradingStrategy:
             return None
 
     async def _collect_analysis_data(self) -> Dict:
-        """收集AI分析所需的所有数据"""
+        """
+        收集AI分析所需的所有数据（增强版）
+
+        新增数据维度：
+        - 多时间周期分析
+        - 订单簿深度
+        - 衍生品数据（资金费率、持仓量）
+        - BTC相关性
+        """
         from src.strategies.ai_prompt import AIPromptBuilder
 
-        # 获取K线数据
+        # 获取K线数据 (当前使用5分钟作为基准)
         prices, volumes = await self._fetch_recent_klines()
 
-        # 计算技术指标
+        # 计算技术指标 (基于5分钟)
         indicators = self.indicators_calculator.calculate_all_indicators(prices, volumes)
-
-        # 获取市场情绪
-        sentiment = await self.sentiment_data.get_comprehensive_sentiment()
 
         # 市场数据
         current_price = await self.trader._get_latest_price()
@@ -391,6 +432,115 @@ class AITradingStrategy:
             '24h_high': ticker.get('high', 0),
             '24h_low': ticker.get('low', 0)
         }
+
+        # ============ 🆕 并行收集高级数据 ============
+        self.logger.info("开始收集多维度市场数据...")
+
+        # 记录整体数据收集开始时间
+        collection_start_time = time.time()
+
+        try:
+            # 使用 asyncio.gather 并行收集所有高级数据
+            # 为每个数据收集任务添加计时
+            mtf_start = time.time()
+            multi_timeframe_task = self.multi_timeframe_analyzer.analyze_timeframes(
+                self.trader.exchange,
+                self.trader.symbol,
+                current_price
+            )
+
+            ob_start = time.time()
+            orderbook_task = self.orderbook_analyzer.analyze_order_book(
+                self.trader.exchange,
+                self.trader.symbol,
+                current_price
+            )
+
+            funding_start = time.time()
+            funding_rate_task = self.derivatives_fetcher.fetch_funding_rate(
+                self.trader.symbol
+            )
+
+            oi_start = time.time()
+            open_interest_task = self.derivatives_fetcher.fetch_open_interest(
+                self.trader.symbol
+            )
+
+            corr_start = time.time()
+            btc_correlation_task = self.correlation_analyzer.analyze_btc_correlation(
+                self.trader.exchange,
+                self.trader.symbol,
+                timeframe='1h',
+                current_price=current_price
+            )
+
+            sentiment_task = self.sentiment_data.get_comprehensive_sentiment()
+
+            # 并行执行所有任务
+            (
+                multi_timeframe_data,
+                orderbook_data,
+                funding_rate_data,
+                open_interest_data,
+                btc_correlation_data,
+                sentiment
+            ) = await asyncio.gather(
+                multi_timeframe_task,
+                orderbook_task,
+                funding_rate_task,
+                open_interest_task,
+                btc_correlation_task,
+                sentiment_task,
+                return_exceptions=True  # 容错处理
+            )
+
+            # 记录各项数据收集性能
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    # 注意：由于并行执行，这里的时间测量不完全准确，但可以提供粗略估计
+                    # 实际应该在每个分析器内部进行精确计时
+                    total_duration = time.time() - collection_start_time
+                    metrics.record_ai_data_collection(self.trader.symbol, 'all', total_duration)
+                except Exception as me:
+                    self.logger.warning(f"记录性能指标失败: {me}")
+
+            # 容错处理：如果某个数据源失败，使用空数据
+            if isinstance(multi_timeframe_data, Exception):
+                self.logger.error(f"多时间周期分析失败: {multi_timeframe_data}")
+                multi_timeframe_data = {}
+
+            if isinstance(orderbook_data, Exception):
+                self.logger.error(f"订单簿分析失败: {orderbook_data}")
+                orderbook_data = {}
+
+            if isinstance(funding_rate_data, Exception):
+                self.logger.error(f"资金费率获取失败: {funding_rate_data}")
+                funding_rate_data = {}
+
+            if isinstance(open_interest_data, Exception):
+                self.logger.error(f"持仓量获取失败: {open_interest_data}")
+                open_interest_data = {}
+
+            if isinstance(btc_correlation_data, Exception):
+                self.logger.error(f"BTC相关性分析失败: {btc_correlation_data}")
+                btc_correlation_data = {}
+
+            if isinstance(sentiment, Exception):
+                self.logger.error(f"市场情绪获取失败: {sentiment}")
+                sentiment = {}
+
+            self.logger.info("多维度市场数据收集完成")
+
+        except Exception as e:
+            self.logger.error(f"高级数据收集失败: {e}", exc_info=True)
+            multi_timeframe_data = {}
+            orderbook_data = {}
+            funding_rate_data = {}
+            open_interest_data = {}
+            btc_correlation_data = {}
+            sentiment = {}
+        # ============================================
 
         # 持仓状态
         total_value = await self.trader._get_pair_specific_assets_value()
@@ -466,7 +616,14 @@ class AITradingStrategy:
             portfolio=portfolio,
             recent_trades=recent_trades,
             grid_status=grid_status,
-            risk_metrics=risk_metrics
+            risk_metrics=risk_metrics,
+            multi_timeframe=multi_timeframe_data,  # 🆕 多时间周期数据
+            orderbook=orderbook_data,  # 🆕 订单簿深度数据
+            derivatives={  # 🆕 衍生品数据
+                'funding_rate': funding_rate_data,
+                'open_interest': open_interest_data
+            },
+            correlation=btc_correlation_data  # 🆕 BTC相关性数据
         )
 
     async def _call_ai_model(self, prompt: str) -> Optional[str]:
@@ -489,6 +646,7 @@ class AITradingStrategy:
 
     async def _call_openai(self, prompt: str) -> Optional[str]:
         """调用OpenAI API"""
+        start_time = time.time()
         try:
             response = await asyncio.to_thread(
                 self.ai_client.chat.completions.create,
@@ -501,14 +659,69 @@ class AITradingStrategy:
                 max_tokens=500
             )
 
+            # 记录性能和token消耗
+            latency = time.time() - start_time
+
+            # 提取token使用情况
+            usage = response.usage
+            prompt_tokens = usage.prompt_tokens if usage else 0
+            completion_tokens = usage.completion_tokens if usage else 0
+            total_tokens = usage.total_tokens if usage else 0
+
+            # 计算成本（以GPT-4为例，实际价格需要根据模型调整）
+            # GPT-4-turbo: $10/1M prompt tokens, $30/1M completion tokens
+            cost_usd = 0
+            if 'gpt-4' in self.ai_model.lower():
+                cost_usd = (prompt_tokens * 0.00001) + (completion_tokens * 0.00003)
+            elif 'gpt-3.5' in self.ai_model.lower():
+                # GPT-3.5-turbo: $0.5/1M prompt tokens, $1.5/1M completion tokens
+                cost_usd = (prompt_tokens * 0.0000005) + (completion_tokens * 0.0000015)
+
+            # 记录到Prometheus
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    metrics.record_ai_decision(
+                        symbol=self.trader.symbol,
+                        provider='openai',
+                        status='success',
+                        latency=latency,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_tokens=total_tokens,
+                        cost_usd=cost_usd
+                    )
+                except Exception as me:
+                    self.logger.warning(f"记录AI指标失败: {me}")
+
+            self.logger.info(
+                f"OpenAI调用成功 | 耗时: {latency:.2f}s | "
+                f"Tokens: {total_tokens} (prompt:{prompt_tokens}, completion:{completion_tokens}) | "
+                f"成本: ${cost_usd:.6f}"
+            )
+
             return response.choices[0].message.content
 
         except Exception as e:
+            latency = time.time() - start_time
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    metrics.record_ai_decision(
+                        symbol=self.trader.symbol,
+                        provider='openai',
+                        status='error',
+                        latency=latency
+                    )
+                except Exception:
+                    pass
+
             self.logger.error(f"OpenAI API调用失败: {e}")
             return None
 
     async def _call_anthropic(self, prompt: str) -> Optional[str]:
         """调用Anthropic API"""
+        start_time = time.time()
         try:
             response = await asyncio.to_thread(
                 self.ai_client.messages.create,
@@ -519,8 +732,62 @@ class AITradingStrategy:
                 ]
             )
 
+            # 记录性能和token消耗
+            latency = time.time() - start_time
+
+            # 提取token使用情况
+            usage = response.usage
+            prompt_tokens = usage.input_tokens if usage else 0
+            completion_tokens = usage.output_tokens if usage else 0
+            total_tokens = prompt_tokens + completion_tokens
+
+            # 计算成本（Anthropic Claude价格）
+            # Claude-3.5-sonnet: $3/1M input tokens, $15/1M output tokens
+            cost_usd = 0
+            if 'claude-3' in self.ai_model.lower() or 'claude-sonnet' in self.ai_model.lower():
+                cost_usd = (prompt_tokens * 0.000003) + (completion_tokens * 0.000015)
+            elif 'claude-opus' in self.ai_model.lower():
+                # Claude-3-opus: $15/1M input tokens, $75/1M output tokens
+                cost_usd = (prompt_tokens * 0.000015) + (completion_tokens * 0.000075)
+
+            # 记录到Prometheus
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    metrics.record_ai_decision(
+                        symbol=self.trader.symbol,
+                        provider='anthropic',
+                        status='success',
+                        latency=latency,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_tokens=total_tokens,
+                        cost_usd=cost_usd
+                    )
+                except Exception as me:
+                    self.logger.warning(f"记录AI指标失败: {me}")
+
+            self.logger.info(
+                f"Anthropic调用成功 | 耗时: {latency:.2f}s | "
+                f"Tokens: {total_tokens} (input:{prompt_tokens}, output:{completion_tokens}) | "
+                f"成本: ${cost_usd:.6f}"
+            )
+
             return response.content[0].text
 
         except Exception as e:
+            latency = time.time() - start_time
+            if METRICS_AVAILABLE:
+                try:
+                    metrics = get_metrics()
+                    metrics.record_ai_decision(
+                        symbol=self.trader.symbol,
+                        provider='anthropic',
+                        status='error',
+                        latency=latency
+                    )
+                except Exception:
+                    pass
+
             self.logger.error(f"Anthropic API调用失败: {e}")
             return None
