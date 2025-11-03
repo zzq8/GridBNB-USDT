@@ -94,6 +94,17 @@ class Settings(BaseSettings):
     STOP_LOSS_PERCENTAGE: float = 15.0  # 价格止损比例 (%)
     TAKE_PROFIT_DRAWDOWN: float = 20.0  # 回撤止盈比例 (%)
 
+    # --- 趋势识别配置 🆕 ---
+    ENABLE_TREND_DETECTION: bool = True  # 默认启用趋势识别
+    TREND_EMA_SHORT: int = 20  # EMA短周期
+    TREND_EMA_LONG: int = 50  # EMA长周期
+    TREND_ADX_PERIOD: int = 14  # ADX计算周期
+    TREND_STRONG_THRESHOLD: float = 60.0  # 强趋势阈值
+    TREND_DETECTION_INTERVAL: int = 300  # 趋势检测间隔（秒）
+
+    # --- 交易对特定仓位限制配置 🆕 (Issue #51) ---
+    POSITION_LIMITS_JSON: Dict[str, Dict[str, float]] = {}  # 每个交易对的仓位限制
+
     @field_validator('INITIAL_PARAMS_JSON', mode='before')
     @classmethod
     def parse_initial_params(cls, value):
@@ -137,6 +148,61 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 raise ValueError("SAVINGS_PRECISIONS 格式无效，必须是合法的JSON字符串。")
         return value
+
+    @field_validator('POSITION_LIMITS_JSON', mode='before')
+    @classmethod
+    def parse_position_limits(cls, value):
+        """解析交易对特定仓位限制JSON字符串"""
+        if isinstance(value, str) and value:
+            try:
+                parsed = json.loads(value)
+                # 验证每个交易对配置的格式
+                for symbol, limits in parsed.items():
+                    # 验证必需字段
+                    if 'min' not in limits or 'max' not in limits:
+                        raise ValueError(
+                            f"交易对 {symbol} 的仓位限制必须包含 'min' 和 'max' 字段。"
+                            f"示例: {{\"BNB/USDT\": {{\"min\": 0.20, \"max\": 0.80}}}}"
+                        )
+
+                    min_ratio = float(limits['min'])
+                    max_ratio = float(limits['max'])
+
+                    # 验证逻辑关系
+                    if min_ratio >= max_ratio:
+                        raise ValueError(
+                            f"交易对 {symbol} 的最小仓位({min_ratio})不能大于等于最大仓位({max_ratio})"
+                        )
+
+                    # 验证数值范围
+                    if min_ratio < 0 or min_ratio > 1:
+                        raise ValueError(
+                            f"交易对 {symbol} 的最小仓位({min_ratio})必须在 0-1 之间"
+                        )
+                    if max_ratio < 0 or max_ratio > 1:
+                        raise ValueError(
+                            f"交易对 {symbol} 的最大仓位({max_ratio})必须在 0-1 之间"
+                        )
+
+                    # 警告：配置过于极端
+                    if min_ratio > 0.5:
+                        logging.warning(
+                            f"交易对 {symbol} 的最小仓位设置过高({min_ratio:.1%})，"
+                            f"可能限制灵活性"
+                        )
+                    if max_ratio < 0.3:
+                        logging.warning(
+                            f"交易对 {symbol} 的最大仓位设置过低({max_ratio:.1%})，"
+                            f"可能限制盈利空间"
+                        )
+
+                return parsed
+            except json.JSONDecodeError:
+                raise ValueError(
+                    "POSITION_LIMITS_JSON 格式无效，必须是合法的JSON字符串。"
+                    "示例: {\"BNB/USDT\": {\"min\": 0.20, \"max\": 0.80}}"
+                )
+        return value if value else {}
 
     # --- 新增验证器：增强环境变量验证 ---
 
@@ -375,6 +441,27 @@ class Settings(BaseSettings):
             raise ValueError(f"TAKE_PROFIT_DRAWDOWN 必须在 0-100 之间，当前设置为 {v}")
         if v > 0 and v < 10:
             logging.warning(f"TAKE_PROFIT_DRAWDOWN 设置过小 ({v}%)，可能过于敏感")
+        return v
+
+    # --- 🆕 趋势识别配置验证器 ---
+
+    @field_validator('TREND_EMA_SHORT', 'TREND_EMA_LONG')
+    @classmethod
+    def validate_ema_periods(cls, v, info):
+        """验证EMA周期"""
+        field_name = info.field_name
+        if v < 5 or v > 200:
+            raise ValueError(f"{field_name} 必须在 5-200 之间，当前设置为 {v}")
+        return v
+
+    @field_validator('TREND_STRONG_THRESHOLD')
+    @classmethod
+    def validate_trend_threshold(cls, v):
+        """验证趋势强度阈值"""
+        if v < 0 or v > 100:
+            raise ValueError(f"TREND_STRONG_THRESHOLD 必须在 0-100 之间，当前设置为 {v}")
+        if v < 40:
+            logging.warning("TREND_STRONG_THRESHOLD 过低可能导致过度限制交易")
         return v
 
     @field_validator('LOG_LEVEL')

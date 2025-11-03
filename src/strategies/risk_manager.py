@@ -19,9 +19,23 @@ class AdvancedRiskManager:
         self._max_limit_warning_logged = False
     
     async def check_position_limits(self, spot_balance, funding_balance) -> RiskState:
-        """检查仓位限制并返回相应的风险状态，同时控制日志频率"""
+        """检查仓位限制并返回相应的风险状态，同时控制日志频率
+
+        优先使用交易对特定的仓位限制（如果配置了），否则使用全局限制。
+        """
         try:
             position_ratio = await self._get_position_ratio(spot_balance, funding_balance) # 传递参数
+
+            # 🆕 获取交易对特定的仓位限制（如果配置了）
+            symbol_limits = settings.POSITION_LIMITS_JSON.get(self.trader.symbol)
+            if symbol_limits:
+                max_ratio = symbol_limits['max']
+                min_ratio = symbol_limits['min']
+                limit_type = f"[{self.trader.symbol}特定]"
+            else:
+                max_ratio = settings.MAX_POSITION_RATIO
+                min_ratio = settings.MIN_POSITION_RATIO
+                limit_type = "[全局]"
 
             # 保存上次的仓位比例
             if not hasattr(self, 'last_position_ratio'):
@@ -30,40 +44,49 @@ class AdvancedRiskManager:
             # 只在仓位比例变化超过0.1%时打印日志
             if abs(position_ratio - self.last_position_ratio) > 0.001:
                 self.logger.info(
-                    f"风控检查 | "
+                    f"风控检查{limit_type} | "
                     f"当前仓位比例: {position_ratio:.2%} | "
-                    f"最大允许比例: {settings.MAX_POSITION_RATIO:.2%} | "
-                    f"最小底仓比例: {settings.MIN_POSITION_RATIO:.2%}"
+                    f"最大允许比例: {max_ratio:.2%} | "
+                    f"最小底仓比例: {min_ratio:.2%}"
                 )
                 self.last_position_ratio = position_ratio
 
-            # 检查仓位是否超限 (> 90%)
-            if position_ratio > settings.MAX_POSITION_RATIO:
+            # 检查仓位是否超限
+            if position_ratio > max_ratio:
                 # 只有在没打印过日志时才打印
                 if not self._max_limit_warning_logged:
-                    self.logger.warning(f"仓位超限 ({position_ratio:.2%})，暂停新的买入操作。")
+                    self.logger.warning(
+                        f"{limit_type}仓位超限 ({position_ratio:.2%} > {max_ratio:.2%})，"
+                        f"暂停新的买入操作。"
+                    )
                     self._max_limit_warning_logged = True  # 标记为已打印
 
                 # 无论是否打印日志，都要重置另一个标记
                 self._min_limit_warning_logged = False
                 return RiskState.ALLOW_SELL_ONLY
 
-            # 检查是否触发底仓保护 (< 10%)
-            elif position_ratio < settings.MIN_POSITION_RATIO:
+            # 检查是否触发底仓保护
+            elif position_ratio < min_ratio:
                 # 只有在没打印过日志时才打印
                 if not self._min_limit_warning_logged:
-                    self.logger.warning(f"底仓保护触发 ({position_ratio:.2%})，暂停新的卖出操作。")
+                    self.logger.warning(
+                        f"{limit_type}底仓保护触发 ({position_ratio:.2%} < {min_ratio:.2%})，"
+                        f"暂停新的卖出操作。"
+                    )
                     self._min_limit_warning_logged = True  # 标记为已打印
 
                 # 无论是否打印日志，都要重置另一个标记
                 self._max_limit_warning_logged = False
                 return RiskState.ALLOW_BUY_ONLY
 
-            # 如果仓位在安全范围内 (10% ~ 90%)
+            # 如果仓位在安全范围内
             else:
                 # 如果之前有警告，现在恢复正常了，就打印一条恢复信息
                 if self._min_limit_warning_logged or self._max_limit_warning_logged:
-                    self.logger.info(f"仓位已恢复至正常范围 ({position_ratio:.2%})。")
+                    self.logger.info(
+                        f"{limit_type}仓位已恢复至正常范围 ({position_ratio:.2%}，"
+                        f"限制范围: {min_ratio:.2%} ~ {max_ratio:.2%})。"
+                    )
 
                 # 将所有日志标记重置为False
                 self._min_limit_warning_logged = False
