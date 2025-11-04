@@ -548,14 +548,13 @@ const Home: React.FC = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} md={12} lg={6}>
           <Card
-            bordered={false}
             style={{
               background: '#FFFFFF',
               borderRadius: 12,
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
               border: '1px solid #F0F0F0',
             }}
-            bodyStyle={{ padding: '20px' }}
+            styles={{ body: { padding: '20px' } }}
           >
             <div>
               <div style={{
@@ -600,14 +599,13 @@ const Home: React.FC = () => {
         </Col>
         <Col xs={24} sm={12} md={12} lg={6}>
           <Card
-            bordered={false}
             style={{
               background: '#FFFFFF',
               borderRadius: 12,
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
               border: '1px solid #F0F0F0',
             }}
-            bodyStyle={{ padding: '20px' }}
+            styles={{ body: { padding: '20px' } }}
           >
             <div>
               <div style={{
@@ -648,14 +646,13 @@ const Home: React.FC = () => {
         </Col>
         <Col xs={24} sm={12} md={12} lg={6}>
           <Card
-            bordered={false}
             style={{
               background: '#FFFFFF',
               borderRadius: 12,
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
               border: '1px solid #F0F0F0',
             }}
-            bodyStyle={{ padding: '20px' }}
+            styles={{ body: { padding: '20px' } }}
           >
             <div>
               <div style={{
@@ -696,14 +693,13 @@ const Home: React.FC = () => {
         </Col>
         <Col xs={24} sm={12} md={12} lg={6}>
           <Card
-            bordered={false}
             style={{
               background: '#FFFFFF',
               borderRadius: 12,
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
               border: '1px solid #F0F0F0',
             }}
-            bodyStyle={{ padding: '20px' }}
+            styles={{ body: { padding: '20px' } }}
           >
             <div>
               <div style={{

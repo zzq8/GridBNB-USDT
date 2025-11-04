@@ -117,3 +117,35 @@ export interface MenuItem {
   path?: string;
   children?: MenuItem[];
 }
+
+// 网格策略状态
+export const GridStrategyStatus = {
+  ACTIVE: 'active',
+  STOPPED: 'stopped',
+  ERROR: 'error',
+} as const;
+
+export type GridStrategyStatus = typeof GridStrategyStatus[keyof typeof GridStrategyStatus];
+
+// 网格策略
+export interface GridStrategy {
+  id: number;
+  name: string;
+  symbol: string;
+  investment_amount: number;
+  grid_count: number;
+  price_min?: number;
+  price_max?: number;
+  price_range_auto?: boolean;
+  min_profit_rate: number;
+  take_profit_enabled?: boolean;
+  take_profit_rate?: number;
+  stop_loss_enabled?: boolean;
+  stop_loss_rate?: number;
+  dynamic_adjustment?: boolean;
+  status: GridStrategyStatus;
+  total_profit: number;
+  today_profit: number;
+  created_at: string;
+  updated_at: string;
+}

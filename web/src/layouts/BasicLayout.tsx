@@ -50,7 +50,7 @@ const BasicLayout: React.FC = () => {
     {
       key: '/templates',
       icon: <AppstoreOutlined />,
-      label: '配置模板',
+      label: '策略模板',
     },
     {
       key: '/trades',

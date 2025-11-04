@@ -283,11 +283,11 @@ const ConfigDetail: React.FC = () => {
         {/* 左侧：配置表单 */}
         <Col span={16}>
           <Card
-            variant="outlined"
             style={{
               background: '#FFFFFF',
               borderRadius: 12,
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+              border: 'none',
             }}
           >
             {!isNew && config?.requires_restart && (
@@ -318,7 +318,7 @@ const ConfigDetail: React.FC = () => {
               {/* 第一步：选择配置类型 */}
               <Form.Item
                 name="config_type"
-                label={<span style={{ fontSize: 15, fontWeight: 600 }}>配置类型</span>}
+                label={<span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>配置类型</span>}
                 rules={[{ required: true, message: '请选择配置类型' }]}
               >
                 <Select
@@ -326,27 +326,30 @@ const ConfigDetail: React.FC = () => {
                   size="large"
                   onChange={(value) => setConfigType(value)}
                   disabled={!isNew}
-                  style={{ fontSize: 14 }}
                 >
                   <Option value={ConfigType.EXCHANGE}>
-                    <div style={{ display: 'flex', alignItems: 'center', padding: '4px 0' }}>
-                      <span style={{ fontSize: 20, marginRight: 12 }}>🏦</span>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>交易所配置</div>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 18, lineHeight: 1 }}>🏦</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: 14, color: '#111827', lineHeight: 1.5 }}>
+                          交易所配置
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.5, marginTop: 2 }}>
                           配置币安、欧易等交易所的API密钥
-                        </Text>
+                        </div>
                       </div>
                     </div>
                   </Option>
                   <Option value={ConfigType.NOTIFICATION}>
-                    <div style={{ display: 'flex', alignItems: 'center', padding: '4px 0' }}>
-                      <span style={{ fontSize: 20, marginRight: 12 }}>🔔</span>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>通知配置</div>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 18, lineHeight: 1 }}>🔔</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: 14, color: '#111827', lineHeight: 1.5 }}>
+                          通知配置
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.5, marginTop: 2 }}>
                           配置微信、邮件、Telegram等通知方式
-                        </Text>
+                        </div>
                       </div>
                     </div>
                   </Option>
@@ -358,7 +361,7 @@ const ConfigDetail: React.FC = () => {
               {/* 第二步：根据配置类型选择具体类型 */}
               {configType === ConfigType.EXCHANGE && (
                 <Form.Item
-                  label={<span style={{ fontSize: 15, fontWeight: 600 }}>选择交易所</span>}
+                  label={<span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>选择交易所</span>}
                   required
                   style={{ marginBottom: 32 }}
                 >
@@ -389,8 +392,8 @@ const ConfigDetail: React.FC = () => {
                         >
                           <div style={{ fontSize: 48, marginBottom: 12, lineHeight: 1 }}>{exchange.icon}</div>
                           <div style={{
-                            fontWeight: 600,
-                            fontSize: 16,
+                            fontWeight: 500,
+                            fontSize: 15,
                             color: subType === exchange.value ? '#3B82F6' : '#111827',
                             lineHeight: 1.4,
                           }}>
@@ -405,7 +408,7 @@ const ConfigDetail: React.FC = () => {
 
               {configType === ConfigType.NOTIFICATION && (
                 <Form.Item
-                  label={<span style={{ fontSize: 15, fontWeight: 600 }}>选择通知方式</span>}
+                  label={<span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>选择通知方式</span>}
                   required
                   style={{ marginBottom: 32 }}
                 >
@@ -436,8 +439,8 @@ const ConfigDetail: React.FC = () => {
                         >
                           <div style={{ fontSize: 40, marginBottom: 10, lineHeight: 1 }}>{notif.icon}</div>
                           <div style={{
-                            fontWeight: 600,
-                            fontSize: 15,
+                            fontWeight: 500,
+                            fontSize: 14,
                             color: subType === notif.value ? '#3B82F6' : '#111827',
                             lineHeight: 1.4,
                           }}>
@@ -454,7 +457,7 @@ const ConfigDetail: React.FC = () => {
               {subType && (
                 <>
                   <Divider style={{ margin: '24px 0', borderColor: '#E5E7EB' }}>
-                    <Text type="secondary" style={{ fontSize: 14, fontWeight: 500 }}>配置详情</Text>
+                    <Text type="secondary" style={{ fontSize: 13, fontWeight: 500, color: '#6B7280' }}>配置详情</Text>
                   </Divider>
 
                   {/* 动态渲染配置字段 */}
@@ -463,7 +466,7 @@ const ConfigDetail: React.FC = () => {
                       <Form.Item
                         key={field.key}
                         name={`dynamic_${field.key}`}
-                        label={<span style={{ fontSize: 14, fontWeight: 500 }}>{field.label}</span>}
+                        label={<span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>{field.label}</span>}
                         rules={[{ required: field.required, message: `请输入${field.label}` }]}
                       >
                         {field.type === 'password' ? (
@@ -487,7 +490,7 @@ const ConfigDetail: React.FC = () => {
                       <Form.Item
                         key={field.key}
                         name={`dynamic_${field.key}`}
-                        label={<span style={{ fontSize: 14, fontWeight: 500 }}>{field.label}</span>}
+                        label={<span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>{field.label}</span>}
                         rules={[{ required: field.required, message: `请输入${field.label}` }]}
                       >
                         {field.type === 'password' ? (
@@ -508,12 +511,16 @@ const ConfigDetail: React.FC = () => {
 
                   <Form.Item
                     name="status"
-                    label={<span style={{ fontSize: 14, fontWeight: 500 }}>状态</span>}
+                    label={<span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>状态</span>}
                     rules={[{ required: true }]}
                   >
                     <Select size="large" style={{ fontSize: 14 }}>
-                      <Option value={ConfigStatus.ACTIVE}>已激活</Option>
-                      <Option value={ConfigStatus.INACTIVE}>已停用</Option>
+                      <Option value={ConfigStatus.ACTIVE}>
+                        <span style={{ fontSize: 14, color: '#111827' }}>已激活</span>
+                      </Option>
+                      <Option value={ConfigStatus.INACTIVE}>
+                        <span style={{ fontSize: 14, color: '#111827' }}>已停用</span>
+                      </Option>
                     </Select>
                   </Form.Item>
                 </>
