@@ -1,60 +1,60 @@
 /**
- * 现代化主题配置 - 科技感深色主题
+ * 现代化主题配置 - 清爽浅色主题
  */
 
 export const modernTheme = {
-  // 主色调 - 科技蓝
+  // 主色调 - 优雅蓝色
   colors: {
-    primary: '#00D4FF',
-    primaryDark: '#0066FF',
-    primaryLight: '#33E0FF',
+    primary: '#3B82F6',
+    primaryDark: '#2563EB',
+    primaryLight: '#60A5FA',
 
     // 辅助色
-    secondary: '#00FFB9',
-    accent: '#9D4EDD',
-    warning: '#FFB800',
+    secondary: '#8B5CF6',
+    accent: '#EC4899',
+    warning: '#F59E0B',
 
     // 涨跌色
-    success: '#00FF88',
-    danger: '#FF4757',
+    success: '#10B981',
+    danger: '#EF4444',
 
-    // 背景色
-    bgPrimary: '#0a0e27',
-    bgSecondary: '#1a1f3a',
-    bgTertiary: '#252b48',
+    // 背景色 - 浅色系
+    bgPrimary: '#FFFFFF',
+    bgSecondary: '#F9FAFB',
+    bgTertiary: '#F3F4F6',
 
     // 文字色
-    textPrimary: '#FFFFFF',
-    textSecondary: '#B8C1EC',
-    textMuted: '#6B7280',
+    textPrimary: '#111827',
+    textSecondary: '#6B7280',
+    textMuted: '#9CA3AF',
 
     // 边框色
-    border: 'rgba(255, 255, 255, 0.1)',
-    borderLight: 'rgba(255, 255, 255, 0.05)',
+    border: '#E5E7EB',
+    borderLight: '#F3F4F6',
 
-    // 玻璃态效果
-    glass: 'rgba(255, 255, 255, 0.05)',
-    glassHover: 'rgba(255, 255, 255, 0.08)',
+    // 玻璃态效果 - 浅色模式
+    glass: '#FFFFFF',
+    glassHover: '#F9FAFB',
   },
 
   // 渐变色
   gradients: {
     primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    blue: 'linear-gradient(135deg, #00D4FF 0%, #0066FF 100%)',
-    green: 'linear-gradient(135deg, #00FFB9 0%, #00FF88 100%)',
-    purple: 'linear-gradient(135deg, #9D4EDD 0%, #C77DFF 100%)',
-    background: 'linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%)',
-    card: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+    blue: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+    green: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+    purple: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+    background: 'linear-gradient(135deg, #F9FAFB 0%, #FFFFFF 50%, #F9FAFB 100%)',
+    card: 'linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%)',
   },
 
   // 阴影
   shadows: {
-    sm: '0 2px 8px rgba(0, 0, 0, 0.15)',
-    md: '0 4px 16px rgba(0, 0, 0, 0.2)',
-    lg: '0 8px 32px rgba(0, 0, 0, 0.3)',
-    xl: '0 12px 48px rgba(0, 0, 0, 0.4)',
-    glow: '0 0 20px rgba(0, 212, 255, 0.3)',
-    glowStrong: '0 0 30px rgba(0, 212, 255, 0.5)',
+    sm: '0 1px 2px rgba(0, 0, 0, 0.05)',
+    md: '0 2px 8px rgba(0, 0, 0, 0.06)',
+    lg: '0 4px 12px rgba(0, 0, 0, 0.08)',
+    xl: '0 8px 24px rgba(0, 0, 0, 0.12)',
+    glow: '0 0 20px rgba(59, 130, 246, 0.15)',
+    glowStrong: '0 0 30px rgba(59, 130, 246, 0.25)',
   },
 
   // 圆角

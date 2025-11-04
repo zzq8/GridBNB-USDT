@@ -40,7 +40,7 @@ const TemplateList: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Text strong>{record.display_name}</Text>
-          {record.is_system && <Tag color="blue">系统模板</Tag>}
+          {record.is_system && <Tag color="#3B82F6">系统模板</Tag>}
         </Space>
       ),
     },
@@ -51,9 +51,7 @@ const TemplateList: React.FC = () => {
       valueType: 'select',
       valueEnum: {
         exchange: { text: '交易所配置', status: 'Processing' },
-        trading: { text: '交易策略', status: 'Success' },
-        risk: { text: '风控配置', status: 'Warning' },
-        ai: { text: 'AI策略', status: 'Default' },
+        notification: { text: '通知配置', status: 'Success' },
       },
     },
     {
@@ -70,7 +68,7 @@ const TemplateList: React.FC = () => {
       search: false,
       sorter: true,
       render: (count) => (
-        <Tag color={Number(count) > 10 ? 'green' : 'default'}>{count}</Tag>
+        <Tag color={Number(count) > 10 ? '#10B981' : '#9CA3AF'}>{count}</Tag>
       ),
     },
     {
@@ -84,11 +82,11 @@ const TemplateList: React.FC = () => {
       },
       render: (_, record) =>
         record.is_active ? (
-          <Tag icon={<CheckCircleOutlined />} color="success">
+          <Tag icon={<CheckCircleOutlined />} color="#10B981">
             启用
           </Tag>
         ) : (
-          <Tag color="default">禁用</Tag>
+          <Tag color="#9CA3AF">禁用</Tag>
         ),
     },
     {

@@ -16,7 +16,9 @@ const AppRoutes = () => {
 // 加载中组件
 const PageLoading = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-    <Spin size="large" tip="加载中..." />
+    <Spin size="large" tip="加载中...">
+      <div style={{ padding: '50px' }} />
+    </Spin>
   </div>
 );
 

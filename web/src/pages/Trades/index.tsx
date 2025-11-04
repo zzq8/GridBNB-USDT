@@ -114,23 +114,23 @@ const Trades: React.FC = () => {
     fetchTrades();
   }, [selectedSymbol, selectedSide, dateRange, page, pageSize]);
 
-  // 交易方向标签
+  // 交易方向标签 - 使用浅色主题
   const renderSideTag = (side: string) => {
     const sideUpper = side.toUpperCase();
     if (sideUpper === 'BUY') {
       return (
-        <Tag color="green" icon={<RiseOutlined />}>
+        <Tag color="#10B981" icon={<RiseOutlined />}>
           买入
         </Tag>
       );
     } else if (sideUpper === 'SELL') {
       return (
-        <Tag color="red" icon={<FallOutlined />}>
+        <Tag color="#EF4444" icon={<FallOutlined />}>
           卖出
         </Tag>
       );
     } else {
-      return <Tag color="default">{side}</Tag>;
+      return <Tag color="#9CA3AF">{side}</Tag>;
     }
   };
 
@@ -152,7 +152,7 @@ const Trades: React.FC = () => {
       dataIndex: 'symbol',
       key: 'symbol',
       width: 120,
-      render: (symbol: string) => <Tag color="blue">{symbol}</Tag>,
+      render: (symbol: string) => <Tag color="#3B82F6">{symbol}</Tag>,
     },
     {
       title: '方向',

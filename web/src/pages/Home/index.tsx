@@ -52,6 +52,7 @@ import SSEStatusIndicator from '@/components/SSEStatusIndicator';
 import GlassCard from '@/components/GlassCard';
 import CountUp from '@/components/CountUp';
 import { modernTheme } from '@/styles/modernTheme';
+import { modernColors } from '@/config/theme';
 
 const { Text } = Typography;
 
@@ -461,7 +462,11 @@ const Home: React.FC = () => {
   }
 
   return (
-    <div>
+    <div style={{
+      minHeight: '100vh',
+      background: '#F9FAFB',
+      padding: '0',
+    }}>
       {/* 顶部警告（如果系统有异常）*/}
       {dashboardData.system_status === 'error' && (
         <Alert
@@ -539,138 +544,202 @@ const Home: React.FC = () => {
         </Space>
       </Card>
 
-      {/* 核心指标卡片 - 现代化数据大屏风格 */}
+      {/* 核心指标卡片 - 现代浅色风格，优化对比度 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} md={12} lg={6}>
-          <GlassCard glow={dashboardData.total_profit >= 0} hover>
-            <div style={{ textAlign: 'center' }}>
+          <Card
+            bordered={false}
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 12,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+              border: '1px solid #F0F0F0',
+            }}
+            bodyStyle={{ padding: '20px' }}
+          >
+            <div>
               <div style={{
-                fontSize: 14,
-                color: modernTheme.colors.textSecondary,
+                fontSize: 13,
+                color: '#6B7280',
                 marginBottom: 12,
+                fontWeight: 500,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
+                累计盈亏
+              </div>
+              <div style={{
+                fontSize: 32,
+                fontWeight: 700,
+                color: dashboardData.total_profit >= 0 ? '#10B981' : '#EF4444',
+                marginBottom: 12,
+                lineHeight: 1.2,
+              }}>
+                <CountUp
+                  end={dashboardData.total_profit}
+                  decimals={2}
+                  suffix=" USDT"
+                />
+              </div>
+              <div style={{
+                fontSize: 13,
+                color: dashboardData.total_profit >= 0 ? '#10B981' : '#EF4444',
+                fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8
+                gap: 4,
               }}>
                 {dashboardData.total_profit >= 0 ? (
-                  <ArrowUpOutlined style={{ color: modernTheme.colors.success }} />
+                  <><ArrowUpOutlined /> 盈利中</>
                 ) : (
-                  <ArrowDownOutlined style={{ color: modernTheme.colors.danger }} />
+                  <><ArrowDownOutlined /> 亏损中</>
                 )}
-                <span>累计盈亏</span>
               </div>
-              <CountUp
-                end={dashboardData.total_profit}
-                decimals={2}
-                suffix=" USDT"
-                style={{
-                  fontSize: 32,
-                  fontWeight: 'bold',
-                  background: dashboardData.total_profit >= 0
-                    ? modernTheme.gradients.green
-                    : `linear-gradient(135deg, ${modernTheme.colors.danger} 0%, #FF6B6B 100%)`,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              />
             </div>
-          </GlassCard>
+          </Card>
         </Col>
         <Col xs={24} sm={12} md={12} lg={6}>
-          <GlassCard glow hover>
-            <div style={{ textAlign: 'center' }}>
+          <Card
+            bordered={false}
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 12,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+              border: '1px solid #F0F0F0',
+            }}
+            bodyStyle={{ padding: '20px' }}
+          >
+            <div>
               <div style={{
-                fontSize: 14,
-                color: modernTheme.colors.textSecondary,
+                fontSize: 13,
+                color: '#6B7280',
                 marginBottom: 12,
+                fontWeight: 500,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
+                收益率
+              </div>
+              <div style={{
+                fontSize: 32,
+                fontWeight: 700,
+                color: '#3B82F6',
+                marginBottom: 12,
+                lineHeight: 1.2,
+              }}>
+                <CountUp
+                  end={dashboardData.profit_rate}
+                  decimals={2}
+                  suffix="%"
+                />
+              </div>
+              <div style={{
+                fontSize: 13,
+                color: '#9CA3AF',
+                fontWeight: 500,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8
+                gap: 4,
               }}>
-                <TrophyOutlined style={{ color: modernTheme.colors.warning }} />
-                <span>收益率</span>
+                <TrophyOutlined /> 总收益
               </div>
-              <CountUp
-                end={dashboardData.profit_rate}
-                decimals={2}
-                suffix="%"
-                style={{
-                  fontSize: 32,
-                  fontWeight: 'bold',
-                  background: modernTheme.gradients.purple,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              />
             </div>
-          </GlassCard>
+          </Card>
         </Col>
         <Col xs={24} sm={12} md={12} lg={6}>
-          <GlassCard glow hover>
-            <div style={{ textAlign: 'center' }}>
+          <Card
+            bordered={false}
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 12,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+              border: '1px solid #F0F0F0',
+            }}
+            bodyStyle={{ padding: '20px' }}
+          >
+            <div>
               <div style={{
-                fontSize: 14,
-                color: modernTheme.colors.textSecondary,
+                fontSize: 13,
+                color: '#6B7280',
                 marginBottom: 12,
+                fontWeight: 500,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
+                今日盈亏
+              </div>
+              <div style={{
+                fontSize: 32,
+                fontWeight: 700,
+                color: dashboardData.today_profit >= 0 ? '#10B981' : '#EF4444',
+                marginBottom: 12,
+                lineHeight: 1.2,
+              }}>
+                <CountUp
+                  end={dashboardData.today_profit}
+                  decimals={2}
+                  suffix=" USDT"
+                />
+              </div>
+              <div style={{
+                fontSize: 13,
+                color: '#9CA3AF',
+                fontWeight: 500,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8
+                gap: 4,
               }}>
-                <DollarOutlined style={{ color: modernTheme.colors.secondary }} />
-                <span>今日盈亏</span>
+                <DollarOutlined /> 24H
               </div>
-              <CountUp
-                end={dashboardData.today_profit}
-                decimals={2}
-                suffix=" USDT"
-                style={{
-                  fontSize: 32,
-                  fontWeight: 'bold',
-                  background: dashboardData.today_profit >= 0
-                    ? modernTheme.gradients.green
-                    : `linear-gradient(135deg, ${modernTheme.colors.danger} 0%, #FF6B6B 100%)`,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              />
             </div>
-          </GlassCard>
+          </Card>
         </Col>
         <Col xs={24} sm={12} md={12} lg={6}>
-          <GlassCard glow hover>
-            <div style={{ textAlign: 'center' }}>
+          <Card
+            bordered={false}
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 12,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+              border: '1px solid #F0F0F0',
+            }}
+            bodyStyle={{ padding: '20px' }}
+          >
+            <div>
               <div style={{
-                fontSize: 14,
-                color: modernTheme.colors.textSecondary,
+                fontSize: 13,
+                color: '#6B7280',
                 marginBottom: 12,
+                fontWeight: 500,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
+                总交易次数
+              </div>
+              <div style={{
+                fontSize: 32,
+                fontWeight: 700,
+                color: '#111827',
+                marginBottom: 12,
+                lineHeight: 1.2,
+              }}>
+                <CountUp
+                  end={dashboardData.total_trades}
+                  decimals={0}
+                />
+              </div>
+              <div style={{
+                fontSize: 13,
+                color: '#9CA3AF',
+                fontWeight: 500,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8
+                gap: 4,
               }}>
-                <LineChartOutlined style={{ color: modernTheme.colors.primary }} />
-                <span>总交易次数</span>
+                <LineChartOutlined /> 累计
               </div>
-              <CountUp
-                end={dashboardData.total_trades}
-                decimals={0}
-                style={{
-                  fontSize: 32,
-                  fontWeight: 'bold',
-                  background: modernTheme.gradients.blue,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              />
             </div>
-          </GlassCard>
+          </Card>
         </Col>
       </Row>
 

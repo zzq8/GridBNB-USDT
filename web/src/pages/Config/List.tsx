@@ -3,7 +3,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Button, Space, Tag, Modal, message, Tooltip, Upload } from 'antd';
+import { Button, Space, Tag, Modal, message, Tooltip, Upload, Typography, Alert } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
@@ -33,23 +33,20 @@ import type { Configuration } from '@/types';
 import { ConfigType, ConfigStatus } from '@/types';
 
 const { confirm } = Modal;
+const { Text } = Typography;
 
-// 配置类型映射
+// 配置类型映射 - 仅交易所和通知配置
 const CONFIG_TYPE_MAP = {
-  [ConfigType.EXCHANGE]: { text: '交易所配置', color: 'blue' },
-  [ConfigType.TRADING]: { text: '交易策略', color: 'green' },
-  [ConfigType.RISK]: { text: '风控配置', color: 'orange' },
-  [ConfigType.AI]: { text: 'AI策略', color: 'purple' },
-  [ConfigType.NOTIFICATION]: { text: '通知配置', color: 'cyan' },
-  [ConfigType.SYSTEM]: { text: '系统配置', color: 'default' },
+  [ConfigType.EXCHANGE]: { text: '交易所配置', color: '#3B82F6', description: 'API密钥、交易所连接等' },
+  [ConfigType.NOTIFICATION]: { text: '通知配置', color: '#06B6D4', description: '消息推送、告警通知等' },
 };
 
-// 配置状态映射
+// 配置状态映射 - 使用浅色主题
 const CONFIG_STATUS_MAP = {
-  [ConfigStatus.DRAFT]: { text: '草稿', color: 'default' },
-  [ConfigStatus.ACTIVE]: { text: '已激活', color: 'success' },
-  [ConfigStatus.INACTIVE]: { text: '已停用', color: 'warning' },
-  [ConfigStatus.ARCHIVED]: { text: '已归档', color: 'error' },
+  [ConfigStatus.DRAFT]: { text: '草稿', color: '#9CA3AF' },
+  [ConfigStatus.ACTIVE]: { text: '已激活', color: '#10B981' },
+  [ConfigStatus.INACTIVE]: { text: '已停用', color: '#F59E0B' },
+  [ConfigStatus.ARCHIVED]: { text: '已归档', color: '#EF4444' },
 };
 
 const ConfigList: React.FC = () => {
@@ -315,6 +312,10 @@ const ConfigList: React.FC = () => {
       ),
       render: (_, record) => {
         const typeInfo = CONFIG_TYPE_MAP[record.config_type];
+        // 容错处理：如果配置类型不在映射中（可能是旧数据），显示为灰色
+        if (!typeInfo) {
+          return <Tag color="#9CA3AF">{record.config_type}</Tag>;
+        }
         return <Tag color={typeInfo.color}>{typeInfo.text}</Tag>;
       },
     },
@@ -331,6 +332,10 @@ const ConfigList: React.FC = () => {
       ),
       render: (_, record) => {
         const statusInfo = CONFIG_STATUS_MAP[record.status];
+        // 容错处理：如果状态不在映射中，显示为灰色
+        if (!statusInfo) {
+          return <Tag color="#9CA3AF">{record.status}</Tag>;
+        }
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
       },
     },
@@ -480,7 +485,39 @@ const ConfigList: React.FC = () => {
   };
 
   return (
-    <ProTable<Configuration>
+    <div>
+      {/* 配置说明提示 */}
+      <Alert
+        message="配置说明"
+        description={
+          <div>
+            <p style={{ marginBottom: 8 }}>
+              本页面用于管理系统核心配置，包括：
+            </p>
+            <ul style={{ marginBottom: 8, paddingLeft: 20 }}>
+              <li>
+                <strong>交易所配置</strong>：API密钥（API_KEY、API_SECRET）、交易所URL等
+              </li>
+              <li>
+                <strong>通知配置</strong>：微信推送Token、邮件服务器、告警阈值等
+              </li>
+            </ul>
+            <p style={{ marginBottom: 0, fontSize: 12, color: '#6B7280' }}>
+              💡 提示：如果看到其他配置类型（如trading、risk等），这些是历史数据，建议迁移或删除
+            </p>
+          </div>
+        }
+        type="info"
+        showIcon
+        closable
+        style={{
+          marginBottom: 16,
+          background: '#E0F2FE',
+          border: '1px solid #3B82F6',
+        }}
+      />
+
+      <ProTable<Configuration>
       columns={columns}
       actionRef={actionRef}
       request={request}
@@ -495,7 +532,14 @@ const ConfigList: React.FC = () => {
         pageSizeOptions: ['10', '20', '50', '100'],
       }}
       dateFormatter="string"
-      headerTitle="配置管理"
+      headerTitle={
+        <Space direction="vertical" size={0}>
+          <span style={{ fontSize: 16, fontWeight: 600 }}>配置管理</span>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            管理交易所API密钥、通知推送等核心配置
+          </Text>
+        </Space>
+      }
       toolBarRender={() => [
         <Button
           key="reload_cache"
@@ -543,6 +587,7 @@ const ConfigList: React.FC = () => {
         </Button>,
       ]}
     />
+    </div>
   );
 };
 
