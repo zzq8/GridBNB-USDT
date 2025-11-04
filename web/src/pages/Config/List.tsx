@@ -337,7 +337,6 @@ const ConfigList: React.FC = () => {
             </div>
           </div>
           <Button
-            type="primary"
             size="large"
             icon={<PlusOutlined />}
             style={{
@@ -349,6 +348,14 @@ const ConfigList: React.FC = () => {
               fontWeight: 700,
               padding: '0 32px',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#F0F9FF';
+              e.currentTarget.style.transform = 'scale(1.02)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#FFFFFF';
+              e.currentTarget.style.transform = 'scale(1)';
             }}
           >
             立即添加
