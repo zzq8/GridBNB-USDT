@@ -1,9 +1,9 @@
 /**
- * 配置列表页面 - 企业级配置管理
+ * 配置列表页面 - 简化版（适合小白用户）
  */
 
 import React, { useRef, useState } from 'react';
-import { Button, Space, Tag, Modal, message, Tooltip, Upload, Typography, Alert } from 'antd';
+import { Button, Space, Tag, Modal, message, Card, Typography, Alert } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
@@ -11,12 +11,8 @@ import {
   ExclamationCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  ReloadOutlined,
   EyeOutlined,
   EyeInvisibleOutlined,
-  DownloadOutlined,
-  UploadOutlined,
-  SyncOutlined,
 } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ProColumns, ActionType } from '@ant-design/pro-components';
@@ -25,241 +21,46 @@ import {
   getConfigs,
   deleteConfig,
   updateConfig,
-  reloadConfigs,
-  exportConfigs,
-  importConfigs,
 } from '@/api/config';
 import type { Configuration } from '@/types';
 import { ConfigType, ConfigStatus } from '@/types';
 
 const { confirm } = Modal;
-const { Text } = Typography;
+const { Title, Paragraph } = Typography;
 
-// 配置类型映射 - 仅交易所和通知配置
+// 配置类型映射 - 简化版
 const CONFIG_TYPE_MAP = {
-  [ConfigType.EXCHANGE]: { text: '交易所配置', color: '#3B82F6', description: 'API密钥、交易所连接等' },
-  [ConfigType.NOTIFICATION]: { text: '通知配置', color: '#06B6D4', description: '消息推送、告警通知等' },
-};
-
-// 配置状态映射 - 使用浅色主题
-const CONFIG_STATUS_MAP = {
-  [ConfigStatus.DRAFT]: { text: '草稿', color: '#9CA3AF' },
-  [ConfigStatus.ACTIVE]: { text: '已激活', color: '#10B981' },
-  [ConfigStatus.INACTIVE]: { text: '已停用', color: '#F59E0B' },
-  [ConfigStatus.ARCHIVED]: { text: '已归档', color: '#EF4444' },
+  [ConfigType.EXCHANGE]: { text: '交易所', color: '#3B82F6', icon: '🏦' },
+  [ConfigType.NOTIFICATION]: { text: '通知', color: '#10B981', icon: '🔔' },
 };
 
 const ConfigList: React.FC = () => {
   const navigate = useNavigate();
   const actionRef = useRef<ActionType>(null);
   const [showSensitive, setShowSensitive] = useState<Record<number, boolean>>({});
-  const [reloading, setReloading] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
-
-  // 重新加载配置
-  const handleReload = async () => {
-    confirm({
-      title: '重新加载配置',
-      icon: <ExclamationCircleOutlined />,
-      content: (
-        <div>
-          <p>将从数据库重新加载配置到内存缓存。</p>
-          <p style={{ color: '#1890ff', fontSize: 12 }}>
-            ✓ 标记为"不需要重启"的配置将立即生效
-          </p>
-          <p style={{ color: '#faad14', fontSize: 12 }}>
-            ⚠️ 标记为"需要重启"的配置仍需重启系统才能生效
-          </p>
-        </div>
-      ),
-      okText: '确认重新加载',
-      cancelText: '取消',
-      onOk: async () => {
-        setReloading(true);
-        try {
-          const result = await reloadConfigs();
-          message.success(
-            `配置已重新加载！缓存中共有 ${result.cache_size} 个配置项`
-          );
-          if (result.warning) {
-            message.warning(result.warning, 5);
-          }
-        } catch (error) {
-          message.error('配置重新加载失败');
-        } finally {
-          setReloading(false);
-        }
-      },
-    });
-  };
-
-  // 导出配置
-  const handleExport = async (configType?: string) => {
-    confirm({
-      title: '导出配置',
-      icon: <DownloadOutlined />,
-      content: (
-        <div>
-          <p>导出配置为JSON文件。</p>
-          {configType ? (
-            <p>将导出类型为 <strong>{CONFIG_TYPE_MAP[configType as keyof typeof CONFIG_TYPE_MAP]?.text}</strong> 的配置</p>
-          ) : (
-            <p>将导出所有配置</p>
-          )}
-          <p style={{ color: '#faad14', fontSize: 12 }}>
-            注意：敏感配置（如Token）默认不会导出
-          </p>
-        </div>
-      ),
-      okText: '确认导出',
-      cancelText: '取消',
-      onOk: async () => {
-        setExporting(true);
-        try {
-          const blob = await exportConfigs({
-            config_type: configType,
-            include_sensitive: false,
-          });
-
-          // 创建下载链接
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-
-          // 生成文件名
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-          const suffix = configType ? `_${configType}` : '_all';
-          link.download = `gridbnb_config${suffix}_${timestamp}.json`;
-
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-
-          message.success('配置导出成功');
-        } catch (error) {
-          message.error('配置导出失败');
-        } finally {
-          setExporting(false);
-        }
-      },
-    });
-  };
-
-  // 导入配置
-  const handleImport = async (file: File) => {
-    confirm({
-      title: '导入配置',
-      icon: <UploadOutlined />,
-      content: (
-        <div>
-          <p>从文件导入配置。</p>
-          <p>文件名：<strong>{file.name}</strong></p>
-          <p style={{ color: '#1890ff', fontSize: 12 }}>
-            ✓ 导入前会自动创建备份
-          </p>
-          <p style={{ color: '#faad14', fontSize: 12 }}>
-            ⚠️ 将覆盖已存在的配置
-          </p>
-        </div>
-      ),
-      okText: '确认导入',
-      okType: 'danger',
-      cancelText: '取消',
-      onOk: async () => {
-        setImporting(true);
-        try {
-          const result = await importConfigs(file, {
-            overwrite: true,
-            create_backup: true,
-          });
-
-          // 显示导入结果
-          Modal.success({
-            title: '配置导入完成',
-            width: 600,
-            content: (
-              <div>
-                <p>导入成功：<strong style={{ color: '#52c41a' }}>{result.imported}</strong> 项</p>
-                <p>跳过：<strong>{result.skipped}</strong> 项</p>
-                <p>失败：<strong style={{ color: '#ff4d4f' }}>{result.failed}</strong> 项</p>
-                {result.requires_restart && (
-                  <p style={{ color: '#faad14', marginTop: 16 }}>
-                    ⚠️ 部分配置需要重启系统才能生效
-                  </p>
-                )}
-                {result.details.length > 0 && (
-                  <div style={{ marginTop: 16, maxHeight: 300, overflow: 'auto' }}>
-                    <p style={{ fontWeight: 'bold' }}>详细信息：</p>
-                    {result.details.slice(0, 10).map((detail, index) => (
-                      <div key={index} style={{ fontSize: 12, padding: '4px 0' }}>
-                        <Tag color={
-                          detail.status === 'updated' ? 'success' :
-                          detail.status === 'skipped' ? 'default' : 'error'
-                        }>
-                          {detail.status}
-                        </Tag>
-                        <span>{detail.key}</span>
-                        {detail.reason && <span style={{ color: '#999' }}> - {detail.reason}</span>}
-                        {detail.error && <span style={{ color: '#ff4d4f' }}> - {detail.error}</span>}
-                      </div>
-                    ))}
-                    {result.details.length > 10 && (
-                      <p style={{ color: '#999', fontSize: 12, marginTop: 8 }}>
-                        ... 还有 {result.details.length - 10} 项
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            ),
-          });
-
-          // 刷新列表
-          actionRef.current?.reload();
-        } catch (error: any) {
-          message.error(error.message || '配置导入失败');
-        } finally {
-          setImporting(false);
-        }
-      },
-    });
-
-    return false; // 阻止默认上传行为
-  };
 
   // 表格列定义
   const columns: ProColumns<Configuration>[] = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      width: 60,
-      search: false,
-      sorter: true,
-    },
-    {
-      title: '配置键',
-      dataIndex: 'config_key',
-      width: 200,
-      ellipsis: true,
-      copyable: true,
-      render: (_, record) => (
-        <Tooltip title={record.description}>
-          <span style={{ fontFamily: 'monospace' }}>{record.config_key}</span>
-        </Tooltip>
-      ),
-    },
-    {
-      title: '显示名称',
+      title: '名称',
       dataIndex: 'display_name',
-      width: 150,
+      width: 250,
       ellipsis: true,
+      render: (_, record) => (
+        <div>
+          <div style={{ fontWeight: 500, color: '#111827', marginBottom: 4 }}>
+            {record.display_name}
+          </div>
+          <div style={{ fontSize: 12, color: '#6B7280' }}>
+            {record.config_key}
+          </div>
+        </div>
+      ),
     },
     {
       title: '配置值',
       dataIndex: 'config_value',
-      width: 200,
+      width: 300,
       search: false,
       ellipsis: true,
       render: (_, record) => {
@@ -269,22 +70,24 @@ const ConfigList: React.FC = () => {
         if (isSensitive && !isShown) {
           return (
             <Space>
-              <span style={{ fontFamily: 'monospace' }}>********</span>
+              <span style={{ fontFamily: 'monospace', color: '#6B7280' }}>••••••••</span>
               <Button
                 type="link"
                 size="small"
                 icon={<EyeOutlined />}
                 onClick={() => setShowSensitive({ ...showSensitive, [record.id]: true })}
-              />
+              >
+                显示
+              </Button>
             </Space>
           );
         }
 
         return (
           <Space>
-            <span style={{ fontFamily: 'monospace' }}>
-              {record.config_value.length > 30
-                ? `${record.config_value.substring(0, 30)}...`
+            <span style={{ fontFamily: 'monospace', fontSize: 13 }}>
+              {record.config_value.length > 50
+                ? `${record.config_value.substring(0, 50)}...`
                 : record.config_value}
             </span>
             {isSensitive && (
@@ -293,16 +96,18 @@ const ConfigList: React.FC = () => {
                 size="small"
                 icon={<EyeInvisibleOutlined />}
                 onClick={() => setShowSensitive({ ...showSensitive, [record.id]: false })}
-              />
+              >
+                隐藏
+              </Button>
             )}
           </Space>
         );
       },
     },
     {
-      title: '配置类型',
+      title: '类型',
       dataIndex: 'config_type',
-      width: 120,
+      width: 100,
       valueType: 'select',
       valueEnum: Object.fromEntries(
         Object.entries(CONFIG_TYPE_MAP).map(([key, value]) => [
@@ -311,12 +116,13 @@ const ConfigList: React.FC = () => {
         ])
       ),
       render: (_, record) => {
-        const typeInfo = CONFIG_TYPE_MAP[record.config_type];
-        // 容错处理：如果配置类型不在映射中（可能是旧数据），显示为灰色
-        if (!typeInfo) {
-          return <Tag color="#9CA3AF">{record.config_type}</Tag>;
-        }
-        return <Tag color={typeInfo.color}>{typeInfo.text}</Tag>;
+        const typeInfo = CONFIG_TYPE_MAP[record.config_type] || { text: record.config_type, color: '#9CA3AF', icon: '⚙️' };
+        return (
+          <Tag color={typeInfo.color}>
+            <span style={{ marginRight: 4 }}>{typeInfo.icon}</span>
+            {typeInfo.text}
+          </Tag>
+        );
       },
     },
     {
@@ -324,47 +130,18 @@ const ConfigList: React.FC = () => {
       dataIndex: 'status',
       width: 100,
       valueType: 'select',
-      valueEnum: Object.fromEntries(
-        Object.entries(CONFIG_STATUS_MAP).map(([key, value]) => [
-          key,
-          { text: value.text },
-        ])
-      ),
-      render: (_, record) => {
-        const statusInfo = CONFIG_STATUS_MAP[record.status];
-        // 容错处理：如果状态不在映射中，显示为灰色
-        if (!statusInfo) {
-          return <Tag color="#9CA3AF">{record.status}</Tag>;
-        }
-        return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
-      },
-    },
-    {
-      title: '需要重启',
-      dataIndex: 'requires_restart',
-      width: 100,
-      search: false,
-      valueType: 'select',
       valueEnum: {
-        true: { text: '是', status: 'Warning' },
-        false: { text: '否', status: 'Default' },
+        [ConfigStatus.ACTIVE]: { text: '已启用', status: 'Success' },
+        [ConfigStatus.INACTIVE]: { text: '已停用', status: 'Default' },
       },
-      render: (_, record) =>
-        record.requires_restart ? (
-          <Tag icon={<ExclamationCircleOutlined />} color="warning">
-            需要
+      render: (_, record) => {
+        const isActive = record.status === ConfigStatus.ACTIVE;
+        return (
+          <Tag color={isActive ? 'success' : 'default'}>
+            {isActive ? '✓ 已启用' : '已停用'}
           </Tag>
-        ) : (
-          <Tag color="default">不需要</Tag>
-        ),
-    },
-    {
-      title: '更新时间',
-      dataIndex: 'updated_at',
-      width: 160,
-      valueType: 'dateTime',
-      search: false,
-      sorter: true,
+        );
+      },
     },
     {
       title: '操作',
@@ -386,9 +163,9 @@ const ConfigList: React.FC = () => {
             key="inactive"
             type="link"
             size="small"
-            danger
             icon={<CloseCircleOutlined />}
             onClick={() => handleToggleStatus(record, ConfigStatus.INACTIVE)}
+            style={{ color: '#F59E0B' }}
           >
             停用
           </Button>
@@ -399,8 +176,9 @@ const ConfigList: React.FC = () => {
             size="small"
             icon={<CheckCircleOutlined />}
             onClick={() => handleToggleStatus(record, ConfigStatus.ACTIVE)}
+            style={{ color: '#10B981' }}
           >
-            激活
+            启用
           </Button>
         ),
         <Button
@@ -421,12 +199,10 @@ const ConfigList: React.FC = () => {
   const handleToggleStatus = async (record: Configuration, newStatus: string) => {
     try {
       await updateConfig(record.id, { status: newStatus as any });
-      message.success(
-        newStatus === ConfigStatus.ACTIVE ? '配置已激活' : '配置已停用'
-      );
+      message.success(newStatus === ConfigStatus.ACTIVE ? '已启用配置' : '已停用配置');
       actionRef.current?.reload();
     } catch (error) {
-      message.error('状态切换失败');
+      message.error('操作失败');
     }
   };
 
@@ -437,9 +213,12 @@ const ConfigList: React.FC = () => {
       icon: <ExclamationCircleOutlined />,
       content: (
         <div>
-          <p>确定要删除配置 <strong>{record.display_name}</strong> 吗？</p>
-          <p style={{ color: '#ff4d4f', fontSize: 12 }}>
-            此操作不可恢复，配置历史也会被删除！
+          <p>确定要删除这个配置吗？</p>
+          <p style={{ color: '#6B7280', fontSize: 14, marginTop: 8 }}>
+            {record.display_name}
+          </p>
+          <p style={{ color: '#EF4444', fontSize: 12, marginTop: 12 }}>
+            ⚠️ 删除后无法恢复，请谨慎操作！
           </p>
         </div>
       ),
@@ -486,107 +265,115 @@ const ConfigList: React.FC = () => {
 
   return (
     <div>
-      {/* 配置说明提示 */}
-      <Alert
-        message="配置说明"
-        description={
-          <div>
-            <p style={{ marginBottom: 8 }}>
-              本页面用于管理系统核心配置，包括：
-            </p>
-            <ul style={{ marginBottom: 8, paddingLeft: 20 }}>
-              <li>
-                <strong>交易所配置</strong>：API密钥（API_KEY、API_SECRET）、交易所URL等
-              </li>
-              <li>
-                <strong>通知配置</strong>：微信推送Token、邮件服务器、告警阈值等
-              </li>
-            </ul>
-            <p style={{ marginBottom: 0, fontSize: 12, color: '#6B7280' }}>
-              💡 提示：如果看到其他配置类型（如trading、risk等），这些是历史数据，建议迁移或删除
-            </p>
-          </div>
-        }
-        type="info"
-        showIcon
-        closable
+      {/* 页面标题 */}
+      <div style={{ marginBottom: 24 }}>
+        <Title level={2} style={{ marginBottom: 8, color: '#111827' }}>
+          系统配置
+        </Title>
+        <Paragraph style={{ fontSize: 15, color: '#6B7280', marginBottom: 0 }}>
+          在这里可以管理交易所连接、消息通知等基础设置
+        </Paragraph>
+      </div>
+
+      {/* 新增配置提示卡片 */}
+      <Card
         style={{
-          marginBottom: 16,
-          background: '#E0F2FE',
-          border: '1px solid #3B82F6',
+          marginBottom: 24,
+          borderRadius: 12,
+          background: '#3B82F6',
+          border: 'none',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+        }}
+        styles={{
+          body: { padding: '20px 24px' },
+        }}
+        onClick={() => navigate('/configs/new')}
+        hoverable
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                background: 'rgba(255, 255, 255, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <PlusOutlined style={{ fontSize: 24, color: '#FFFFFF' }} />
+            </div>
+            <div>
+              <div style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: '#FFFFFF',
+                marginBottom: 6,
+                textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
+              }}>
+                添加新配置
+              </div>
+              <div style={{
+                fontSize: 15,
+                color: '#FFFFFF',
+                fontWeight: 500,
+                textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
+              }}>
+                点击这里配置交易所或通知方式
+              </div>
+            </div>
+          </div>
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlusOutlined />}
+            style={{
+              background: '#FFFFFF',
+              borderColor: '#FFFFFF',
+              color: '#3B82F6',
+              height: 42,
+              fontSize: 15,
+              fontWeight: 600,
+            }}
+          >
+            立即添加
+          </Button>
+        </div>
+      </Card>
+
+      {/* 配置列表表格 */}
+      <ProTable<Configuration>
+        columns={columns}
+        actionRef={actionRef}
+        request={request}
+        rowKey="id"
+        search={{
+          labelWidth: 'auto',
+          defaultCollapsed: false,
+        }}
+        pagination={{
+          defaultPageSize: 20,
+          showSizeChanger: true,
+          showQuickJumper: true,
+          pageSizeOptions: ['10', '20', '50'],
+        }}
+        dateFormatter="string"
+        toolBarRender={false}
+        cardProps={{
+          style: {
+            borderRadius: 12,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+          },
+        }}
+        options={{
+          reload: true,
+          density: false,
+          setting: false,
         }}
       />
-
-      <ProTable<Configuration>
-      columns={columns}
-      actionRef={actionRef}
-      request={request}
-      rowKey="id"
-      search={{
-        labelWidth: 'auto',
-      }}
-      pagination={{
-        defaultPageSize: 20,
-        showSizeChanger: true,
-        showQuickJumper: true,
-        pageSizeOptions: ['10', '20', '50', '100'],
-      }}
-      dateFormatter="string"
-      headerTitle={
-        <Space direction="vertical" size={0}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>配置管理</span>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            管理交易所API密钥、通知推送等核心配置
-          </Text>
-        </Space>
-      }
-      toolBarRender={() => [
-        <Button
-          key="reload_cache"
-          icon={<SyncOutlined spin={reloading} />}
-          onClick={handleReload}
-          loading={reloading}
-        >
-          重新加载
-        </Button>,
-        <Button
-          key="export"
-          icon={<DownloadOutlined />}
-          onClick={() => handleExport()}
-          loading={exporting}
-        >
-          导出配置
-        </Button>,
-        <Upload
-          key="import"
-          accept=".json"
-          showUploadList={false}
-          beforeUpload={handleImport}
-        >
-          <Button
-            icon={<UploadOutlined />}
-            loading={importing}
-          >
-            导入配置
-          </Button>
-        </Upload>,
-        <Button
-          key="reload"
-          icon={<ReloadOutlined />}
-          onClick={() => actionRef.current?.reload()}
-        >
-          刷新列表
-        </Button>,
-        <Button
-          key="create"
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/configs/new')}
-        >
-          新增配置
-        </Button>,
-      ]}
-    />
     </div>
   );
 };
