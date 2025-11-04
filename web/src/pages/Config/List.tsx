@@ -276,7 +276,7 @@ const ConfigList: React.FC = () => {
       </div>
 
       {/* 新增配置提示卡片 */}
-      <Card
+      <div
         style={{
           marginBottom: 24,
           borderRadius: 12,
@@ -284,12 +284,18 @@ const ConfigList: React.FC = () => {
           border: 'none',
           cursor: 'pointer',
           boxShadow: '0 4px 16px rgba(59, 130, 246, 0.4)',
-        }}
-        styles={{
-          body: { padding: '24px 28px' },
+          padding: '24px 28px',
+          transition: 'all 0.3s ease',
         }}
         onClick={() => navigate('/configs/new')}
-        hoverable
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.5)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.4)';
+        }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
@@ -348,7 +354,7 @@ const ConfigList: React.FC = () => {
             立即添加
           </Button>
         </div>
-      </Card>
+      </div>
 
       {/* 配置列表表格 */}
       <ProTable<Configuration>
