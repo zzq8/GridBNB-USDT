@@ -280,47 +280,51 @@ const ConfigList: React.FC = () => {
         style={{
           marginBottom: 24,
           borderRadius: 12,
-          background: '#3B82F6',
+          background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
           border: 'none',
           cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+          boxShadow: '0 4px 16px rgba(59, 130, 246, 0.4)',
         }}
         styles={{
-          body: { padding: '20px 24px' },
+          body: { padding: '24px 28px' },
         }}
         onClick={() => navigate('/configs/new')}
         hoverable
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <div
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: 12,
-                background: 'rgba(255, 255, 255, 0.25)',
+                width: 56,
+                height: 56,
+                borderRadius: 14,
+                background: 'rgba(255, 255, 255, 0.2)',
+                backdropFilter: 'blur(10px)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
               }}
             >
-              <PlusOutlined style={{ fontSize: 24, color: '#FFFFFF' }} />
+              <PlusOutlined style={{ fontSize: 28, color: '#FFFFFF', fontWeight: 'bold' }} />
             </div>
             <div>
               <div style={{
-                fontSize: 18,
-                fontWeight: 700,
+                fontSize: 20,
+                fontWeight: 800,
                 color: '#FFFFFF',
-                marginBottom: 6,
-                textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
+                marginBottom: 8,
+                textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                letterSpacing: '0.5px',
               }}>
                 添加新配置
               </div>
               <div style={{
-                fontSize: 15,
+                fontSize: 16,
                 color: '#FFFFFF',
-                fontWeight: 500,
-                textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
+                fontWeight: 600,
+                textShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
+                opacity: 1,
               }}>
                 点击这里配置交易所或通知方式
               </div>
@@ -333,10 +337,12 @@ const ConfigList: React.FC = () => {
             style={{
               background: '#FFFFFF',
               borderColor: '#FFFFFF',
-              color: '#3B82F6',
-              height: 42,
-              fontSize: 15,
-              fontWeight: 600,
+              color: '#2563EB',
+              height: 48,
+              fontSize: 16,
+              fontWeight: 700,
+              padding: '0 32px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
             }}
           >
             立即添加
