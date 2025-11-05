@@ -155,7 +155,7 @@ const TemplateList: React.FC = () => {
     if (record.type === 'grid') {
       navigate(`/templates/grid/${record.id}`);
     } else {
-      navigate('/templates/ai/config');
+      navigate(`/templates/ai/${record.id}`);
     }
   };
 
@@ -466,7 +466,7 @@ const TemplateList: React.FC = () => {
                   key: 'ai',
                   label: '配置AI策略',
                   icon: <span style={{ fontSize: 16 }}>🤖</span>,
-                  onClick: () => navigate('/templates/ai/config'),
+                  onClick: () => navigate('/templates/ai/new'),
                   disabled: hasAIStrategy, // 已有AI策略时禁用
                 },
               ],

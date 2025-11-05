@@ -54,7 +54,7 @@ const routes: RouteObject[] = [
         element: <GridConfig />,
       },
       {
-        path: 'templates/ai/config',
+        path: 'templates/ai/:id',
         element: <AIConfig />,
       },
       {

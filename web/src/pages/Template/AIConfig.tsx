@@ -2,8 +2,8 @@
  * AI策略配置页面
  */
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Card,
   Form,
@@ -20,6 +20,7 @@ import {
   Divider,
   Tooltip,
   Select,
+  Spin,
 } from 'antd';
 import {
   SaveOutlined,
@@ -34,8 +35,44 @@ const { Option } = Select;
 
 const AIConfig: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const isNew = id === 'new';
+
+  // 加载AI配置
+  useEffect(() => {
+    if (!isNew) {
+      loadAIConfig();
+    }
+  }, [id]);
+
+  const loadAIConfig = async () => {
+    setLoading(true);
+    try {
+      // TODO: 替换为真实API
+      // const response = await getAIConfig(id);
+      // form.setFieldsValue(response.data);
+
+      // 模拟加载数据
+      setTimeout(() => {
+        // 这里应该从API获取数据并设置到表单
+        // form.setFieldsValue({
+        //   enabled: response.data.enabled,
+        //   base_currency: response.data.base_currency,
+        //   ...
+        // });
+        message.info('加载AI配置数据（模拟）');
+        setLoading(false);
+      }, 500);
+    } catch (error) {
+      message.error('加载AI配置失败');
+      navigate('/templates');
+      setLoading(false);
+    }
+  };
 
   // 保存配置
   const handleSave = async () => {
@@ -43,12 +80,27 @@ const AIConfig: React.FC = () => {
       const values = await form.validateFields();
       setSaving(true);
 
-      console.log('AI策略配置:', values);
+      // 组合交易对
+      const symbol = `${values.base_currency}${values.quote_currency}`;
+      const submitData = {
+        ...values,
+        symbol, // 添加组合后的交易对
+      };
+
+      console.log('AI策略配置:', submitData);
 
       // TODO: 调用API保存配置
-      // await saveAIConfig(values);
+      // if (isNew) {
+      //   await createAIConfig(submitData);
+      // } else {
+      //   await updateAIConfig(id, submitData);
+      // }
 
-      message.success('AI策略配置保存成功');
+      if (isNew) {
+        message.success('AI策略配置创建成功');
+      } else {
+        message.success('AI策略配置更新成功');
+      }
       navigate('/templates');
     } catch (error: any) {
       if (error.errorFields) {
@@ -81,6 +133,23 @@ const AIConfig: React.FC = () => {
     },
   ];
 
+  // 加载中
+  if (loading && !isNew) {
+    return (
+      <div style={{
+        textAlign: 'center',
+        padding: '100px 0',
+        background: '#FFFFFF',
+        borderRadius: 12,
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+      }}>
+        <Spin size="large" tip="加载中...">
+          <div style={{ padding: '50px' }} />
+        </Spin>
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: 'transparent' }}>
       {/* 页面标题 */}
@@ -94,10 +163,10 @@ const AIConfig: React.FC = () => {
           返回策略列表
         </Button>
         <Title level={3} style={{ marginBottom: 8, color: '#111827' }}>
-          🤖 AI策略配置
+          🤖 {isNew ? '新建AI策略' : '编辑AI策略'}
         </Title>
         <Text type="secondary" style={{ fontSize: 14 }}>
-          配置AI智能交易策略，通过自然语言提示词定制您的交易逻辑
+          {isNew ? '配置AI智能交易策略，通过自然语言提示词定制您的交易逻辑' : '修改AI策略配置参数'}
         </Text>
       </div>
 
@@ -133,9 +202,11 @@ const AIConfig: React.FC = () => {
               layout="vertical"
               initialValues={{
                 enabled: true,
-                symbol: 'BNBUSDT',
+                base_currency: 'BNB',
+                quote_currency: 'USDT',
                 investment_amount: 1000,
-                ai_model: 'gpt-4',
+                ai_model: 'gpt-4o',
+                api_proxy: '',
                 analysis_interval: 60,
                 max_position_size: 50,
                 stop_loss_enabled: true,
@@ -167,24 +238,56 @@ const AIConfig: React.FC = () => {
                 <Switch />
               </Form.Item>
 
-              <Form.Item
-                name="symbol"
-                label={
-                  <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>
-                    交易对
-                    <Tooltip title="选择要交易的币种对">
-                      <QuestionCircleOutlined style={{ marginLeft: 4, color: '#9CA3AF' }} />
-                    </Tooltip>
-                  </span>
-                }
-                rules={[{ required: true, message: '请输入交易对' }]}
-              >
-                <Input
-                  placeholder="例如: BNBUSDT"
-                  size="large"
-                  style={{ fontSize: 14 }}
-                />
-              </Form.Item>
+              <div style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 14, fontWeight: 500, color: '#111827', marginBottom: 8, display: 'block' }}>
+                  交易对
+                  <Tooltip title="基础货币 / 报价货币">
+                    <QuestionCircleOutlined style={{ marginLeft: 4, color: '#9CA3AF' }} />
+                  </Tooltip>
+                </Text>
+                <Row gutter={8}>
+                  <Col span={11}>
+                    <Form.Item
+                      name="base_currency"
+                      rules={[
+                        { required: true, message: '请输入基础货币' },
+                        { pattern: /^[A-Z0-9]+$/, message: '请输入大写字母或数字' }
+                      ]}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <Input
+                        size="large"
+                        placeholder="如：BNB"
+                        style={{ fontSize: 14, textAlign: 'center' }}
+                        maxLength={10}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={2} style={{ textAlign: 'center', paddingTop: 8 }}>
+                    <Text style={{ fontSize: 16, color: '#9CA3AF', fontWeight: 600 }}>/</Text>
+                  </Col>
+                  <Col span={11}>
+                    <Form.Item
+                      name="quote_currency"
+                      rules={[
+                        { required: true, message: '请输入报价货币' },
+                        { pattern: /^[A-Z0-9]+$/, message: '请输入大写字母或数字' }
+                      ]}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <Input
+                        size="large"
+                        placeholder="如：USDT"
+                        style={{ fontSize: 14, textAlign: 'center' }}
+                        maxLength={10}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+                  常用稳定币：USDT、BUSD、USDC、DAI
+                </Text>
+              </div>
 
               <Form.Item
                 name="investment_amount"
@@ -229,51 +332,51 @@ const AIConfig: React.FC = () => {
                 label={
                   <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>
                     AI模型
-                    <Tooltip title="选择用于分析的AI模型">
+                    <Tooltip title="输入您要使用的AI模型名称，如：gpt-4o, claude-3-5-sonnet-20241022等">
                       <QuestionCircleOutlined style={{ marginLeft: 4, color: '#9CA3AF' }} />
                     </Tooltip>
                   </span>
                 }
-                rules={[{ required: true, message: '请选择AI模型' }]}
+                rules={[{ required: true, message: '请输入AI模型名称' }]}
               >
-                <Select size="large" style={{ fontSize: 14 }}>
-                  <Option value="gpt-4">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 500, fontSize: 14, color: '#111827', lineHeight: 1.5 }}>
-                          GPT-4
-                        </div>
-                        <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.5, marginTop: 2 }}>
-                          最强大的模型，适合复杂市场分析
-                        </div>
-                      </div>
-                    </div>
-                  </Option>
-                  <Option value="gpt-3.5-turbo">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 500, fontSize: 14, color: '#111827', lineHeight: 1.5 }}>
-                          GPT-3.5 Turbo
-                        </div>
-                        <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.5, marginTop: 2 }}>
-                          速度快，成本低，适合频繁交易
-                        </div>
-                      </div>
-                    </div>
-                  </Option>
-                  <Option value="claude-3">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 500, fontSize: 14, color: '#111827', lineHeight: 1.5 }}>
-                          Claude 3
-                        </div>
-                        <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.5, marginTop: 2 }}>
-                          Anthropic模型，注重安全性和准确性
-                        </div>
-                      </div>
-                    </div>
-                  </Option>
-                </Select>
+                <Input
+                  placeholder="例如：gpt-4o, claude-3-5-sonnet-20241022, deepseek-chat"
+                  size="large"
+                  style={{ fontSize: 14 }}
+                />
+              </Form.Item>
+
+              <Alert
+                message="常用模型参考"
+                description={
+                  <div style={{ fontSize: 13 }}>
+                    • OpenAI: gpt-4o, gpt-4o-mini, gpt-3.5-turbo<br />
+                    • Anthropic: claude-3-5-sonnet-20241022, claude-3-opus<br />
+                    • DeepSeek: deepseek-chat, deepseek-coder<br />
+                    • Google: gemini-pro, gemini-1.5-pro
+                  </div>
+                }
+                type="info"
+                showIcon
+                style={{ marginBottom: 24 }}
+              />
+
+              <Form.Item
+                name="api_proxy"
+                label={
+                  <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>
+                    API代理地址 (可选)
+                    <Tooltip title="如果需要通过代理访问AI服务，请输入代理地址">
+                      <QuestionCircleOutlined style={{ marginLeft: 4, color: '#9CA3AF' }} />
+                    </Tooltip>
+                  </span>
+                }
+              >
+                <Input
+                  placeholder="例如：https://api.openai-proxy.com"
+                  size="large"
+                  style={{ fontSize: 14 }}
+                />
               </Form.Item>
 
               <Form.Item
@@ -511,9 +614,10 @@ const AIConfig: React.FC = () => {
               <div>
                 <Text strong style={{ fontSize: 14, color: '#111827' }}>模型选择建议</Text>
                 <Paragraph style={{ marginTop: 8, fontSize: 13, color: '#6B7280', marginBottom: 0 }}>
-                  • GPT-4: 复杂策略，深度分析<br />
-                  • GPT-3.5: 快速决策，高频交易<br />
-                  • Claude 3: 风险控制，稳健策略
+                  • GPT-4o: 最新模型，综合能力强<br />
+                  • Claude-3.5: 深度分析，推理能力强<br />
+                  • DeepSeek: 成本低，适合频繁调用<br />
+                  • Gemini: 多模态支持，创新功能
                 </Paragraph>
               </div>
 
@@ -571,7 +675,11 @@ const AIConfig: React.FC = () => {
                   <Space direction="vertical" style={{ width: '100%' }} size={12}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#6B7280', fontSize: 13 }}>交易对:</Text>
-                      <Text strong style={{ color: '#111827', fontSize: 13 }}>{values.symbol || '--'}</Text>
+                      <Text strong style={{ color: '#111827', fontSize: 13 }}>
+                        {values.base_currency && values.quote_currency
+                          ? `${values.base_currency}/${values.quote_currency}`
+                          : '--'}
+                      </Text>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#6B7280', fontSize: 13 }}>投资金额:</Text>
@@ -582,6 +690,12 @@ const AIConfig: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#6B7280', fontSize: 13 }}>AI模型:</Text>
                       <Text strong style={{ color: '#111827', fontSize: 13 }}>{values.ai_model || '--'}</Text>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Text style={{ color: '#6B7280', fontSize: 13 }}>API代理:</Text>
+                      <Text strong style={{ color: '#111827', fontSize: 13 }}>
+                        {values.api_proxy || '未设置'}
+                      </Text>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Text style={{ color: '#6B7280', fontSize: 13 }}>分析间隔:</Text>

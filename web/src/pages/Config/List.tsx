@@ -29,9 +29,11 @@ const { confirm } = Modal;
 const { Title, Paragraph } = Typography;
 
 // 配置类型映射 - 简化版
-const CONFIG_TYPE_MAP = {
+const CONFIG_TYPE_MAP: Record<string, { text: string; color: string; icon: string }> = {
   [ConfigType.EXCHANGE]: { text: '交易所', color: '#3B82F6', icon: '🏦' },
   [ConfigType.NOTIFICATION]: { text: '通知', color: '#10B981', icon: '🔔' },
+  // 兼容旧数据
+  trading: { text: '交易（旧）', color: '#F59E0B', icon: '⚠️' },
 };
 
 const ConfigList: React.FC = () => {
@@ -42,17 +44,14 @@ const ConfigList: React.FC = () => {
   // 表格列定义
   const columns: ProColumns<Configuration>[] = [
     {
-      title: '名称',
+      title: '配置名称',
       dataIndex: 'display_name',
       width: 250,
       ellipsis: true,
       render: (_, record) => (
         <div>
-          <div style={{ fontWeight: 500, color: '#111827', marginBottom: 4 }}>
+          <div style={{ fontWeight: 500, color: '#111827', fontSize: 14 }}>
             {record.display_name}
-          </div>
-          <div style={{ fontSize: 12, color: '#6B7280' }}>
-            {record.config_key}
           </div>
         </div>
       ),
@@ -116,11 +115,30 @@ const ConfigList: React.FC = () => {
         ])
       ),
       render: (_, record) => {
-        const typeInfo = CONFIG_TYPE_MAP[record.config_type] || { text: record.config_type, color: '#9CA3AF', icon: '⚙️' };
+        const typeInfo = CONFIG_TYPE_MAP[record.config_type] || {
+          text: record.config_type,
+          color: '#9CA3AF',
+          icon: '⚙️'
+        };
+
+        // 检查是否是不支持的旧类型
+        const isLegacyType = !Object.values(ConfigType).includes(record.config_type as any);
+
         return (
-          <Tag color={typeInfo.color}>
+          <Tag
+            color={isLegacyType ? '#FEF3C7' : typeInfo.color}
+            style={isLegacyType ? {
+              borderColor: '#F59E0B',
+              color: '#92400E',
+            } : undefined}
+          >
             <span style={{ marginRight: 4 }}>{typeInfo.icon}</span>
             {typeInfo.text}
+            {isLegacyType && (
+              <Tooltip title="这是旧版本的配置，建议删除">
+                <ExclamationCircleOutlined style={{ marginLeft: 4, fontSize: 12 }} />
+              </Tooltip>
+            )}
           </Tag>
         );
       },
@@ -148,50 +166,56 @@ const ConfigList: React.FC = () => {
       valueType: 'option',
       width: 200,
       fixed: 'right',
-      render: (_, record) => [
-        <Button
-          key="edit"
-          type="link"
-          size="small"
-          icon={<EditOutlined />}
-          onClick={() => navigate(`/configs/${record.id}`)}
-        >
-          编辑
-        </Button>,
-        record.status === ConfigStatus.ACTIVE ? (
+      render: (_, record) => {
+        // 检查是否是不支持的旧类型
+        const isLegacyType = !Object.values(ConfigType).includes(record.config_type as any);
+
+        return [
           <Button
-            key="inactive"
+            key="edit"
             type="link"
             size="small"
-            icon={<CloseCircleOutlined />}
-            onClick={() => handleToggleStatus(record, ConfigStatus.INACTIVE)}
-            style={{ color: '#F59E0B' }}
+            icon={<EditOutlined />}
+            onClick={() => navigate(`/configs/${record.id}`)}
+            disabled={isLegacyType} // 旧类型不允许编辑
           >
-            停用
-          </Button>
-        ) : (
+            编辑
+          </Button>,
+          record.status === ConfigStatus.ACTIVE ? (
+            <Button
+              key="inactive"
+              type="link"
+              size="small"
+              icon={<CloseCircleOutlined />}
+              onClick={() => handleToggleStatus(record, ConfigStatus.INACTIVE)}
+              style={{ color: '#F59E0B' }}
+            >
+              停用
+            </Button>
+          ) : (
+            <Button
+              key="active"
+              type="link"
+              size="small"
+              icon={<CheckCircleOutlined />}
+              onClick={() => handleToggleStatus(record, ConfigStatus.ACTIVE)}
+              style={{ color: '#10B981' }}
+            >
+              启用
+            </Button>
+          ),
           <Button
-            key="active"
+            key="delete"
             type="link"
             size="small"
-            icon={<CheckCircleOutlined />}
-            onClick={() => handleToggleStatus(record, ConfigStatus.ACTIVE)}
-            style={{ color: '#10B981' }}
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDelete(record)}
           >
-            启用
-          </Button>
-        ),
-        <Button
-          key="delete"
-          type="link"
-          size="small"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleDelete(record)}
-        >
-          删除
-        </Button>,
-      ],
+            {isLegacyType ? '立即删除' : '删除'}
+          </Button>,
+        ];
+      },
     },
   ];
 
@@ -208,30 +232,54 @@ const ConfigList: React.FC = () => {
 
   // 删除配置
   const handleDelete = (record: Configuration) => {
+    // 检查是否是不支持的旧类型
+    const isLegacyType = !Object.values(ConfigType).includes(record.config_type as any);
+
     confirm({
-      title: '确认删除',
+      title: isLegacyType ? '删除旧版配置' : '确认删除',
       icon: <ExclamationCircleOutlined />,
       content: (
         <div>
-          <p>确定要删除这个配置吗？</p>
-          <p style={{ color: '#6B7280', fontSize: 14, marginTop: 8 }}>
-            {record.display_name}
-          </p>
-          <p style={{ color: '#EF4444', fontSize: 12, marginTop: 12 }}>
-            ⚠️ 删除后无法恢复，请谨慎操作！
-          </p>
+          {isLegacyType ? (
+            <>
+              <p style={{ color: '#F59E0B', fontWeight: 500 }}>
+                这是旧版本遗留的配置，当前系统已不再支持
+              </p>
+              <p style={{ color: '#6B7280', fontSize: 14, marginTop: 8 }}>
+                配置名称: {record.display_name}
+              </p>
+              <p style={{ color: '#6B7280', fontSize: 14 }}>
+                类型: {record.config_type} (已废弃)
+              </p>
+              <p style={{ color: '#10B981', fontSize: 13, marginTop: 12 }}>
+                ✓ 建议删除此配置以保持系统整洁
+              </p>
+            </>
+          ) : (
+            <>
+              <p>确定要删除这个配置吗？</p>
+              <p style={{ color: '#6B7280', fontSize: 14, marginTop: 8 }}>
+                {record.display_name}
+              </p>
+              <p style={{ color: '#EF4444', fontSize: 12, marginTop: 12 }}>
+                ⚠️ 删除后无法恢复，请谨慎操作！
+              </p>
+            </>
+          )}
         </div>
       ),
-      okText: '确认删除',
+      okText: isLegacyType ? '删除旧配置' : '确认删除',
       okType: 'danger',
       cancelText: '取消',
       onOk: async () => {
         try {
           await deleteConfig(record.id);
-          message.success('删除成功');
+          message.success(isLegacyType ? '旧配置已删除' : '删除成功');
           actionRef.current?.reload();
-        } catch (error) {
-          message.error('删除失败');
+        } catch (error: any) {
+          console.error('删除配置失败:', error);
+          const errorMsg = error?.response?.data?.detail || error?.message || '删除失败';
+          message.error(`删除失败: ${errorMsg}`);
         }
       },
     });
