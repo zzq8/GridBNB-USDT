@@ -19,6 +19,8 @@
 
 | 日期 | 变更内容 | 影响范围 |
 |------|---------|---------|
+| 2025-11-06 | **📂 统一配置文件路径**：将 .env 路径统一为 config/.env，解决 config_watcher 和 settings.py 之间的不一致性问题（合并 PR #57） | .env.example → config/.env.example, src/config/settings.py (env_file 路径), README.md (文档更新), .gitignore (忽略规则更新) |
+| 2025-11-06 | **🎨 前端功能增强**：新增AI配置管理（支持OpenAI/Anthropic），AI策略页面添加温度参数配置，网格策略页面添加波动率自动调整和动态交易间隔功能 | web/src/types/index.ts (新增AI配置类型), web/src/pages/Config/*.tsx (AI配置向导), web/src/pages/Template/AIConfig.tsx (温度滑块), web/src/pages/Template/GridConfig.tsx (波动率调整参数) |
 | 2025-11-03 | **📚 文档更新**：补充企业级功能模块文档（全局资金分配器、告警系统、配置热重载、结构化日志、FastAPI/数据库支持），添加常用开发命令 | docs/CLAUDE.md (新增"企业级功能模块详解"和"常用开发命令"章节) |
 | 2025-10-28 15:30 | **🎯 交易对特定仓位限制 (Issue #51)**：支持为不同交易对设置独立的仓位上下限，解决空投持币需求（如BNB需保持20%-80%仓位避免卖空），提供更灵活的风控策略 | src/config/settings.py (新增POSITION_LIMITS_JSON配置), src/strategies/risk_manager.py (修改风控检查逻辑), .env.example (新增配置示例), tests/unit/test_risk_manager.py (新增8个测试用例), docs/CLAUDE.md |
 | 2025-10-28 15:00 | **🧪 测试网/模拟盘支持**：新增 TESTNET_MODE 配置，支持 Binance 测试网和 OKX 模拟盘，无需真实资金即可测试策略 | src/config/settings.py (新增测试网配置), src/core/exchange_client.py (新增端点切换逻辑), .env.example (新增测试网配置示例), docs/CLAUDE.md |
@@ -105,7 +107,14 @@ GridBNB-USDT/
 │   ├── src/config/settings.py       # 统一配置管理（Pydantic）
 │   └── config/.env                  # 环境变量配置（敏感信息）
 ├── 接口层 (Interface Layer)
-│   └── src/services/web_server.py   # Web 监控界面（aiohttp）
+│   ├── src/services/web_server.py   # Web 监控界面（aiohttp - 旧版）
+│   └── 🆕 web/                      # 现代化前端（React 19 + TypeScript）
+│       ├── src/api/                 #     API接口层（5个模块）
+│       ├── src/components/          #     通用组件（11个）
+│       ├── src/pages/               #     页面组件（8个核心页面）
+│       ├── src/layouts/             #     布局组件
+│       ├── src/routes/              #     路由配置
+│       └── vite.config.ts           #     Vite构建配置
 ├── 部署层 (Deployment Layer)
 │   ├── docker/docker-compose.yml    # 容器编排
 │   ├── docker/Dockerfile            # 容器镜像定义
@@ -176,7 +185,11 @@ graph TD
 | **🆕 全局资金分配器** | `src/strategies/global_allocator.py` | 多交易对资金分配与管理 | `GlobalFundAllocator`, `AllocationStrategy` | 300+ |
 | **风险管理器** | `src/strategies/risk_manager.py` | 仓位限制与风控状态管理 | `AdvancedRiskManager`, `RiskState` | 142 |
 | **订单跟踪器** | `src/core/order_tracker.py` | 订单记录与交易历史管理 | `OrderTracker`, `OrderThrottler` | 314 |
-| **Web服务器** | `src/services/web_server.py` | 实时监控界面与 API 端点 | `start_web_server()`, `handle_status()`, `handle_log()`, `IPLogger` | 698 |
+| **Web服务器(旧)** | `src/services/web_server.py` | 实时监控界面与 API 端点（aiohttp） | `start_web_server()`, `handle_status()`, `handle_log()`, `IPLogger` | 698 |
+| **🆕 现代化前端** | `web/` | React 19 + TypeScript 前端应用 | 8个核心页面，11个通用组件 | 5000+ |
+| **🆕 前端API层** | `web/src/api/` | 前端API接口封装 | `auth.ts`, `config.ts`, `dashboard.ts`, `logs.ts`, `trades.ts` | 500+ |
+| **🆕 前端组件** | `web/src/components/` | React通用组件 | `AuthGuard`, `JsonEditor`, `GlassCard`, 图表组件 | 1000+ |
+| **🆕 前端页面** | `web/src/pages/` | React页面组件 | Login, Home, Config, Template, Trades, Logs | 2000+ |
 | **🆕 告警系统** | `src/services/alerting.py` | 多渠道告警（PushPlus/Telegram/Webhook） | `AlertManager`, `AlertLevel`, `AlertChannel` | 200+ |
 | **🆕 配置热重载** | `src/services/config_watcher.py` | 配置文件变更监控与热重载 | `ConfigWatcher`, `setup_config_watcher()` | 150+ |
 | **配置管理** | `src/config/settings.py` | 统一配置与验证 | `Settings`, `TradingConfig` | 208 |
@@ -527,6 +540,32 @@ curl -X POST http://localhost:8000/api/v1/config \
 ---
 
 ## 常用开发命令
+
+### 前端开发命令 (web/)
+
+```bash
+# 进入前端目录
+cd web
+
+# 安装依赖
+npm install
+
+# 开发模式 (热重载)
+npm run dev
+# 访问: http://localhost:3000
+
+# 生产构建
+npm run build
+
+# 预览生产构建
+npm run preview
+
+# 代码检查
+npm run lint
+
+# 类型检查
+npx tsc --noEmit
+```
 
 ### 测试命令
 
@@ -2670,6 +2709,23 @@ pytest tests/test_trader.py -v
 - **🆕 趋势识别**：`src/strategies/trend_detector.py`
 - `config.py`：配置管理
 - `.env.example`：配置模板
+
+### 前端文件（现代化UI）
+- **🆕 前端项目根目录**：`web/`
+- **🆕 前端README**：`web/README.md`
+- **🆕 Vite配置**：`web/vite.config.ts`
+- **🆕 TypeScript配置**：`web/tsconfig.json`
+- **🆕 API接口层**：`web/src/api/`（5个模块）
+  - `auth.ts`：认证API
+  - `config.ts`：配置管理API
+  - `dashboard.ts`：仪表盘API
+  - `logs.ts`：日志API
+  - `trades.ts`：交易历史API
+- **🆕 React组件**：`web/src/components/`（11个通用组件）
+- **🆕 页面组件**：`web/src/pages/`（8个核心页面）
+- **🆕 路由配置**：`web/src/routes/index.tsx`
+- **🆕 类型定义**：`web/src/types/index.ts`
+- **🆕 主题配置**：`web/src/config/theme.ts`
 
 ### 部署文件
 - `docker-compose.yml`：容器编排
