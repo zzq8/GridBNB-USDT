@@ -1581,7 +1581,779 @@ INITIAL_PARAMS_JSON='{"SOL/USDT": {"initial_base_price": 100.0, "initial_grid": 
 
 ---
 
-## Web 监控界面详解
+## 🌐 现代化前端架构详解 (Web UI)
+
+> **位置**: `web/` 目录
+> **技术栈**: React 19 + TypeScript + Vite 7 + Ant Design 5
+> **状态**: 生产就绪 ✅
+
+### 架构概览
+
+GridBNB 交易系统的现代化 Web 前端采用**企业级前端架构**，提供完整的配置管理、策略模板、交易监控和用户管理功能。
+
+**核心价值**：
+- 🎨 **现代化UI**: Ant Design 5 + 自定义主题，支持深色/浅色模式切换
+- 📱 **PWA支持**: 离线可用，可安装到桌面，提升用户体验
+- 🔐 **企业级认证**: JWT Token + 权限控制，安全可靠
+- 🚀 **高性能**: Vite 7 构建，代码分割，首屏加载 < 2s
+- 📊 **实时监控**: SSE (Server-Sent Events) 实时数据推送
+- 🎯 **TypeScript**: 100% 类型覆盖，编译时错误检查
+
+---
+
+### 技术栈详解
+
+#### 核心技术
+
+| 技术 | 版本 | 用途 | 官网 |
+|------|------|------|------|
+| **React** | 19.1.1 | UI框架 | [reactjs.org](https://reactjs.org) |
+| **TypeScript** | 5.9.3 | 类型系统 | [typescriptlang.org](https://www.typescriptlang.org) |
+| **Vite** | 7.1.7 | 构建工具 | [vitejs.dev](https://vitejs.dev) |
+| **Ant Design** | 5.27.6 | UI组件库 | [ant.design](https://ant.design) |
+| **React Router** | 7.9.4 | 路由管理 | [reactrouter.com](https://reactrouter.com) |
+| **Axios** | 1.13.0 | HTTP客户端 | [axios-http.com](https://axios-http.com) |
+
+#### 增强功能
+
+| 功能 | 技术实现 | 说明 |
+|------|---------|------|
+| **PWA支持** | vite-plugin-pwa | 离线缓存、桌面安装 |
+| **代码编辑器** | @monaco-editor/react | Monaco Editor (VS Code同款) |
+| **图表可视化** | echarts + echarts-for-react | 交易数据可视化 |
+| **粒子背景** | 自定义Canvas实现 | 动态科技感背景 |
+| **主题切换** | React Context + Ant Design | 深色/浅色模式 |
+| **实时数据** | SSE (Server-Sent Events) | 服务器推送实时状态 |
+
+---
+
+### 项目结构
+
+```
+web/
+├── src/
+│   ├── api/                    # API接口层 (5个模块)
+│   │   ├── auth.ts             #   - 认证API (登录、注销、验证)
+│   │   ├── config.ts           #   - 配置管理API (CRUD、导入导出)
+│   │   ├── dashboard.ts        #   - 仪表盘API (统计、状态)
+│   │   ├── logs.ts             #   - 日志API
+│   │   └── trades.ts           #   - 交易历史API
+│   ├── components/             # 通用组件 (11个)
+│   │   ├── AuthGuard.tsx       #   - 路由守卫 (认证检查)
+│   │   ├── GlassCard.tsx       #   - 玻璃拟态卡片
+│   │   ├── CountUp.tsx         #   - 数字滚动动画
+│   │   ├── JsonEditor.tsx      #   - JSON编辑器 (Monaco)
+│   │   ├── SSEStatusIndicator  #   - SSE连接状态指示器
+│   │   ├── ParticleBackground  #   - 粒子动态背景
+│   │   ├── PWAPrompt.tsx       #   - PWA安装提示
+│   │   ├── ChangePasswordModal #   - 修改密码弹窗
+│   │   └── charts/             #   - 图表组件
+│   │       ├── ProfitTrendChart    # 盈利趋势图
+│   │       ├── TradeVolumeChart    # 交易量图
+│   │       └── PositionPieChart    # 持仓饼图
+│   ├── contexts/               # React上下文
+│   │   └── ThemeContext.tsx    #   - 主题管理 (深色/浅色)
+│   ├── layouts/                # 布局组件
+│   │   └── BasicLayout.tsx     #   - 主布局 (Sider+Header+Content)
+│   ├── pages/                  # 页面组件 (8个核心页面)
+│   │   ├── Login/              #   - 登录页 (JWT认证)
+│   │   ├── Home/               #   - 仪表盘首页
+│   │   ├── Config/             #   - 配置管理
+│   │   │   ├── List.tsx        #     - 配置列表页
+│   │   │   └── Detail.tsx      #     - 配置详情页
+│   │   ├── Template/           #   - 策略模板
+│   │   │   ├── List.tsx        #     - 模板列表
+│   │   │   ├── GridConfig.tsx  #     - 网格策略配置
+│   │   │   └── AIConfig.tsx    #     - AI策略配置
+│   │   ├── Trades/             #   - 交易历史
+│   │   ├── Logs/               #   - 日志查看
+│   │   └── User/               #   - 用户管理
+│   │       └── Profile.tsx     #     - 个人信息
+│   ├── routes/                 # 路由配置
+│   │   └── index.tsx           #   - 路由定义 (React Router v7)
+│   ├── types/                  # TypeScript类型
+│   │   └── index.ts            #   - 全局类型定义
+│   ├── utils/                  # 工具函数
+│   │   └── request.ts          #   - Axios封装 (拦截器、错误处理)
+│   ├── config/                 # 配置文件
+│   │   └── theme.ts            #   - 主题配置
+│   ├── styles/                 # 样式文件
+│   │   ├── modernGlobal.ts     #   - 全局样式
+│   │   └── modernTheme.ts      #   - 主题变量
+│   ├── hooks/                  # 自定义Hooks
+│   │   └── useSSE.ts           #   - SSE实时数据Hook
+│   ├── App.tsx                 # 应用入口
+│   ├── main.tsx                # React渲染入口
+│   └── App.css                 # 应用样式
+├── public/                     # 静态资源
+│   └── vite.svg                #   - Logo
+├── dist/                       # 构建输出 (生产环境)
+├── node_modules/               # 依赖包
+├── package.json                # 项目配置
+├── vite.config.ts              # Vite配置
+├── tsconfig.json               # TypeScript配置
+├── eslint.config.js            # ESLint配置
+└── README.md                   # 前端项目文档
+```
+
+---
+
+### 核心功能模块
+
+#### 1. 认证系统 (AuthGuard + JWT)
+
+**位置**: `src/components/AuthGuard.tsx` + `src/api/auth.ts`
+
+**工作流程**：
+```
+1. 用户访问 → AuthGuard检查token
+   ├─ Token存在且有效 → 允许访问
+   └─ Token不存在/无效 → 重定向到 /login
+
+2. 登录流程
+   ├─ 用户提交账号密码 → POST /api/auth/login
+   ├─ 后端验证 → 返回 JWT Token
+   ├─ 前端存储 Token → localStorage
+   └─ 重定向到首页
+
+3. API请求
+   ├─ Axios拦截器自动添加 Authorization: Bearer {token}
+   ├─ 后端验证Token
+   └─ Token过期 → 401响应 → 前端自动跳转登录页
+```
+
+**API接口**：
+```typescript
+// 登录
+POST /api/auth/login
+Body: { username: string, password: string }
+Response: { access_token: string, user: User }
+
+// 获取当前用户
+GET /api/auth/me
+Headers: { Authorization: Bearer {token} }
+
+// 验证Token
+GET /api/auth/verify
+
+// 修改密码
+POST /api/auth/change-password
+Body: { old_password: string, new_password: string }
+
+// 注销
+POST /api/auth/logout
+```
+
+**默认账号**：
+- 用户名: `admin`
+- 密码: `admin123`
+- ⚠️ **首次登录后请立即修改密码**
+
+---
+
+#### 2. 配置管理系统
+
+**位置**: `src/pages/Config/` + `src/api/config.ts`
+
+**核心功能**：
+- ✅ **配置列表**: 分页、搜索、筛选 (按类型、状态)
+- ✅ **配置详情**: 查看、编辑、删除
+- ✅ **Monaco编辑器**: JSON配置可视化编辑 (代码高亮、语法检查)
+- ✅ **批量操作**: 批量更新、批量删除
+- ✅ **配置历史**: 版本管理、一键回滚
+- ✅ **导入导出**: JSON格式配置导入导出
+- ✅ **热重载**: 修改配置后实时生效 (通过 `/api/configs/reload`)
+
+**配置类型分类**：
+```typescript
+export const ConfigType = {
+  EXCHANGE: 'exchange',      // 交易所配置
+  NOTIFICATION: 'notification', // 通知配置
+} as const;
+```
+
+**配置状态**：
+```typescript
+export const ConfigStatus = {
+  DRAFT: 'draft',         // 草稿
+  ACTIVE: 'active',       // 激活
+  INACTIVE: 'inactive',   // 停用
+  ARCHIVED: 'archived',   // 归档
+} as const;
+```
+
+**API接口**：
+```typescript
+// 获取配置列表 (分页)
+GET /api/configs?page=1&page_size=20&type=exchange
+
+// 获取单个配置
+GET /api/configs/:id
+
+// 创建配置
+POST /api/configs
+Body: { config_key, config_value, config_type, ... }
+
+// 更新配置
+PUT /api/configs/:id
+Body: { config_value, status, ... }
+
+// 删除配置
+DELETE /api/configs/:id
+
+// 批量更新
+POST /api/configs/batch-update
+Body: { updates: [{ id, config_value }, ...] }
+
+// 获取配置历史
+GET /api/configs/:id/history?page=1&page_size=10
+
+// 回滚到指定版本
+POST /api/configs/:id/rollback
+Body: { version: 5 }
+
+// 导出配置
+GET /api/configs/export?config_type=exchange&include_sensitive=false
+Response: 文件下载 (JSON)
+
+// 导入配置
+POST /api/configs/import
+Body: FormData (file)
+```
+
+---
+
+#### 3. 策略模板系统
+
+**位置**: `src/pages/Template/` + `src/api/config.ts`
+
+**核心功能**：
+- ✅ **模板列表**: 系统模板 + 自定义模板
+- ✅ **网格策略模板**: 网格参数配置 (网格大小、数量、价格区间)
+- ✅ **AI策略模板**: AI参数配置 (模型选择、置信度阈值)
+- ✅ **一键应用**: 应用模板到当前配置
+- ✅ **使用统计**: 模板使用次数追踪
+
+**模板类型**：
+- **grid**: 网格交易策略
+- **ai**: AI辅助策略
+- **risk**: 风控策略
+
+**API接口**：
+```typescript
+// 获取模板列表
+GET /api/templates?type=grid&is_system=true
+
+// 获取单个模板
+GET /api/templates/:id
+
+// 应用模板
+POST /api/templates/:id/apply
+Response: { applied: 15, template_name: "保守型网格" }
+```
+
+---
+
+#### 4. 仪表盘 (Dashboard)
+
+**位置**: `src/pages/Home/` + `src/api/dashboard.ts`
+
+**核心数据**：
+- 📊 **总盈亏**: 实时计算，支持正负显示
+- 📈 **盈亏率**: 百分比显示，带颜色指示
+- 💰 **今日盈利**: 当日收益统计
+- 📝 **交易笔数**: 总交易次数
+- 🎯 **活跃交易对**: 当前运行中的交易对数量
+- 🔄 **系统状态**: running / stopped / error
+- ⏱️ **运行时长**: 系统启动时间
+- 💻 **系统资源**: CPU、内存使用率
+- 🔌 **API延迟**: 交易所API响应时间
+
+**可视化组件**：
+- **盈利趋势图** (ECharts折线图): 最近7天盈利趋势
+- **交易量图** (ECharts柱状图): 每日交易量统计
+- **持仓饼图** (ECharts饼图): 各交易对持仓比例
+
+**API接口**：
+```typescript
+// 获取完整仪表盘数据
+GET /api/dashboard/status
+Response: {
+  dashboard: DashboardData,
+  system: SystemInfo,
+  symbols: SymbolStatus[],
+  recent_trades: RecentTrade[],
+  performance: Performance
+}
+
+// 获取快速统计 (轻量级)
+GET /api/dashboard/quick-stats
+Response: { total_profit, profit_rate, today_profit, ... }
+```
+
+---
+
+#### 5. 交易历史 (Trades)
+
+**位置**: `src/pages/Trades/` + `src/api/trades.ts`
+
+**核心功能**：
+- 📋 **交易列表**: 分页显示，支持无限滚动
+- 🔍 **高级筛选**: 按交易对、方向 (买/卖)、时间范围筛选
+- 📊 **统计信息**: 买入/卖出笔数、总盈亏
+- 📥 **导出功能**: 导出CSV/Excel格式
+
+**交易字段**：
+```typescript
+interface RecentTrade {
+  id: number;
+  symbol: string;           // 交易对
+  side: 'buy' | 'sell';     // 买/卖
+  price: number;            // 成交价格
+  amount: number;           // 成交数量
+  profit: number;           // 单笔盈利
+  time: string;             // 成交时间
+}
+```
+
+---
+
+#### 6. 日志查看 (Logs)
+
+**位置**: `src/pages/Logs/` + `src/api/logs.ts`
+
+**核心功能**：
+- 📜 **实时日志**: SSE推送最新日志
+- 🔍 **日志搜索**: 关键词搜索、正则匹配
+- 🎨 **级别过滤**: INFO / WARNING / ERROR / DEBUG
+- 📥 **日志下载**: 下载完整日志文件
+- 🔄 **自动刷新**: 可配置刷新间隔
+
+**日志级别**：
+- **DEBUG**: 调试信息 (灰色)
+- **INFO**: 正常信息 (蓝色)
+- **WARNING**: 警告信息 (黄色)
+- **ERROR**: 错误信息 (红色)
+- **CRITICAL**: 严重错误 (深红色)
+
+---
+
+#### 7. 主题系统 (Theme)
+
+**位置**: `src/contexts/ThemeContext.tsx` + `src/config/theme.ts`
+
+**功能特性**：
+- 🌓 **深色/浅色模式**: 一键切换
+- 💾 **持久化**: localStorage保存用户偏好
+- 🎨 **自定义主题**: Ant Design Token定制
+- 🌈 **渐变色**: 现代化渐变背景
+
+**主题配置**：
+```typescript
+// 深色模式
+{
+  colorPrimary: '#1890ff',      // 主色
+  colorBgContainer: '#141414',  // 容器背景
+  colorBgElevated: '#1f1f1f',   // 浮层背景
+  colorText: 'rgba(255,255,255,0.85)',
+}
+
+// 浅色模式
+{
+  colorPrimary: '#1890ff',
+  colorBgContainer: '#ffffff',
+  colorText: 'rgba(0,0,0,0.85)',
+}
+```
+
+**使用示例**：
+```typescript
+const { theme, toggleTheme } = useTheme();
+
+// 切换主题
+<Button onClick={toggleTheme}>
+  {theme === 'dark' ? <BulbFilled /> : <BulbOutlined />}
+</Button>
+```
+
+---
+
+#### 8. PWA支持 (离线可用)
+
+**位置**: `vite.config.ts` (vite-plugin-pwa)
+
+**功能特性**：
+- 📱 **桌面安装**: 添加到主屏幕，像原生应用一样使用
+- 🔌 **离线缓存**: Service Worker缓存静态资源
+- 🔄 **自动更新**: 检测新版本并提示更新
+- 🚀 **性能优化**: 缓存策略优化加载速度
+
+**缓存策略**：
+```typescript
+// 字体资源 - CacheFirst (优先缓存，1年有效期)
+urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i
+
+// API请求 - NetworkFirst (优先网络，5分钟缓存)
+urlPattern: /\/api\/.*/i
+
+// 图片资源 - CacheFirst (优先缓存，30天有效期)
+urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/
+```
+
+**Manifest配置**：
+```json
+{
+  "name": "GridBNB 交易系统",
+  "short_name": "GridBNB",
+  "description": "企业级网格交易配置管理系统",
+  "theme_color": "#1890ff",
+  "background_color": "#0a0e27",
+  "display": "standalone",
+  "start_url": "/"
+}
+```
+
+---
+
+### 开发指南
+
+#### 环境准备
+
+```bash
+# 克隆项目
+git clone https://github.com/EBOLABOY/GridBNB-USDT.git
+cd GridBNB-USDT/web
+
+# 安装依赖 (Node.js 18+ / npm 9+)
+npm install
+
+# 启动开发服务器
+npm run dev
+
+# 访问地址
+http://localhost:3000
+```
+
+#### 常用命令
+
+```bash
+# 开发模式 (热重载)
+npm run dev
+
+# 生产构建
+npm run build
+
+# 预览生产构建
+npm run preview
+
+# 代码检查
+npm run lint
+
+# 类型检查
+npx tsc --noEmit
+```
+
+#### 环境变量配置
+
+**开发环境** (`.env.development`):
+```bash
+# API后端地址
+VITE_API_BASE_URL=http://localhost:8000
+
+# 是否启用Mock数据
+VITE_MOCK_ENABLED=false
+```
+
+**生产环境** (`.env.production`):
+```bash
+# API后端地址 (生产环境)
+VITE_API_BASE_URL=/api
+
+# 启用Analytics
+VITE_ANALYTICS_ENABLED=true
+```
+
+---
+
+### 代码规范
+
+#### 组件编写规范
+
+```typescript
+/**
+ * 组件模板
+ */
+import React, { useState, useEffect } from 'react';
+import { Card, Button } from 'antd';
+import type { FC } from 'react';
+
+// Props接口定义
+interface MyComponentProps {
+  title: string;
+  onSubmit?: (value: string) => void;
+  loading?: boolean;
+}
+
+// 组件定义
+const MyComponent: FC<MyComponentProps> = ({ title, onSubmit, loading = false }) => {
+  const [value, setValue] = useState<string>('');
+
+  // 事件处理
+  const handleSubmit = () => {
+    onSubmit?.(value);
+  };
+
+  return (
+    <Card title={title}>
+      {/* 组件内容 */}
+      <Button onClick={handleSubmit} loading={loading}>
+        提交
+      </Button>
+    </Card>
+  );
+};
+
+export default MyComponent;
+```
+
+#### API调用规范
+
+```typescript
+/**
+ * API调用示例
+ */
+import { useState, useEffect } from 'react';
+import { getConfigs } from '@/api/config';
+import { message } from 'antd';
+
+const MyPage = () => {
+  const [configs, setConfigs] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // 加载数据
+  const loadConfigs = async () => {
+    try {
+      setLoading(true);
+      const response = await getConfigs({ page: 1, page_size: 20 });
+      setConfigs(response.items);
+    } catch (error) {
+      message.error('加载失败: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadConfigs();
+  }, []);
+
+  return <div>{/* 页面内容 */}</div>;
+};
+```
+
+---
+
+### 性能优化
+
+#### 1. 代码分割 (Code Splitting)
+
+**Vite配置** (`vite.config.ts`):
+```typescript
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'antd-vendor': ['antd', '@ant-design/icons', '@ant-design/pro-components'],
+        },
+      },
+    },
+  },
+});
+```
+
+**效果**：
+- 主包: ~150KB (gzip)
+- React Vendor: ~120KB (gzip)
+- Ant Design Vendor: ~200KB (gzip)
+- 首屏加载 < 2秒
+
+#### 2. 懒加载路由
+
+```typescript
+// src/routes/index.tsx
+const Login = lazy(() => import('@/pages/Login'));
+const Home = lazy(() => import('@/pages/Home'));
+const ConfigList = lazy(() => import('@/pages/Config/List'));
+
+// 使用 Suspense 包裹
+<Suspense fallback={<PageLoading />}>
+  <AppRoutes />
+</Suspense>
+```
+
+#### 3. 图片优化
+
+- 使用 WebP 格式
+- 懒加载图片 (Intersection Observer)
+- 响应式图片 (srcset)
+
+---
+
+### 部署指南
+
+#### 方式一：Nginx部署 (推荐)
+
+```bash
+# 1. 构建生产版本
+cd web
+npm run build
+
+# 2. 复制dist目录到服务器
+scp -r dist/* user@server:/var/www/gridbnb/
+
+# 3. Nginx配置
+server {
+    listen 80;
+    server_name trading.example.com;
+    root /var/www/gridbnb;
+    index index.html;
+
+    # SPA路由支持
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API代理
+    location /api/ {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # 静态资源缓存
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+#### 方式二：Docker部署
+
+```dockerfile
+# Dockerfile
+FROM node:18-alpine as build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+```bash
+# 构建镜像
+docker build -t gridbnb-web:latest .
+
+# 运行容器
+docker run -d -p 80:80 gridbnb-web:latest
+```
+
+---
+
+### 常见问题排查
+
+#### 问题1：登录后刷新页面重新跳转到登录页
+
+**原因**: Token未正确存储或读取
+
+**解决方案**:
+```typescript
+// 检查 localStorage
+console.log(localStorage.getItem('token'));
+
+// 检查 AuthGuard
+// src/components/AuthGuard.tsx 中确保正确读取 token
+```
+
+#### 问题2：API请求跨域错误
+
+**原因**: 开发环境未配置代理
+
+**解决方案**:
+```typescript
+// vite.config.ts
+export default defineConfig({
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
+});
+```
+
+#### 问题3：构建后页面空白
+
+**原因**: 路由配置错误或静态资源路径问题
+
+**解决方案**:
+```typescript
+// vite.config.ts - 检查 base 配置
+export default defineConfig({
+  base: '/',  // 根据部署路径调整
+});
+
+// 检查 BrowserRouter basename
+<BrowserRouter basename="/">
+  <App />
+</BrowserRouter>
+```
+
+#### 问题4：PWA更新不生效
+
+**原因**: Service Worker缓存未清除
+
+**解决方案**:
+```bash
+# 开发环境禁用PWA
+# vite.config.ts
+VitePWA({
+  devOptions: {
+    enabled: false,  // 开发时禁用
+  },
+})
+
+# 浏览器清除Service Worker
+Chrome DevTools → Application → Service Workers → Unregister
+```
+
+---
+
+### 相关文件
+
+- **前端项目**: `web/`
+- **前端README**: `web/README.md`
+- **Vite配置**: `web/vite.config.ts`
+- **TypeScript配置**: `web/tsconfig.json`
+- **API类型定义**: `web/src/types/index.ts`
+- **路由配置**: `web/src/routes/index.tsx`
+- **主题配置**: `web/src/config/theme.ts`
+
+---
+
+## Web 监控界面详解 (旧版 aiohttp)
+
+> **注意**: 以下是旧版 aiohttp Web服务器文档，建议使用上述现代化前端
 
 ### 访问方式
 

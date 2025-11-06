@@ -20,6 +20,7 @@ import {
   Divider,
   Tooltip,
   Select,
+  Slider,
   Spin,
 } from 'antd';
 import {
@@ -206,7 +207,7 @@ const AIConfig: React.FC = () => {
                 quote_currency: 'USDT',
                 investment_amount: 1000,
                 ai_model: 'gpt-4o',
-                api_proxy: '',
+                temperature: 0.7,
                 analysis_interval: 60,
                 max_position_size: 50,
                 stop_loss_enabled: true,
@@ -362,21 +363,38 @@ const AIConfig: React.FC = () => {
               />
 
               <Form.Item
-                name="api_proxy"
+                name="temperature"
                 label={
                   <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>
-                    API代理地址 (可选)
-                    <Tooltip title="如果需要通过代理访问AI服务，请输入代理地址">
+                    温度参数
+                    <Tooltip title="控制AI输出的随机性。较低的值使决策更保守确定，较高的值使决策更激进随机">
                       <QuestionCircleOutlined style={{ marginLeft: 4, color: '#9CA3AF' }} />
                     </Tooltip>
                   </span>
                 }
+                rules={[{ required: true, message: '请设置温度参数' }]}
               >
-                <Input
-                  placeholder="例如：https://api.openai-proxy.com"
-                  size="large"
-                  style={{ fontSize: 14 }}
-                />
+                <div>
+                  <Slider
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    marks={{
+                      0: '0.0',
+                      0.3: '0.3',
+                      0.7: '0.7',
+                      1.0: '1.0',
+                      1.5: '1.5',
+                      2.0: '2.0',
+                    }}
+                    tooltip={{
+                      formatter: (value) => `${value?.toFixed(1)}`,
+                    }}
+                  />
+                  <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
+                    推荐值: 0.3-1.0 之间，默认 0.7。低温度(0-0.5)适合稳健策略，中温度(0.5-1.0)适合均衡策略，高温度(1.0-2.0)适合激进策略
+                  </div>
+                </div>
               </Form.Item>
 
               <Form.Item
@@ -692,9 +710,9 @@ const AIConfig: React.FC = () => {
                       <Text strong style={{ color: '#111827', fontSize: 13 }}>{values.ai_model || '--'}</Text>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Text style={{ color: '#6B7280', fontSize: 13 }}>API代理:</Text>
+                      <Text style={{ color: '#6B7280', fontSize: 13 }}>温度:</Text>
                       <Text strong style={{ color: '#111827', fontSize: 13 }}>
-                        {values.api_proxy || '未设置'}
+                        {values.temperature !== undefined ? values.temperature.toFixed(1) : '0.7'}
                       </Text>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>

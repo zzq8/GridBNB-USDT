@@ -24,7 +24,6 @@ import {
   Radio,
   Select,
   Slider,
-  Collapse,
   Badge,
   Statistic,
   Tag,
@@ -47,7 +46,6 @@ import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
-const { Panel } = Collapse;
 
 const GridConfig: React.FC = () => {
   const navigate = useNavigate();
@@ -249,9 +247,13 @@ const GridConfig: React.FC = () => {
             order_type: 'limit',
             buy_price_mode: 'bid1',
             sell_price_mode: 'ask1',
-            amount_mode: 'quantity',
+            buy_price_offset: null,
+            sell_price_offset: null,
+            amount_mode: 'percent',
             grid_symmetric: true,
             order_quantity: null,
+            buy_quantity: null,
+            sell_quantity: null,
             max_position: 100,
             min_position: null,
             enable_multiplier: false,
@@ -263,6 +265,13 @@ const GridConfig: React.FC = () => {
             enable_delay_confirm: false,
             enable_floor_price: false,
             enable_auto_close: false,
+            enable_volatility_adjustment: false,
+            base_grid: 2.5,
+            center_volatility: 0.25,
+            sensitivity_k: 10.0,
+            enable_dynamic_interval: false,
+            default_interval_hours: 1.0,
+            enable_volume_weighting: true,
           }}
         >
           {/* ========== 标的选择区 ========== */}
@@ -469,26 +478,16 @@ const GridConfig: React.FC = () => {
             marginBottom: 16,
           }}>
             <Text strong style={{ fontSize: 14, color: '#111827' }}>触发基准价</Text>
-            <Row gutter={16} style={{ marginTop: 12 }}>
-              <Col span={16}>
-                <Form.Item name="trigger_base_price" style={{ marginBottom: 0 }}>
-                  <InputNumber
-                    placeholder="价格(元)"
-                    min={0.01}
-                    step={0.01}
-                    size="large"
-                    style={{ width: '100%' }}
-                    prefix="$"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={4}>
-                <Button size="large" style={{ width: '100%' }}>-</Button>
-              </Col>
-              <Col span={4}>
-                <Button size="large" style={{ width: '100%' }}>+</Button>
-              </Col>
-            </Row>
+            <Form.Item name="trigger_base_price" style={{ marginTop: 12, marginBottom: 0 }}>
+              <InputNumber
+                placeholder="价格(元)"
+                min={0.01}
+                step={0.01}
+                size="large"
+                style={{ width: '100%' }}
+                prefix="$"
+              />
+            </Form.Item>
             <Form.Item name="trigger_base_price_type" style={{ marginTop: 12, marginBottom: 0 }}>
               <Select size="large">
                 <Option value="current">当前价</Option>
@@ -525,34 +524,39 @@ const GridConfig: React.FC = () => {
             <Row gutter={16}>
               <Col span={20}>
                 <Form.Item
-                  name="rise_sell_percent"
-                  label={
-                    <Text style={{ fontSize: 14, color: '#111827' }}>
-                      上涨<Text style={{ color: '#EF4444' }}>...卖出</Text>
-                    </Text>
+                  noStyle
+                  shouldUpdate={(prevValues, currentValues) =>
+                    prevValues.grid_type !== currentValues.grid_type
                   }
-                  rules={[{ required: true, message: '请输入上涨卖出百分比' }]}
                 >
-                  <Row gutter={8}>
-                    <Col span={4}>
-                      <Button size="large" style={{ width: '100%' }}>-</Button>
-                    </Col>
-                    <Col span={16}>
-                      <InputNumber
-                        placeholder="百分比(%)"
-                        min={0.1}
-                        max={100}
-                        step={0.1}
-                        size="large"
-                        style={{ width: '100%' }}
-                        formatter={(value) => `${value}%`}
-                        parser={(value) => value!.replace('%', '')}
-                      />
-                    </Col>
-                    <Col span={4}>
-                      <Button size="large" style={{ width: '100%' }}>+</Button>
-                    </Col>
-                  </Row>
+                  {({ getFieldValue }) => {
+                    const gridType = getFieldValue('grid_type');
+                    const isPercent = gridType === 'percent';
+
+                    return (
+                      <Form.Item
+                        name="rise_sell_percent"
+                        label={
+                          <Text style={{ fontSize: 14, color: '#111827' }}>
+                            上涨<Text style={{ color: '#EF4444' }}>...卖出</Text>
+                          </Text>
+                        }
+                        rules={[{ required: true, message: `请输入上涨卖出${isPercent ? '百分比' : '价格差'}` }]}
+                      >
+                        <InputNumber
+                          key={`rise-sell-${gridType}`}
+                          placeholder={isPercent ? "百分比(%)" : "价格差(USDT)"}
+                          min={0.01}
+                          max={isPercent ? 100 : undefined}
+                          step={isPercent ? 0.1 : 0.01}
+                          size="large"
+                          style={{ width: '100%' }}
+                          formatter={(value) => isPercent ? `${value}%` : `${value} U`}
+                          parser={(value) => value!.replace('%', '').replace(' U', '').replace('U', '').trim()}
+                        />
+                      </Form.Item>
+                    );
+                  }}
                 </Form.Item>
               </Col>
               <Col span={4} style={{ paddingTop: 30 }}>
@@ -570,40 +574,46 @@ const GridConfig: React.FC = () => {
             <Form.Item
               noStyle
               shouldUpdate={(prevValues, currentValues) =>
-                prevValues.enable_pullback_sell !== currentValues.enable_pullback_sell
+                prevValues.enable_pullback_sell !== currentValues.enable_pullback_sell ||
+                prevValues.grid_type !== currentValues.grid_type
               }
             >
               {({ getFieldValue }) =>
                 getFieldValue('enable_pullback_sell') ? (
                   <Form.Item
-                    name="pullback_sell_percent"
-                    label={
-                      <Text style={{ fontSize: 14, color: '#111827' }}>
-                        回落<Text style={{ color: '#EF4444' }}>...卖出</Text>
-                      </Text>
+                    noStyle
+                    shouldUpdate={(prevValues, currentValues) =>
+                      prevValues.grid_type !== currentValues.grid_type
                     }
-                    rules={[{ required: true, message: '请输入回落卖出百分比' }]}
                   >
-                    <Row gutter={8}>
-                      <Col span={4}>
-                        <Button size="large" style={{ width: '100%' }}>-</Button>
-                      </Col>
-                      <Col span={16}>
-                        <InputNumber
-                          placeholder="百分比(%)"
-                          min={0.1}
-                          max={100}
-                          step={0.1}
-                          size="large"
-                          style={{ width: '100%' }}
-                          formatter={(value) => `${value}%`}
-                          parser={(value) => value!.replace('%', '')}
-                        />
-                      </Col>
-                      <Col span={4}>
-                        <Button size="large" style={{ width: '100%' }}>+</Button>
-                      </Col>
-                    </Row>
+                    {({ getFieldValue }) => {
+                      const gridType = getFieldValue('grid_type');
+                      const isPercent = gridType === 'percent';
+
+                      return (
+                        <Form.Item
+                          name="pullback_sell_percent"
+                          label={
+                            <Text style={{ fontSize: 14, color: '#111827' }}>
+                              回落<Text style={{ color: '#EF4444' }}>...卖出</Text>
+                            </Text>
+                          }
+                          rules={[{ required: true, message: `请输入回落卖出${isPercent ? '百分比' : '价格差'}` }]}
+                        >
+                          <InputNumber
+                            key={`pullback-sell-${gridType}`}
+                            placeholder={isPercent ? "百分比(%)" : "价格差(USDT)"}
+                            min={0.01}
+                            max={isPercent ? 100 : undefined}
+                            step={isPercent ? 0.1 : 0.01}
+                            size="large"
+                            style={{ width: '100%' }}
+                            formatter={(value) => isPercent ? `${value}%` : `${value} U`}
+                            parser={(value) => value!.replace('%', '').replace(' U', '').replace('U', '').trim()}
+                          />
+                        </Form.Item>
+                      );
+                    }}
                   </Form.Item>
                 ) : null
               }
@@ -612,34 +622,39 @@ const GridConfig: React.FC = () => {
             <Row gutter={16} style={{ marginTop: 16 }}>
               <Col span={20}>
                 <Form.Item
-                  name="fall_buy_percent"
-                  label={
-                    <Text style={{ fontSize: 14, color: '#111827' }}>
-                      下跌<Text style={{ color: '#10B981' }}>...买入</Text>
-                    </Text>
+                  noStyle
+                  shouldUpdate={(prevValues, currentValues) =>
+                    prevValues.grid_type !== currentValues.grid_type
                   }
-                  rules={[{ required: true, message: '请输入下跌买入百分比' }]}
                 >
-                  <Row gutter={8}>
-                    <Col span={4}>
-                      <Button size="large" style={{ width: '100%' }}>-</Button>
-                    </Col>
-                    <Col span={16}>
-                      <InputNumber
-                        placeholder="百分比(%)"
-                        min={0.1}
-                        max={100}
-                        step={0.1}
-                        size="large"
-                        style={{ width: '100%' }}
-                        formatter={(value) => `${value}%`}
-                        parser={(value) => value!.replace('%', '')}
-                      />
-                    </Col>
-                    <Col span={4}>
-                      <Button size="large" style={{ width: '100%' }}>+</Button>
-                    </Col>
-                  </Row>
+                  {({ getFieldValue }) => {
+                    const gridType = getFieldValue('grid_type');
+                    const isPercent = gridType === 'percent';
+
+                    return (
+                      <Form.Item
+                        name="fall_buy_percent"
+                        label={
+                          <Text style={{ fontSize: 14, color: '#111827' }}>
+                            下跌<Text style={{ color: '#10B981' }}>...买入</Text>
+                          </Text>
+                        }
+                        rules={[{ required: true, message: `请输入下跌买入${isPercent ? '百分比' : '价格差'}` }]}
+                      >
+                        <InputNumber
+                          key={`fall-buy-${gridType}`}
+                          placeholder={isPercent ? "百分比(%)" : "价格差(USDT)"}
+                          min={0.01}
+                          max={isPercent ? 100 : undefined}
+                          step={isPercent ? 0.1 : 0.01}
+                          size="large"
+                          style={{ width: '100%' }}
+                          formatter={(value) => isPercent ? `${value}%` : `${value} U`}
+                          parser={(value) => value!.replace('%', '').replace(' U', '').replace('U', '').trim()}
+                        />
+                      </Form.Item>
+                    );
+                  }}
                 </Form.Item>
               </Col>
               <Col span={4} style={{ paddingTop: 30 }}>
@@ -657,40 +672,46 @@ const GridConfig: React.FC = () => {
             <Form.Item
               noStyle
               shouldUpdate={(prevValues, currentValues) =>
-                prevValues.enable_rebound_buy !== currentValues.enable_rebound_buy
+                prevValues.enable_rebound_buy !== currentValues.enable_rebound_buy ||
+                prevValues.grid_type !== currentValues.grid_type
               }
             >
               {({ getFieldValue }) =>
                 getFieldValue('enable_rebound_buy') ? (
                   <Form.Item
-                    name="rebound_buy_percent"
-                    label={
-                      <Text style={{ fontSize: 14, color: '#111827' }}>
-                        反弹<Text style={{ color: '#10B981' }}>...买入</Text>
-                      </Text>
+                    noStyle
+                    shouldUpdate={(prevValues, currentValues) =>
+                      prevValues.grid_type !== currentValues.grid_type
                     }
-                    rules={[{ required: true, message: '请输入反弹买入百分比' }]}
                   >
-                    <Row gutter={8}>
-                      <Col span={4}>
-                        <Button size="large" style={{ width: '100%' }}>-</Button>
-                      </Col>
-                      <Col span={16}>
-                        <InputNumber
-                          placeholder="百分比(%)"
-                          min={0.1}
-                          max={100}
-                          step={0.1}
-                          size="large"
-                          style={{ width: '100%' }}
-                          formatter={(value) => `${value}%`}
-                          parser={(value) => value!.replace('%', '')}
-                        />
-                      </Col>
-                      <Col span={4}>
-                        <Button size="large" style={{ width: '100%' }}>+</Button>
-                      </Col>
-                    </Row>
+                    {({ getFieldValue }) => {
+                      const gridType = getFieldValue('grid_type');
+                      const isPercent = gridType === 'percent';
+
+                      return (
+                        <Form.Item
+                          name="rebound_buy_percent"
+                          label={
+                            <Text style={{ fontSize: 14, color: '#111827' }}>
+                              反弹<Text style={{ color: '#10B981' }}>...买入</Text>
+                            </Text>
+                          }
+                          rules={[{ required: true, message: `请输入反弹买入${isPercent ? '百分比' : '价格差'}` }]}
+                        >
+                          <InputNumber
+                            key={`rebound-buy-${gridType}`}
+                            placeholder={isPercent ? "百分比(%)" : "价格差(USDT)"}
+                            min={0.01}
+                            max={isPercent ? 100 : undefined}
+                            step={isPercent ? 0.1 : 0.01}
+                            size="large"
+                            style={{ width: '100%' }}
+                            formatter={(value) => isPercent ? `${value}%` : `${value} U`}
+                            parser={(value) => value!.replace('%', '').replace(' U', '').replace('U', '').trim()}
+                          />
+                        </Form.Item>
+                      );
+                    }}
                   </Form.Item>
                 ) : null
               }
@@ -721,19 +742,26 @@ const GridConfig: React.FC = () => {
             borderRadius: 8,
             marginBottom: 16,
           }}>
+            <Text strong style={{ fontSize: 14, color: '#111827', marginBottom: 12, display: 'block' }}>
+              委托类型
+            </Text>
             <Form.Item name="order_type" style={{ marginBottom: 0 }}>
               <Radio.Group size="large" style={{ width: '100%' }}>
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Radio.Button value="limit" style={{ width: '100%', textAlign: 'center' }}>
-                      <DownOutlined style={{ marginRight: 4, color: '#EF4444' }} />
-                      限价委托
+                    <Radio.Button value="limit" style={{ width: '100%', textAlign: 'center', height: 'auto', padding: '12px 0' }}>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 600 }}>限价委托</div>
+                        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>指定价格成交</div>
+                      </div>
                     </Radio.Button>
                   </Col>
                   <Col span={12}>
-                    <Radio.Button value="market" style={{ width: '100%', textAlign: 'center' }}>
-                      <UpOutlined style={{ marginRight: 4, color: '#10B981' }} />
-                      市价委托
+                    <Radio.Button value="market" style={{ width: '100%', textAlign: 'center', height: 'auto', padding: '12px 0' }}>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 600 }}>市价委托</div>
+                        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>立即按市价成交</div>
+                      </div>
                     </Radio.Button>
                   </Col>
                 </Row>
@@ -741,45 +769,150 @@ const GridConfig: React.FC = () => {
             </Form.Item>
           </div>
 
-          {/* 价格设置 */}
-          <div style={{
-            background: '#F9FAFB',
-            padding: '16px',
-            borderRadius: 8,
-            marginBottom: 16,
-          }}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="buy_price_mode"
-                  label={<Text style={{ fontSize: 14, color: '#10B981' }}>买入价格</Text>}
-                >
-                  <Select size="large">
-                    <Option value="immediate">即时买一价</Option>
-                    <Option value="bid1">买一价</Option>
-                    <Option value="bid2">买二价</Option>
-                    <Option value="market">市价</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="sell_price_mode"
-                  label={<Text style={{ fontSize: 14, color: '#EF4444' }}>卖出价格</Text>}
-                >
-                  <Select size="large">
-                    <Option value="immediate">即时卖一价</Option>
-                    <Option value="ask1">卖一价</Option>
-                    <Option value="ask2">卖二价</Option>
-                    <Option value="market">市价</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-            </Row>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              当无法取得对应报价时，将以即时现价报单
-            </Text>
-          </div>
+          {/* 价格设置 - 根据委托类型动态显示 */}
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) =>
+              prevValues.order_type !== currentValues.order_type
+            }
+          >
+            {({ getFieldValue }) => {
+              const orderType = getFieldValue('order_type');
+
+              if (orderType === 'market') {
+                // 市价委托 - 显示说明
+                return (
+                  <div style={{
+                    background: '#EFF6FF',
+                    padding: '16px',
+                    borderRadius: 8,
+                    marginBottom: 16,
+                    border: '1px solid #BFDBFE',
+                  }}>
+                    <Row align="middle" gutter={12}>
+                      <Col>
+                        <InfoCircleOutlined style={{ fontSize: 18, color: '#3B82F6' }} />
+                      </Col>
+                      <Col flex={1}>
+                        <Text style={{ fontSize: 14, color: '#1E40AF', display: 'block', fontWeight: 500 }}>
+                          市价委托说明
+                        </Text>
+                        <Text style={{ fontSize: 13, color: '#3B82F6' }}>
+                          触发时按照当时的市场价格立即成交，无需设置价格，确保快速成交
+                        </Text>
+                      </Col>
+                    </Row>
+                  </div>
+                );
+              }
+
+              // 限价委托 - 显示价格设置
+              return (
+                <div style={{
+                  background: '#F9FAFB',
+                  padding: '16px',
+                  borderRadius: 8,
+                  marginBottom: 16,
+                }}>
+                  <Text strong style={{ fontSize: 14, color: '#111827', marginBottom: 12, display: 'block' }}>
+                    价格设置
+                  </Text>
+
+                  {/* 买入价格档位选择 */}
+                  <Row gutter={16} style={{ marginBottom: 16 }}>
+                    <Col span={12}>
+                      <Form.Item
+                        name="buy_price_mode"
+                        label={<Text style={{ fontSize: 14, color: '#10B981' }}>买入参考价</Text>}
+                        initialValue="bid1"
+                      >
+                        <Select size="large">
+                          <Option value="bid1">买一档价格</Option>
+                          <Option value="bid2">买二档价格</Option>
+                          <Option value="bid3">买三档价格</Option>
+                          <Option value="bid4">买四档价格</Option>
+                          <Option value="bid5">买五档价格</Option>
+                          <Option value="ask1">卖一档价格</Option>
+                          <Option value="ask2">卖二档价格</Option>
+                          <Option value="ask3">卖三档价格</Option>
+                          <Option value="ask4">卖四档价格</Option>
+                          <Option value="ask5">卖五档价格</Option>
+                          <Option value="trigger">触发价格</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        name="buy_price_offset"
+                        label={<Text style={{ fontSize: 14, color: '#10B981' }}>买入价格偏移</Text>}
+                        tooltip="相对于参考价的偏移，负数表示更低价格"
+                      >
+                        <InputNumber
+                          placeholder="价格偏移(USDT)"
+                          step={0.01}
+                          size="large"
+                          style={{ width: '100%' }}
+                          prefix="±"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  {/* 卖出价格档位选择 */}
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        name="sell_price_mode"
+                        label={<Text style={{ fontSize: 14, color: '#EF4444' }}>卖出参考价</Text>}
+                        initialValue="ask1"
+                      >
+                        <Select size="large">
+                          <Option value="ask1">卖一档价格</Option>
+                          <Option value="ask2">卖二档价格</Option>
+                          <Option value="ask3">卖三档价格</Option>
+                          <Option value="ask4">卖四档价格</Option>
+                          <Option value="ask5">卖五档价格</Option>
+                          <Option value="bid1">买一档价格</Option>
+                          <Option value="bid2">买二档价格</Option>
+                          <Option value="bid3">买三档价格</Option>
+                          <Option value="bid4">买四档价格</Option>
+                          <Option value="bid5">买五档价格</Option>
+                          <Option value="trigger">触发价格</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        name="sell_price_offset"
+                        label={<Text style={{ fontSize: 14, color: '#EF4444' }}>卖出价格偏移</Text>}
+                        tooltip="相对于参考价的偏移，正数表示更高价格"
+                      >
+                        <InputNumber
+                          placeholder="价格偏移(USDT)"
+                          step={0.01}
+                          size="large"
+                          style={{ width: '100%' }}
+                          prefix="±"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  <div style={{
+                    background: '#FEF3C7',
+                    padding: '8px 12px',
+                    borderRadius: 4,
+                    marginTop: 12,
+                  }}>
+                    <Text style={{ fontSize: 12, color: '#92400E' }}>
+                      <InfoCircleOutlined style={{ marginRight: 4 }} />
+                      买档价格通常低于卖档价格。建议：买入用买一档+负偏移，卖出用卖一档+正偏移
+                    </Text>
+                  </div>
+                </div>
+              );
+            }}
+          </Form.Item>
 
           {/* 数量/金额设置 */}
           <div style={{
@@ -790,13 +923,13 @@ const GridConfig: React.FC = () => {
           }}>
             <Form.Item name="amount_mode" style={{ marginBottom: 16 }}>
               <Radio.Group size="large">
-                <Radio.Button value="quantity" style={{ marginRight: 24 }}>
+                <Radio.Button value="percent" style={{ marginRight: 24 }}>
                   <InfoCircleOutlined style={{ marginRight: 4 }} />
-                  委托股数
+                  按百分比
                 </Radio.Button>
                 <Radio.Button value="amount">
                   <InfoCircleOutlined style={{ marginRight: 4 }} />
-                  委托金额
+                  按金额(USDT)
                 </Radio.Button>
               </Radio.Group>
             </Form.Item>
@@ -813,60 +946,143 @@ const GridConfig: React.FC = () => {
               </Radio.Group>
             </Form.Item>
 
+            {/* 根据对称/不对称网格和数量/金额模式动态显示 */}
             <Form.Item
-              name="order_quantity"
-              label={<Text style={{ fontSize: 14, color: '#111827' }}>每笔委托</Text>}
-              rules={[{ required: true, message: '请输入每笔委托数量' }]}
+              noStyle
+              shouldUpdate={(prevValues, currentValues) =>
+                prevValues.amount_mode !== currentValues.amount_mode ||
+                prevValues.grid_symmetric !== currentValues.grid_symmetric
+              }
             >
-              <Row gutter={8}>
-                <Col span={4}>
-                  <Button size="large" style={{ width: '100%' }}>-</Button>
-                </Col>
-                <Col span={16}>
-                  <InputNumber
-                    placeholder="股数(股)"
-                    min={1}
-                    step={1}
-                    size="large"
-                    style={{ width: '100%' }}
-                  />
-                </Col>
-                <Col span={4}>
-                  <Button size="large" style={{ width: '100%' }}>+</Button>
-                </Col>
-              </Row>
+              {({ getFieldValue }) => {
+                const amountMode = getFieldValue('amount_mode');
+                const gridSymmetric = getFieldValue('grid_symmetric');
+                const isPercent = amountMode === 'percent';
+
+                if (gridSymmetric) {
+                  // 对称网格：只显示一个"每笔委托"字段
+                  return (
+                    <Form.Item
+                      name="order_quantity"
+                      label={<Text style={{ fontSize: 14, color: '#111827' }}>每笔委托</Text>}
+                      rules={[{ required: true, message: `请输入每笔委托${isPercent ? '百分比' : '金额'}` }]}
+                    >
+                      <InputNumber
+                        placeholder={isPercent ? "百分比 (%)" : "金额 (USDT)"}
+                        min={isPercent ? 0.1 : 1}
+                        max={isPercent ? 100 : undefined}
+                        step={isPercent ? 0.1 : 1}
+                        size="large"
+                        style={{ width: '100%' }}
+                        precision={2}
+                        formatter={(value) => isPercent ? `${value}%` : `${value}`}
+                        parser={(value) => value!.replace('%', '').trim()}
+                      />
+                    </Form.Item>
+                  );
+                } else {
+                  // 不对称网格：显示"每笔买入"和"每笔卖出"
+                  return (
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          name="buy_quantity"
+                          label={<Text style={{ fontSize: 14, color: '#10B981' }}>每笔买入</Text>}
+                          rules={[{ required: true, message: `请输入每笔买入${isPercent ? '百分比' : '金额'}` }]}
+                        >
+                          <InputNumber
+                            placeholder={isPercent ? "百分比 (%)" : "金额 (USDT)"}
+                            min={isPercent ? 0.1 : 1}
+                            max={isPercent ? 100 : undefined}
+                            step={isPercent ? 0.1 : 1}
+                            size="large"
+                            style={{ width: '100%' }}
+                            precision={2}
+                            formatter={(value) => isPercent ? `${value}%` : `${value}`}
+                            parser={(value) => value!.replace('%', '').trim()}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name="sell_quantity"
+                          label={<Text style={{ fontSize: 14, color: '#EF4444' }}>每笔卖出</Text>}
+                          rules={[{ required: true, message: `请输入每笔卖出${isPercent ? '百分比' : '金额'}` }]}
+                        >
+                          <InputNumber
+                            placeholder={isPercent ? "百分比 (%)" : "金额 (USDT)"}
+                            min={isPercent ? 0.1 : 1}
+                            max={isPercent ? 100 : undefined}
+                            step={isPercent ? 0.1 : 1}
+                            size="large"
+                            style={{ width: '100%' }}
+                            precision={2}
+                            formatter={(value) => isPercent ? `${value}%` : `${value}`}
+                            parser={(value) => value!.replace('%', '').trim()}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  );
+                }
+              }}
             </Form.Item>
 
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="max_position"
-                  label={<Text style={{ fontSize: 14, color: '#111827' }}>最大持仓</Text>}
-                  rules={[{ required: true, message: '请输入最大持仓' }]}
-                  initialValue={100}
-                >
-                  <InputNumber
-                    placeholder="最大持仓"
-                    min={1}
-                    size="large"
-                    style={{ width: '100%' }}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="min_position"
-                  label={<Text style={{ fontSize: 14, color: '#111827' }}>最小底仓</Text>}
-                >
-                  <InputNumber
-                    placeholder="选填"
-                    min={0}
-                    size="large"
-                    style={{ width: '100%' }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+            <Form.Item
+              noStyle
+              shouldUpdate={(prevValues, currentValues) =>
+                prevValues.amount_mode !== currentValues.amount_mode
+              }
+            >
+              {({ getFieldValue }) => {
+                const amountMode = getFieldValue('amount_mode');
+                const isPercent = amountMode === 'percent';
+
+                return (
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        name="max_position"
+                        label={<Text style={{ fontSize: 14, color: '#111827' }}>最大持仓</Text>}
+                        rules={[{ required: true, message: '请输入最大持仓' }]}
+                        tooltip={isPercent ? "占总资金的百分比" : "USDT金额"}
+                        initialValue={100}
+                      >
+                        <InputNumber
+                          placeholder={isPercent ? "百分比 (%)" : "金额 (USDT)"}
+                          min={isPercent ? 1 : 10}
+                          max={isPercent ? 100 : undefined}
+                          step={isPercent ? 1 : 10}
+                          precision={2}
+                          size="large"
+                          style={{ width: '100%' }}
+                          formatter={(value) => isPercent ? `${value}%` : `${value}`}
+                          parser={(value) => value!.replace('%', '').trim()}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        name="min_position"
+                        label={<Text style={{ fontSize: 14, color: '#111827' }}>最小底仓</Text>}
+                        tooltip={isPercent ? "占总资金的百分比" : "USDT金额"}
+                      >
+                        <InputNumber
+                          placeholder="选填"
+                          min={0}
+                          step={isPercent ? 1 : 10}
+                          precision={2}
+                          size="large"
+                          style={{ width: '100%' }}
+                          formatter={(value) => isPercent && value ? `${value}%` : value ? `${value}` : ''}
+                          parser={(value) => value!.replace('%', '').trim()}
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                );
+              }}
+            </Form.Item>
 
             <div style={{
               background: '#FEF3C7',
@@ -878,17 +1094,6 @@ const GridConfig: React.FC = () => {
                 可买数量: -- &nbsp;&nbsp;|&nbsp;&nbsp; 当前持仓: --
               </Text>
             </div>
-
-            <Row align="middle" justify="space-between">
-              <Col>
-                <Text style={{ fontSize: 14, color: '#111827' }}>倍数委托</Text>
-              </Col>
-              <Col>
-                <Form.Item name="enable_multiplier" valuePropName="checked" style={{ marginBottom: 0 }}>
-                  <Switch />
-                </Form.Item>
-              </Col>
-            </Row>
           </div>
 
           <Divider style={{ margin: '24px 0' }} />
@@ -982,45 +1187,42 @@ const GridConfig: React.FC = () => {
 
           <Divider style={{ margin: '24px 0' }} />
 
-          {/* ========== 高级设置 ========== */}
-          <Collapse
-            ghost
-            expandIconPosition="end"
-            style={{
-              background: '#F9FAFB',
-              borderRadius: 8,
-              marginBottom: 24,
-            }}
-          >
-            <Panel
-              header={
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text strong style={{ fontSize: 15, color: '#111827' }}>高级设置</Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>保底价触发、延迟确认等</Text>
-                </div>
-              }
-              key="advanced"
-            >
-              <Space direction="vertical" style={{ width: '100%' }} size={16}>
-                <Row align="middle" justify="space-between">
-                  <Col>
-                    <Text style={{ fontSize: 14, color: '#111827' }}>监控时段</Text>
-                  </Col>
-                  <Col>
-                    <Form.Item name="enable_monitor_period" valuePropName="checked" style={{ marginBottom: 0 }}>
-                      <Switch />
-                    </Form.Item>
-                  </Col>
-                </Row>
+          {/* ========== 高级功能配置 ========== */}
+          <div style={{
+            fontSize: 16,
+            fontWeight: 600,
+            color: '#111827',
+            marginBottom: 20,
+          }}>
+            高级功能配置
+          </div>
 
-                <Row align="middle" justify="space-between">
-                  <Col>
-                    <Text style={{ fontSize: 14, color: '#111827' }}>偏差控制</Text>
-                  </Col>
-                  <Col>
-                    <Form.Item name="enable_deviation_control" valuePropName="checked" style={{ marginBottom: 0 }}>
-                      <Switch />
-                    </Form.Item>
+          <div style={{
+            background: '#F9FAFB',
+            padding: '20px',
+            borderRadius: 8,
+            marginBottom: 24,
+          }}>
+            <Space direction="vertical" style={{ width: '100%' }} size={16}>
+              <Row align="middle" justify="space-between">
+                <Col>
+                  <Text style={{ fontSize: 14, color: '#111827' }}>监控时段</Text>
+                </Col>
+                <Col>
+                  <Form.Item name="enable_monitor_period" valuePropName="checked" style={{ marginBottom: 0 }}>
+                    <Switch />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row align="middle" justify="space-between">
+                <Col>
+                  <Text style={{ fontSize: 14, color: '#111827' }}>偏差控制</Text>
+                </Col>
+                <Col>
+                  <Form.Item name="enable_deviation_control" valuePropName="checked" style={{ marginBottom: 0 }}>
+                    <Switch />
+                  </Form.Item>
                   </Col>
                 </Row>
 
@@ -1067,6 +1269,219 @@ const GridConfig: React.FC = () => {
                     </Form.Item>
                   </Col>
                 </Row>
+
+                <Divider style={{ margin: '16px 0' }} />
+
+                {/* 波动率自动调整配置 */}
+                <Row align="middle" justify="space-between">
+                  <Col>
+                    <Space>
+                      <Text style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>📊 波动率自动调整</Text>
+                      <Tooltip title="根据市场波动率自动调整网格大小，提升策略适应性">
+                        <QuestionCircleOutlined style={{ color: '#9CA3AF', fontSize: 12 }} />
+                      </Tooltip>
+                    </Space>
+                  </Col>
+                  <Col>
+                    <Form.Item name="enable_volatility_adjustment" valuePropName="checked" style={{ marginBottom: 0 }}>
+                      <Switch />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Form.Item
+                  noStyle
+                  shouldUpdate={(prevValues, currentValues) =>
+                    prevValues.enable_volatility_adjustment !== currentValues.enable_volatility_adjustment
+                  }
+                >
+                  {({ getFieldValue }) =>
+                    getFieldValue('enable_volatility_adjustment') ? (
+                      <div style={{
+                        background: '#FEF3C7',
+                        padding: '16px',
+                        borderRadius: 8,
+                        marginTop: 12,
+                        border: '1px solid #F59E0B',
+                      }}>
+                        <Space direction="vertical" style={{ width: '100%' }} size={16}>
+                          <Form.Item
+                            name="base_grid"
+                            label={
+                              <Space>
+                                <Text style={{ fontSize: 13, color: '#111827' }}>基础网格大小 (%)</Text>
+                                <Tooltip title="波动率为中心值时使用的网格大小">
+                                  <QuestionCircleOutlined style={{ color: '#9CA3AF', fontSize: 12 }} />
+                                </Tooltip>
+                              </Space>
+                            }
+                            rules={[{ required: true, message: '请输入基础网格大小' }]}
+                            style={{ marginBottom: 0 }}
+                          >
+                            <InputNumber
+                              min={0.5}
+                              max={10}
+                              step={0.1}
+                              style={{ width: '100%' }}
+                              precision={1}
+                              formatter={(value) => `${value}%`}
+                              parser={(value) => value!.replace('%', '')}
+                            />
+                          </Form.Item>
+
+                          <Form.Item
+                            name="center_volatility"
+                            label={
+                              <Space>
+                                <Text style={{ fontSize: 13, color: '#111827' }}>中心波动率</Text>
+                                <Tooltip title="市场正常波动率的参考值，范围0-1">
+                                  <QuestionCircleOutlined style={{ color: '#9CA3AF', fontSize: 12 }} />
+                                </Tooltip>
+                              </Space>
+                            }
+                            rules={[{ required: true, message: '请输入中心波动率' }]}
+                            style={{ marginBottom: 0 }}
+                          >
+                            <InputNumber
+                              min={0.01}
+                              max={1}
+                              step={0.01}
+                              style={{ width: '100%' }}
+                              precision={2}
+                            />
+                          </Form.Item>
+
+                          <Form.Item
+                            name="sensitivity_k"
+                            label={
+                              <Space>
+                                <Text style={{ fontSize: 13, color: '#111827' }}>敏感度系数</Text>
+                                <Tooltip title="波动率变化对网格调整的影响程度，越大越敏感">
+                                  <QuestionCircleOutlined style={{ color: '#9CA3AF', fontSize: 12 }} />
+                                </Tooltip>
+                              </Space>
+                            }
+                            rules={[{ required: true, message: '请输入敏感度系数' }]}
+                            style={{ marginBottom: 0 }}
+                          >
+                            <InputNumber
+                              min={1}
+                              max={50}
+                              step={1}
+                              style={{ width: '100%' }}
+                              precision={1}
+                            />
+                          </Form.Item>
+
+                          <Alert
+                            message="波动率调整说明"
+                            description="系统会实时计算市场波动率，当波动率偏离中心值时，根据敏感度系数自动调整网格大小。波动率高时网格变大，波动率低时网格变小。"
+                            type="info"
+                            showIcon
+                            style={{ fontSize: 12 }}
+                          />
+                        </Space>
+                      </div>
+                    ) : null
+                  }
+                </Form.Item>
+
+                <Divider style={{ margin: '16px 0' }} />
+
+                {/* 动态交易间隔配置 */}
+                <Row align="middle" justify="space-between">
+                  <Col>
+                    <Space>
+                      <Text style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>⏱️ 动态交易间隔</Text>
+                      <Tooltip title="根据波动率自动调整交易频率，波动大时交易更频繁">
+                        <QuestionCircleOutlined style={{ color: '#9CA3AF', fontSize: 12 }} />
+                      </Tooltip>
+                    </Space>
+                  </Col>
+                  <Col>
+                    <Form.Item name="enable_dynamic_interval" valuePropName="checked" style={{ marginBottom: 0 }}>
+                      <Switch />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Form.Item
+                  noStyle
+                  shouldUpdate={(prevValues, currentValues) =>
+                    prevValues.enable_dynamic_interval !== currentValues.enable_dynamic_interval
+                  }
+                >
+                  {({ getFieldValue }) =>
+                    getFieldValue('enable_dynamic_interval') ? (
+                      <div style={{
+                        background: '#EFF6FF',
+                        padding: '16px',
+                        borderRadius: 8,
+                        marginTop: 12,
+                        border: '1px solid #3B82F6',
+                      }}>
+                        <Form.Item
+                          name="default_interval_hours"
+                          label={
+                            <Space>
+                              <Text style={{ fontSize: 13, color: '#111827' }}>默认交易间隔 (小时)</Text>
+                              <Tooltip title="波动率正常时的交易间隔">
+                                <QuestionCircleOutlined style={{ color: '#9CA3AF', fontSize: 12 }} />
+                              </Tooltip>
+                            </Space>
+                          }
+                          rules={[{ required: true, message: '请输入默认交易间隔' }]}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <InputNumber
+                            min={0.1}
+                            max={24}
+                            step={0.1}
+                            style={{ width: '100%' }}
+                            precision={1}
+                            formatter={(value) => `${value} 小时`}
+                            parser={(value) => value!.replace(' 小时', '')}
+                          />
+                        </Form.Item>
+
+                        <Alert
+                          message="动态间隔规则"
+                          description={
+                            <div style={{ fontSize: 12 }}>
+                              系统会根据波动率自动调整交易间隔：<br />
+                              • 波动率 0-10%: 1小时交易一次<br />
+                              • 波动率 10-20%: 0.5小时交易一次<br />
+                              • 波动率 20-30%: 0.25小时交易一次<br />
+                              • 波动率 &gt;30%: 0.125小时交易一次
+                            </div>
+                          }
+                          type="info"
+                          showIcon
+                          style={{ marginTop: 12, fontSize: 12 }}
+                        />
+                      </div>
+                    ) : null
+                  }
+                </Form.Item>
+
+                <Divider style={{ margin: '16px 0' }} />
+
+                {/* 成交量加权 */}
+                <Row align="middle" justify="space-between">
+                  <Col>
+                    <Space>
+                      <Text style={{ fontSize: 14, color: '#111827' }}>成交量加权</Text>
+                      <Tooltip title="根据成交量调整交易决策权重，成交量大时更可靠">
+                        <QuestionCircleOutlined style={{ color: '#9CA3AF', fontSize: 12 }} />
+                      </Tooltip>
+                    </Space>
+                  </Col>
+                  <Col>
+                    <Form.Item name="enable_volume_weighting" valuePropName="checked" style={{ marginBottom: 0 }}>
+                      <Switch />
+                    </Form.Item>
+                  </Col>
+                </Row>
               </Space>
 
               <div style={{
@@ -1080,8 +1495,7 @@ const GridConfig: React.FC = () => {
                   条件单采用交易所提供的Level-1行情，刷新频率: 3秒/次
                 </Text>
               </div>
-            </Panel>
-          </Collapse>
+            </div>
 
           {/* ========== 底部操作按钮 ========== */}
           <Button

@@ -32,6 +32,7 @@ const { Title, Paragraph } = Typography;
 const CONFIG_TYPE_MAP: Record<string, { text: string; color: string; icon: string }> = {
   [ConfigType.EXCHANGE]: { text: '交易所', color: '#3B82F6', icon: '🏦' },
   [ConfigType.NOTIFICATION]: { text: '通知', color: '#10B981', icon: '🔔' },
+  [ConfigType.AI]: { text: 'AI配置', color: '#8B5CF6', icon: '🤖' },
   // 兼容旧数据
   trading: { text: '交易（旧）', color: '#F59E0B', icon: '⚠️' },
 };
@@ -319,7 +320,7 @@ const ConfigList: React.FC = () => {
           系统配置
         </Title>
         <Paragraph style={{ fontSize: 15, color: '#6B7280', marginBottom: 0 }}>
-          在这里可以管理交易所连接、消息通知等基础设置
+          在这里可以管理交易所连接、消息通知、AI配置等基础设置
         </Paragraph>
       </div>
 
@@ -380,7 +381,7 @@ const ConfigList: React.FC = () => {
                 textShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
                 opacity: 1,
               }}>
-                点击这里配置交易所或通知方式
+                点击这里配置交易所、通知方式或AI
               </div>
             </div>
           </div>

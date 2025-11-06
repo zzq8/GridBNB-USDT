@@ -8,6 +8,7 @@ import {
   Card,
   Form,
   Input,
+  InputNumber,
   Button,
   Space,
   message,
@@ -91,6 +92,26 @@ const NOTIFICATION_TYPES = {
     icon: '✈️',
     description: '通过 Telegram 机器人接收通知',
     helpLink: 'https://core.telegram.org/bots#how-do-i-create-a-bot',
+  },
+};
+
+// AI配置类型定义
+const AI_TYPES = {
+  OPENAI: {
+    value: 'openai',
+    label: 'OpenAI',
+    fullName: 'OpenAI API',
+    icon: '🤖',
+    description: 'OpenAI GPT系列模型',
+    helpLink: 'https://platform.openai.com/api-keys',
+  },
+  ANTHROPIC: {
+    value: 'anthropic',
+    label: 'Anthropic',
+    fullName: 'Anthropic Claude',
+    icon: '🧠',
+    description: 'Anthropic Claude系列模型',
+    helpLink: 'https://console.anthropic.com/settings/keys',
   },
 };
 
@@ -285,6 +306,50 @@ const NOTIFICATION_CONFIG_FIELDS = {
   ],
 };
 
+// AI配置字段模板
+const AI_CONFIG_FIELDS = {
+  openai: [
+    {
+      key: 'API_KEY',
+      label: 'API密钥',
+      type: 'password',
+      required: true,
+      placeholder: '粘贴从OpenAI获取的API Key',
+      help: '登录OpenAI平台，在API Keys页面创建新密钥',
+      example: '例如: sk-proj-abcdefghijklmnopqrstuvwxyz123456',
+    },
+    {
+      key: 'BASE_URL',
+      label: 'API代理地址（可选）',
+      type: 'input',
+      required: false,
+      placeholder: 'https://api.openai.com/v1',
+      help: '如果使用第三方代理或中转，请填写代理地址',
+      example: '默认: https://api.openai.com/v1',
+    },
+  ],
+  anthropic: [
+    {
+      key: 'API_KEY',
+      label: 'API密钥',
+      type: 'password',
+      required: true,
+      placeholder: '粘贴从Anthropic获取的API Key',
+      help: '登录Anthropic Console，在Settings -> API Keys创建新密钥',
+      example: '例如: sk-ant-api03-abcdefghijklmnopqrstuvwxyz',
+    },
+    {
+      key: 'BASE_URL',
+      label: 'API代理地址（可选）',
+      type: 'input',
+      required: false,
+      placeholder: 'https://api.anthropic.com',
+      help: '如果使用第三方代理或中转，请填写代理地址',
+      example: '默认: https://api.anthropic.com',
+    },
+  ],
+};
+
 const ConfigDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -333,6 +398,12 @@ const ConfigDetail: React.FC = () => {
       } else if (configKey.includes('TELEGRAM')) {
         setConfigType(ConfigType.NOTIFICATION);
         setSubType('telegram');
+      } else if (configKey.startsWith('OPENAI_')) {
+        setConfigType(ConfigType.AI);
+        setSubType('openai');
+      } else if (configKey.startsWith('ANTHROPIC_')) {
+        setConfigType(ConfigType.AI);
+        setSubType('anthropic');
       }
 
       // 设置表单值
@@ -372,7 +443,9 @@ const ConfigDetail: React.FC = () => {
         // 新增模式：批量创建配置
         const fields = configType === ConfigType.EXCHANGE
           ? EXCHANGE_CONFIG_FIELDS[subType as keyof typeof EXCHANGE_CONFIG_FIELDS]
-          : NOTIFICATION_CONFIG_FIELDS[subType as keyof typeof NOTIFICATION_CONFIG_FIELDS];
+          : configType === ConfigType.NOTIFICATION
+          ? NOTIFICATION_CONFIG_FIELDS[subType as keyof typeof NOTIFICATION_CONFIG_FIELDS]
+          : AI_CONFIG_FIELDS[subType as keyof typeof AI_CONFIG_FIELDS];
 
         const configs = fields.map((field) => {
           const value = values[`dynamic_${field.key}`];
@@ -382,7 +455,9 @@ const ConfigDetail: React.FC = () => {
 
           const typeLabel = configType === ConfigType.EXCHANGE
             ? EXCHANGE_TYPES[subType.toUpperCase() as keyof typeof EXCHANGE_TYPES]?.label
-            : NOTIFICATION_TYPES[subType.toUpperCase() as keyof typeof NOTIFICATION_TYPES]?.label;
+            : configType === ConfigType.NOTIFICATION
+            ? NOTIFICATION_TYPES[subType.toUpperCase() as keyof typeof NOTIFICATION_TYPES]?.label
+            : AI_TYPES[subType.toUpperCase() as keyof typeof AI_TYPES]?.label;
 
           return {
             config_key: `${subType.toUpperCase()}_${field.key}`,
@@ -392,7 +467,7 @@ const ConfigDetail: React.FC = () => {
             status: ConfigStatus.ACTIVE,
             is_sensitive: field.type === 'password',
             is_required: field.required,
-            requires_restart: configType === ConfigType.EXCHANGE,
+            requires_restart: configType === ConfigType.EXCHANGE || configType === ConfigType.AI,
           };
         });
 
@@ -482,7 +557,7 @@ const ConfigDetail: React.FC = () => {
       {/* 步骤1：选择配置类型 */}
       {isNew && currentStep === 0 && (
         <Row gutter={16}>
-          <Col span={12}>
+          <Col span={8}>
             <Card
               hoverable
               onClick={() => handleSelectConfigType(ConfigType.EXCHANGE)}
@@ -513,7 +588,7 @@ const ConfigDetail: React.FC = () => {
               </Paragraph>
             </Card>
           </Col>
-          <Col span={12}>
+          <Col span={8}>
             <Card
               hoverable
               onClick={() => handleSelectConfigType(ConfigType.NOTIFICATION)}
@@ -544,6 +619,37 @@ const ConfigDetail: React.FC = () => {
               </Paragraph>
             </Card>
           </Col>
+          <Col span={8}>
+            <Card
+              hoverable
+              onClick={() => handleSelectConfigType(ConfigType.AI)}
+              style={{
+                height: 240,
+                borderRadius: 12,
+                border: '2px solid #E5E7EB',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+              }}
+              styles={{
+                body: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  padding: 32,
+                },
+              }}
+            >
+              <span style={{ fontSize: 64, marginBottom: 24 }}>🤖</span>
+              <Title level={3} style={{ marginBottom: 12, color: '#111827' }}>
+                AI配置
+              </Title>
+              <Paragraph style={{ textAlign: 'center', color: '#6B7280', marginBottom: 0 }}>
+                配置OpenAI、Claude等AI服务，启用智能分析功能
+              </Paragraph>
+            </Card>
+          </Col>
         </Row>
       )}
 
@@ -557,7 +663,9 @@ const ConfigDetail: React.FC = () => {
                 <span>
                   {configType === ConfigType.EXCHANGE
                     ? '选择你想连接的交易所'
-                    : '选择你想使用的通知方式'}
+                    : configType === ConfigType.NOTIFICATION
+                    ? '选择你想使用的通知方式'
+                    : '选择你想使用的AI服务'}
                 </span>
               </div>
             }
@@ -601,7 +709,7 @@ const ConfigDetail: React.FC = () => {
                 </Col>
               ))}
             </Row>
-          ) : (
+          ) : configType === ConfigType.NOTIFICATION ? (
             <Row gutter={[16, 16]}>
               {Object.values(NOTIFICATION_TYPES).map((notif) => (
                 <Col span={12} key={notif.value}>
@@ -637,6 +745,42 @@ const ConfigDetail: React.FC = () => {
                 </Col>
               ))}
             </Row>
+          ) : (
+            <Row gutter={16}>
+              {Object.values(AI_TYPES).map((ai) => (
+                <Col span={12} key={ai.value}>
+                  <Card
+                    hoverable
+                    onClick={() => handleSelectSubType(ai.value)}
+                    style={{
+                      height: 200,
+                      borderRadius: 12,
+                      border: '2px solid #E5E7EB',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                    }}
+                    styles={{
+                      body: {
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        padding: 24,
+                      },
+                    }}
+                  >
+                    <div style={{ fontSize: 56, marginBottom: 16 }}>{ai.icon}</div>
+                    <Title level={4} style={{ marginBottom: 8, color: '#111827' }}>
+                      {ai.fullName}
+                    </Title>
+                    <Text style={{ textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+                      {ai.description}
+                    </Text>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
           )}
         </>
       )}
@@ -651,7 +795,9 @@ const ConfigDetail: React.FC = () => {
                   <div style={{ fontWeight: 500, marginBottom: 4 }}>
                     {configType === ConfigType.EXCHANGE
                       ? `配置 ${EXCHANGE_TYPES[subType.toUpperCase() as keyof typeof EXCHANGE_TYPES]?.fullName}`
-                      : `配置 ${NOTIFICATION_TYPES[subType.toUpperCase() as keyof typeof NOTIFICATION_TYPES]?.fullName}`}
+                      : configType === ConfigType.NOTIFICATION
+                      ? `配置 ${NOTIFICATION_TYPES[subType.toUpperCase() as keyof typeof NOTIFICATION_TYPES]?.fullName}`
+                      : `配置 ${AI_TYPES[subType.toUpperCase() as keyof typeof AI_TYPES]?.fullName}`}
                   </div>
                   <div style={{ fontSize: 13, color: '#6B7280' }}>
                     请仔细填写以下信息，确保信息准确无误
@@ -659,6 +805,17 @@ const ConfigDetail: React.FC = () => {
                       <>
                         {' '}· <a
                           href={EXCHANGE_TYPES[subType.toUpperCase() as keyof typeof EXCHANGE_TYPES]?.helpLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          如何获取API密钥？
+                        </a>
+                      </>
+                    )}
+                    {configType === ConfigType.AI && (
+                      <>
+                        {' '}· <a
+                          href={AI_TYPES[subType.toUpperCase() as keyof typeof AI_TYPES]?.helpLink}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
@@ -731,6 +888,52 @@ const ConfigDetail: React.FC = () => {
 
                 {configType === ConfigType.NOTIFICATION &&
                   NOTIFICATION_CONFIG_FIELDS[subType as keyof typeof NOTIFICATION_CONFIG_FIELDS]?.map((field) => (
+                    <Form.Item
+                      key={field.key}
+                      name={`dynamic_${field.key}`}
+                      label={
+                        <Space>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>
+                            {field.label}
+                          </span>
+                          {field.help && (
+                            <Tooltip title={
+                              <div>
+                                <div style={{ marginBottom: 4 }}>{field.help}</div>
+                                {field.example && (
+                                  <div style={{ fontSize: 12, opacity: 0.85 }}>
+                                    {field.example}
+                                  </div>
+                                )}
+                              </div>
+                            }>
+                              <QuestionCircleOutlined style={{ color: '#9CA3AF', cursor: 'help' }} />
+                            </Tooltip>
+                          )}
+                        </Space>
+                      }
+                      rules={[
+                        { required: field.required, message: `请输入${field.label}` },
+                      ]}
+                    >
+                      {field.type === 'password' ? (
+                        <Input.Password
+                          placeholder={field.placeholder}
+                          size="large"
+                          style={{ fontSize: 14 }}
+                        />
+                      ) : (
+                        <Input
+                          placeholder={field.placeholder}
+                          size="large"
+                          style={{ fontSize: 14 }}
+                        />
+                      )}
+                    </Form.Item>
+                  ))}
+
+                {configType === ConfigType.AI &&
+                  AI_CONFIG_FIELDS[subType as keyof typeof AI_CONFIG_FIELDS]?.map((field) => (
                     <Form.Item
                       key={field.key}
                       name={`dynamic_${field.key}`}
@@ -849,6 +1052,11 @@ const ConfigDetail: React.FC = () => {
                 {configType === ConfigType.EXCHANGE && (
                   <li>
                     访问交易所的帮助文档了解如何创建API密钥
+                  </li>
+                )}
+                {configType === ConfigType.AI && (
+                  <li>
+                    访问AI服务商的帮助文档了解如何创建API密钥
                   </li>
                 )}
                 <li>如果遇到问题，可以联系技术支持</li>

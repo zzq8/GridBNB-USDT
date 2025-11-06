@@ -42,10 +42,11 @@ export interface LoginResponse {
   user: User;
 }
 
-// 配置类型 - 仅保留交易所和通知配置
+// 配置类型 - 仅保留交易所、通知配置和AI配置
 export const ConfigType = {
   EXCHANGE: 'exchange',
   NOTIFICATION: 'notification',
+  AI: 'ai',
 } as const;
 
 export type ConfigType = typeof ConfigType[keyof typeof ConfigType];
