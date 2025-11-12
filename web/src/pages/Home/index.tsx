@@ -2,11 +2,11 @@
  * 首页 - 交易系统运行监控（现代化数据大屏风格）
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Row,
   Col,
-  Card,
   Tag,
   Table,
   Typography,
@@ -18,7 +18,6 @@ import {
   Button,
   Tabs,
   Switch,
-  Tooltip,
 } from 'antd';
 import {
   ArrowUpOutlined,
@@ -53,6 +52,7 @@ import { modernTheme } from '@/styles/modernTheme';
 const { Text } = Typography;
 
 const Home: React.FC = () => {
+  const navigate = useNavigate();
   // 状态管理
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -216,6 +216,69 @@ const Home: React.FC = () => {
     // 清理定时器
     return () => clearInterval(interval);
   }, [fetchDashboardData, sseStatus]);
+
+  const kpiCards = useMemo(
+    () => [
+      {
+        key: 'total_profit',
+        title: '累计收益',
+        value: dashboardData?.total_profit ?? 0,
+        suffix: ' USDT',
+        icon: <DollarOutlined />,
+        accent: '#10B981',
+        trend: dashboardData?.profit_rate ?? 0,
+      },
+      {
+        key: 'today_profit',
+        title: '今日收益',
+        value: dashboardData?.today_profit ?? 0,
+        suffix: ' USDT',
+        icon: <TrophyOutlined />,
+        accent: '#F97316',
+        trend: undefined,
+      },
+      {
+        key: 'total_trades',
+        title: '累计交易',
+        value: dashboardData?.total_trades ?? 0,
+        suffix: ' 次',
+        icon: <ThunderboltOutlined />,
+        accent: '#3B82F6',
+        trend: undefined,
+      },
+      {
+        key: 'active_symbols',
+        title: '活跃交易对',
+        value: dashboardData?.active_symbols ?? 0,
+        suffix: ' 个',
+        icon: <CheckCircleOutlined />,
+        accent: '#6366F1',
+        trend: undefined,
+      },
+    ],
+    [dashboardData]
+  );
+
+  const quickActions = useMemo(
+    () => [
+      {
+        key: 'view-logs',
+        label: '查看日志',
+        onClick: () => navigate('/logs'),
+      },
+      {
+        key: 'view-configs',
+        label: '配置管理',
+        onClick: () => navigate('/configs'),
+      },
+      {
+        key: 'view-trades',
+        label: '交易历史',
+        onClick: () => navigate('/trades'),
+      },
+    ],
+    [navigate]
+  );
 
   // 交易对状态表格列定义 - 现代化颜色
   const symbolColumns: ColumnsType<SymbolStatus> = [
@@ -488,253 +551,99 @@ const Home: React.FC = () => {
         />
       )}
 
-      {/* SSE状态和控制栏 */}
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Space
-          split={<span style={{ color: '#d9d9d9' }}>|</span>}
-          wrap
-          style={{ width: '100%' }}
-        >
-          {/* SSE连接状态 */}
-          <SSEStatusIndicator
-            status={sseStatus}
-            error={sseError}
-            reconnectCount={reconnectCount}
-            showText
-          />
 
-          {/* SSE开关 */}
-          <Space size={4}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              实时推送:
-            </Text>
-            <Switch
-              size="small"
-              checked={sseEnabled}
-              onChange={setSseEnabled}
-            />
-          </Space>
-
-          {/* 手动刷新按钮 */}
-          <Tooltip title="手动刷新数据">
-            <Button
-              type="text"
-              size="small"
-              icon={<ReloadOutlined spin={loading} />}
-              onClick={fetchDashboardData}
-              disabled={loading}
-            >
-              刷新
-            </Button>
-          </Tooltip>
-
-          {/* 最后更新时间 */}
-          {systemInfo && (
-            <Space size={4}>
-              <ClockCircleOutlined style={{ color: '#999', fontSize: 12 }} />
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {systemInfo.last_update ? new Date(systemInfo.last_update).toLocaleTimeString('zh-CN') : '--'}
-              </Text>
+      {/* SSE状态与快捷操作 */}
+      <GlassCard style={{ marginBottom: 24 }}>
+        <Row gutter={[16, 16]} align="middle" justify="space-between">
+          <Col xs={24} md={16}>
+            <Space wrap size={16}>
+              <SSEStatusIndicator
+                status={sseStatus}
+                error={sseError}
+                reconnectCount={reconnectCount}
+                showText
+              />
+              <Space size={8}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  实时推送
+                </Text>
+                <Switch
+                  size="small"
+                  checked={sseEnabled}
+                  onChange={setSseEnabled}
+                />
+              </Space>
+              {systemInfo && (
+                <Space size={6}>
+                  <ClockCircleOutlined style={{ color: modernTheme.colors.textMuted }} />
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    最近更新：{systemInfo.last_update ? new Date(systemInfo.last_update).toLocaleTimeString('zh-CN') : '--'}
+                  </Text>
+                </Space>
+              )}
             </Space>
-          )}
-        </Space>
-      </Card>
+          </Col>
+          <Col xs={24} md={8}>
+            <Space wrap>
+              <Button
+                type="primary"
+                icon={<ReloadOutlined spin={loading} />}
+                onClick={fetchDashboardData}
+              >
+                刷新数据
+              </Button>
+              {quickActions.map((action) => (
+                <Button key={action.key} onClick={action.onClick}>
+                  {action.label}
+                </Button>
+              ))}
+            </Space>
+          </Col>
+        </Row>
+      </GlassCard>
 
-      {/* 核心指标卡片 - 现代浅色风格，优化对比度 */}
+      {/* 核心指标卡片 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={12} lg={6}>
-          <Card
-            style={{
-              background: '#FFFFFF',
-              borderRadius: 12,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-              border: '1px solid #F0F0F0',
-            }}
-            styles={{ body: { padding: '20px' } }}
-          >
-            <div>
-              <div style={{
-                fontSize: 13,
-                color: '#6B7280',
-                marginBottom: 12,
-                fontWeight: 500,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
-                累计盈亏
-              </div>
-              <div style={{
-                fontSize: 32,
-                fontWeight: 700,
-                color: dashboardData.total_profit >= 0 ? '#10B981' : '#EF4444',
-                marginBottom: 12,
-                lineHeight: 1.2,
-              }}>
-                <CountUp
-                  end={dashboardData.total_profit}
-                  decimals={2}
-                  suffix=" USDT"
-                />
-              </div>
-              <div style={{
-                fontSize: 13,
-                color: dashboardData.total_profit >= 0 ? '#10B981' : '#EF4444',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}>
-                {dashboardData.total_profit >= 0 ? (
-                  <><ArrowUpOutlined /> 盈利中</>
-                ) : (
-                  <><ArrowDownOutlined /> 亏损中</>
+        {kpiCards.map((card) => (
+          <Col xs={24} sm={12} md={12} lg={6} key={card.key}>
+            <GlassCard hover gradient>
+              <Space direction="vertical" size={4}>
+                <Space size={8}>
+                  <span
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 12,
+                      background: `${card.accent}15`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: card.accent,
+                    }}
+                  >
+                    {card.icon}
+                  </span>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {card.title}
+                  </Text>
+                </Space>
+                <Space align="baseline" size={4}>
+                  <Text style={{ fontSize: 28, fontWeight: 700, color: modernTheme.colors.textPrimary }}>
+                    <CountUp end={card.value} decimals={card.value < 1 ? 4 : 2} />
+                  </Text>
+                  <Text type="secondary">{card.suffix}</Text>
+                </Space>
+                {typeof card.trend === 'number' && (
+                  <Tag color={card.trend >= 0 ? 'green' : 'red'}>
+                    {card.trend >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {card.trend >= 0 ? '+' : ''}
+                    {card.trend.toFixed(2)}%
+                  </Tag>
                 )}
-              </div>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={12} lg={6}>
-          <Card
-            style={{
-              background: '#FFFFFF',
-              borderRadius: 12,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-              border: '1px solid #F0F0F0',
-            }}
-            styles={{ body: { padding: '20px' } }}
-          >
-            <div>
-              <div style={{
-                fontSize: 13,
-                color: '#6B7280',
-                marginBottom: 12,
-                fontWeight: 500,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
-                收益率
-              </div>
-              <div style={{
-                fontSize: 32,
-                fontWeight: 700,
-                color: '#3B82F6',
-                marginBottom: 12,
-                lineHeight: 1.2,
-              }}>
-                <CountUp
-                  end={dashboardData.profit_rate}
-                  decimals={2}
-                  suffix="%"
-                />
-              </div>
-              <div style={{
-                fontSize: 13,
-                color: '#9CA3AF',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}>
-                <TrophyOutlined /> 总收益
-              </div>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={12} lg={6}>
-          <Card
-            style={{
-              background: '#FFFFFF',
-              borderRadius: 12,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-              border: '1px solid #F0F0F0',
-            }}
-            styles={{ body: { padding: '20px' } }}
-          >
-            <div>
-              <div style={{
-                fontSize: 13,
-                color: '#6B7280',
-                marginBottom: 12,
-                fontWeight: 500,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
-                今日盈亏
-              </div>
-              <div style={{
-                fontSize: 32,
-                fontWeight: 700,
-                color: dashboardData.today_profit >= 0 ? '#10B981' : '#EF4444',
-                marginBottom: 12,
-                lineHeight: 1.2,
-              }}>
-                <CountUp
-                  end={dashboardData.today_profit}
-                  decimals={2}
-                  suffix=" USDT"
-                />
-              </div>
-              <div style={{
-                fontSize: 13,
-                color: '#9CA3AF',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}>
-                <DollarOutlined /> 24H
-              </div>
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={12} lg={6}>
-          <Card
-            style={{
-              background: '#FFFFFF',
-              borderRadius: 12,
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-              border: '1px solid #F0F0F0',
-            }}
-            styles={{ body: { padding: '20px' } }}
-          >
-            <div>
-              <div style={{
-                fontSize: 13,
-                color: '#6B7280',
-                marginBottom: 12,
-                fontWeight: 500,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
-                总交易次数
-              </div>
-              <div style={{
-                fontSize: 32,
-                fontWeight: 700,
-                color: '#111827',
-                marginBottom: 12,
-                lineHeight: 1.2,
-              }}>
-                <CountUp
-                  end={dashboardData.total_trades}
-                  decimals={0}
-                />
-              </div>
-              <div style={{
-                fontSize: 13,
-                color: '#9CA3AF',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}>
-                <LineChartOutlined /> 累计
-              </div>
-            </div>
-          </Card>
-        </Col>
+              </Space>
+            </GlassCard>
+          </Col>
+        ))}
       </Row>
-
       {/* 系统状态和活跃交易对 - 现代化风格 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} lg={12}>

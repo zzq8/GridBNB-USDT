@@ -2,9 +2,9 @@
  * 主布局组件 - 现代化设计
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, Typography, Button, theme, Badge } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Typography, Button, theme, Badge, Tag, Tooltip } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -18,10 +18,14 @@ import {
   FileTextOutlined,
   HistoryOutlined,
   BellOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useTheme } from '@/contexts/ThemeContext';
 import { modernColors } from '@/config/theme';
+import SSEStatusIndicator from '@/components/SSEStatusIndicator';
+import type { SSEStatus } from '@/hooks/useSSE';
+import { useSSEServerStatus } from '@/hooks/useSSEServerStatus';
 import './BasicLayout.css';
 
 const { Header, Sider, Content } = Layout;
@@ -34,35 +38,58 @@ const BasicLayout: React.FC = () => {
   const location = useLocation();
   const { theme: currentTheme, toggleTheme } = useTheme();
   const { token } = useToken();
+  const {
+    status: sseServerStatus,
+    activeConnections,
+    lastError,
+    isRefreshing,
+    refresh: refreshSSEStatus,
+  } = useSSEServerStatus();
 
-  // 侧边栏菜单配置
-  const menuItems: MenuProps['items'] = [
-    {
-      key: '/',
-      icon: <DashboardOutlined />,
-      label: '仪表盘',
-    },
-    {
-      key: '/configs',
-      icon: <SettingOutlined />,
-      label: '配置管理',
-    },
-    {
-      key: '/templates',
-      icon: <AppstoreOutlined />,
-      label: '策略模板',
-    },
-    {
-      key: '/trades',
-      icon: <HistoryOutlined />,
-      label: '交易历史',
-    },
-    {
-      key: '/logs',
-      icon: <FileTextOutlined />,
-      label: '日志查看',
-    },
-  ];
+  const menuItems: MenuProps['items'] = useMemo(
+    () => [
+      {
+        key: 'group-core',
+        label: '核心概览',
+        type: 'group',
+        children: [
+          {
+            key: '/',
+            icon: <DashboardOutlined />,
+            label: '仪表盘',
+          },
+          {
+            key: '/configs',
+            icon: <SettingOutlined />,
+            label: '配置管理',
+          },
+          {
+            key: '/templates',
+            icon: <AppstoreOutlined />,
+            label: '策略模板',
+          },
+        ],
+      },
+      {
+        key: 'group-monitor',
+        label: '监控中心',
+        type: 'group',
+        children: [
+          {
+            key: '/trades',
+            icon: <HistoryOutlined />,
+            label: '交易历史',
+          },
+          {
+            key: '/logs',
+            icon: <FileTextOutlined />,
+            label: '日志查看',
+          },
+        ],
+      },
+    ],
+    []
+  );
 
   // 用户下拉菜单
   const userMenuItems: MenuProps['items'] = [
@@ -98,6 +125,15 @@ const BasicLayout: React.FC = () => {
   // 获取用户信息
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : null;
+
+  const indicatorStatus: SSEStatus =
+    sseServerStatus === 'online'
+      ? 'connected'
+      : sseServerStatus === 'offline'
+        ? 'error'
+        : 'connecting';
+
+  const activeMenuKey = location.pathname === '/' ? '/' : location.pathname;
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -144,7 +180,7 @@ const BasicLayout: React.FC = () => {
         <Menu
           theme="light"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[activeMenuKey]}
           items={menuItems}
           onClick={handleMenuClick}
           style={{
@@ -182,6 +218,26 @@ const BasicLayout: React.FC = () => {
 
           {/* 右侧：操作区 */}
           <Space size={16}>
+            {/* SSE 状态 */}
+            <Space size={6}>
+              <SSEStatusIndicator
+                status={indicatorStatus}
+                error={lastError ?? undefined}
+                showText
+              />
+              <Tooltip title="手动检查 SSE 服务状态">
+                <Button
+                  type="text"
+                  icon={<ReloadOutlined spin={isRefreshing} />}
+                  onClick={refreshSSEStatus}
+                  style={{ width: 32, height: 32 }}
+                />
+              </Tooltip>
+              <Tag color={activeConnections > 0 ? 'green' : 'default'} style={{ marginRight: 8 }}>
+                {activeConnections} 连接
+              </Tag>
+            </Space>
+
             {/* 通知 */}
             <Badge count={0} showZero={false}>
               <Button
