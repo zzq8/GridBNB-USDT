@@ -76,6 +76,7 @@ def create_app(traders: dict = None, trader_registry=None) -> FastAPI:
         trades,
         metrics,
     )
+    from src.api.routes import grid_strategy_routes
 
     app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
     app.include_router(config.router, prefix="/api/configs", tags=["配置管理"])
@@ -86,6 +87,7 @@ def create_app(traders: dict = None, trader_registry=None) -> FastAPI:
     app.include_router(logs.router, prefix="/api/logs", tags=["日志查看"])
     app.include_router(trades.router, prefix="/api/trades", tags=["交易历史"])
     app.include_router(metrics.router, prefix="/api", tags=["系统监控"])
+    app.include_router(grid_strategy_routes.router, tags=["网格策略"])
 
     # Prometheus 公开端点（无需认证）
     app.add_api_route(
@@ -95,7 +97,7 @@ def create_app(traders: dict = None, trader_registry=None) -> FastAPI:
         include_in_schema=False,
     )
 
-    logger.info("✓ 所有路由已注册")
+    logger.info("✓ 所有路由已注册（含网格策略）")
 
     # ====== 4. 配置静态文件服务（前端） ======
     web_dist = Path(__file__).parent.parent.parent / "web" / "dist"
@@ -124,15 +126,17 @@ def create_app(traders: dict = None, trader_registry=None) -> FastAPI:
     logger.info("FastAPI 应用创建完成")
     logger.info("=" * 60)
     logger.info("API 端点:")
-    logger.info("  认证:     POST /api/auth/login")
-    logger.info("  配置:     GET  /api/configs")
-    logger.info("  日志:     GET  /api/logs/list")
-    logger.info("  交易:     GET  /api/trades/list")
-    logger.info("  SSE:      GET  /api/sse/events")
-    logger.info("  健康检查: GET  /api/health")
-    logger.info("  API文档:  GET  /docs")
+    logger.info("  认证:      POST /api/auth/login")
+    logger.info("  配置:      GET  /api/configs")
+    logger.info("  网格策略:  GET  /api/grid-strategies")  # 🆕
+    logger.info("  模板创建:  POST /api/grid-strategies/templates/{template_name}")  # 🆕
+    logger.info("  日志:      GET  /api/logs/list")
+    logger.info("  交易:      GET  /api/trades/list")
+    logger.info("  SSE:       GET  /api/sse/events")
+    logger.info("  健康检查:  GET  /api/health")
+    logger.info("  API文档:   GET  /docs")
     logger.info("前端:")
-    logger.info("  主页:     GET  /")
+    logger.info("  主页:      GET  /")
     logger.info("=" * 60)
 
     return app
