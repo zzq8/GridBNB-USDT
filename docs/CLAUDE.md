@@ -30,12 +30,12 @@
 | 2025-10-24 18:00 | **🛡️ 止损机制实施**：新增价格止损和回撤止盈功能，紧急平仓机制，17个单元测试，完整的配置验证 | src/core/trader.py (新增3个方法, 修改main_loop), src/config/settings.py (新增3个配置项), config/.env.example (新增止损配置), tests/unit/test_stop_loss.py (新增17个测试), docs/STOP_LOSS_DESIGN.md (新增设计文档), README.md |
 | 2025-10-24 15:00 | **🎉 企业级多交易所架构上线**：支持 Binance 和 OKX,采用抽象工厂+适配器模式,1230+行企业级代码,100%类型注解,15+单元测试 | src/core/exchanges/ (新增), tests/unit/test_exchange_factory.py (新增), docs/architecture/ (新增), README.md, .env.multi-exchange.example |
 | 2025-10-23 12:00 | **添加 OpenAI 自定义 base_url 支持**：支持国内中转服务,提升 AI 策略可用性 | src/strategies/ai_strategy.py, config/.env |
-| 2025-10-21 10:00 | **移除S1仓位控制策略**：简化交易逻辑,采用单一动态网格策略 | src/core/trader.py, src/strategies/position_controller_s1.py (已删除), src/services/web_server.py, tests/ |
+| 2025-10-21 10:00 | **移除S1仓位控制策略**：简化交易逻辑,采用单一动态网格策略 | src/core/trader.py, src/strategies/position_controller_s1.py (已删除), src/services/web_server.py *(旧版 / 已归档)*, tests/ |
 | 2025-10-20 18:30 | 确立项目技术标准：统一使用 docker compose（非 docker-compose） | README.md, docs/SCRIPT_OPTIMIZATION.md, docs/PROJECT_STANDARDS.md, scripts/start-with-nginx.sh |
 | 2025-10-20 17:00 | 完成企业级目录结构重构：模块化分层、测试覆盖31%、所有96个测试通过 | 全局目录结构, README.md, CLAUDE.md |
 | 2025-10-20 15:30 | 完成高优先级技术债务清理：测试覆盖、日志优化、配置重构 | tests/, src/config/settings.py, src/core/exchange_client.py, src/strategies/position_controller_s1.py, src/core/trader.py, CLAUDE.md |
 | 2025-10-17 14:50 | 添加 Web 监控界面详解和 API 使用指南 | CLAUDE.md |
-| 2025-10-17 14:45 | 完整扫描 monitor.py 和 web_server.py，更新文档 | src/services/monitor.py, src/services/web_server.py, CLAUDE.md, index.json |
+| 2025-10-17 14:45 | 完整扫描 monitor.py 和 web_server.py，更新文档 | src/services/monitor.py, src/services/web_server.py *(旧版 / 已归档)*, CLAUDE.md, index.json |
 | 2025-10-17 14:36 | 初始化 AI 上下文文档 | 全局 |
 
 ---
@@ -107,8 +107,8 @@ GridBNB-USDT/
 │   ├── src/config/settings.py       # 统一配置管理（Pydantic）
 │   └── config/.env                  # 环境变量配置（敏感信息）
 ├── 接口层 (Interface Layer)
-│   ├── src/services/web_server.py   # Web 监控界面（aiohttp - 旧版）
-│   └── 🆕 web/                      # 现代化前端（React 19 + TypeScript）
+│   ├── src/services/fastapi_server.py # FastAPI 统一入口（提供 REST API + 静态前端）
+│   └── 🆕 web/                        # 现代化前端（React 19 + TypeScript）
 │       ├── src/api/                 #     API接口层（5个模块）
 │       ├── src/components/          #     通用组件（11个）
 │       ├── src/pages/               #     页面组件（8个核心页面）
@@ -154,7 +154,7 @@ graph TD
     E --> E1["src/config/settings.py"];
     E --> E2["config/.env"];
 
-    F --> F1["src/services/web_server.py"];
+    F --> F1["src/services/fastapi_server.py"];
 
     G --> G1["docker/docker-compose.yml"];
     G --> G2["docker/Dockerfile"];
@@ -185,7 +185,7 @@ graph TD
 | **🆕 全局资金分配器** | `src/strategies/global_allocator.py` | 多交易对资金分配与管理 | `GlobalFundAllocator`, `AllocationStrategy` | 300+ |
 | **风险管理器** | `src/strategies/risk_manager.py` | 仓位限制与风控状态管理 | `AdvancedRiskManager`, `RiskState` | 142 |
 | **订单跟踪器** | `src/core/order_tracker.py` | 订单记录与交易历史管理 | `OrderTracker`, `OrderThrottler` | 314 |
-| **Web服务器(旧)** | `src/services/web_server.py` | 实时监控界面与 API 端点（aiohttp） | `start_web_server()`, `handle_status()`, `handle_log()`, `IPLogger` | 698 |
+| **FastAPI Web服务器** | `src/services/fastapi_server.py`, `src/fastapi_app/` | 统一 REST API、SSE、静态前端托管 | `start_fastapi_server()`, `create_app()`, `metrics.router` | 1200+ |
 | **🆕 现代化前端** | `web/` | React 19 + TypeScript 前端应用 | 8个核心页面，11个通用组件 | 5000+ |
 | **🆕 前端API层** | `web/src/api/` | 前端API接口封装 | `auth.ts`, `config.ts`, `dashboard.ts`, `logs.ts`, `trades.ts` | 500+ |
 | **🆕 前端组件** | `web/src/components/` | React通用组件 | `AuthGuard`, `JsonEditor`, `GlassCard`, 图表组件 | 1000+ |
@@ -514,9 +514,9 @@ uvicorn src.fastapi_app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 **与原Web服务器的关系**：
-- **原 Web 服务器** (`src/services/web_server.py`): aiohttp实现，简单监控界面
-- **FastAPI 服务器** (`src/fastapi_app/`): 企业级API，支持数据库、认证
-- 两者可以同时运行，端口不同
+- **原 aiohttp Web 服务器** (`src/services/web_server.py`) 已归档，仅保留历史记录，如需老版模板可在 Git 历史中查阅
+- **FastAPI 服务器** (`src/services/fastapi_server.py` + `src/fastapi_app/`) 现为唯一入口，负责 API、SSE、Prometheus 指标与前端托管
+- 部署时只需运行 FastAPI 服务器（Docker Compose / `python -m src.services.fastapi_server`）
 
 **访问示例**:
 ```bash

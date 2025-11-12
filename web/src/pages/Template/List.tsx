@@ -48,7 +48,7 @@ interface Strategy {
 
 const TemplateList: React.FC = () => {
   const navigate = useNavigate();
-  const actionRef = useRef<ActionType>();
+  const actionRef = useRef<ActionType | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasAIStrategy, setHasAIStrategy] = useState(false);
 
@@ -57,17 +57,11 @@ const TemplateList: React.FC = () => {
     setLoading(true);
     try {
       // TODO: 替换为真实API调用
-      // const response = await getStrategies();
-      // setHasAIStrategy(response.data.some((s: Strategy) => s.type === 'ai'));
-      // return {
-      //   data: response.data,
-      //   success: true,
-      //   total: response.total,
-      // };
+      const mockData: Strategy[] = [];
+      setHasAIStrategy(mockData.some((strategy) => strategy.type === 'ai'));
 
-      // 暂时返回空数据
       return {
-        data: [],
+        data: mockData,
         success: true,
         total: 0,
       };

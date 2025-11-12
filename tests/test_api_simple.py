@@ -15,8 +15,12 @@ os.environ['BINANCE_API_SECRET'] = 'b' * 64
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from aiohttp import web, ClientSession
-from src.services.web_server_v2 import create_web_app
+import uvicorn
+from aiohttp import ClientSession
+from src.fastapi_app.main import create_app
+
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 async def test_api():
@@ -25,15 +29,19 @@ async def test_api():
 
     # 启动测试服务器
     print("1. Starting test server...")
-    app = await create_web_app(traders={})
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '127.0.0.1', 58182)
-    await site.start()
-    print("   Server started on http://127.0.0.1:58182")
-
-    # 等待服务器启动
+    app = create_app(traders={})
+    config = uvicorn.Config(
+        app,
+        host='127.0.0.1',
+        port=58182,
+        log_level="warning",
+        access_log=False,
+        loop="asyncio"
+    )
+    server = uvicorn.Server(config)
+    server_task = asyncio.create_task(server.serve())
     await asyncio.sleep(0.5)
+    print("   Server started on http://127.0.0.1:58182")
 
     results = []
 
@@ -55,12 +63,14 @@ async def test_api():
                     print(f"   [FAIL] Login failed: {resp.status}")
                     print(f"   Response: {data}")
                     results.append(('Login', False))
-                    await runner.cleanup()
+                    server.should_exit = True
+                    await server_task
                     return results
         except Exception as e:
             print(f"   [ERROR] {e}")
             results.append(('Login', False))
-            await runner.cleanup()
+            server.should_exit = True
+            await server_task
             return results
 
         # 测试2: 获取当前用户
@@ -104,20 +114,21 @@ async def test_api():
         print("\n5. Testing unauthorized access...")
         try:
             async with session.get(
-                'http://127.0.0.1:58182/api/configs'
+                    'http://127.0.0.1:58182/api/configs'
             ) as resp:
-                if resp.status == 401:
-                    print(f"   [OK] Correctly rejected (401)")
+                if resp.status in (401, 403):
+                    print(f"   [OK] Correctly rejected ({resp.status})")
                     results.append(('Unauthorized', True))
                 else:
-                    print(f"   [FAIL] Expected 401, got {resp.status}")
+                    print(f"   [FAIL] Expected 401/403, got {resp.status}")
                     results.append(('Unauthorized', False))
         except Exception as e:
             print(f"   [ERROR] {e}")
             results.append(('Unauthorized', False))
 
     # 关闭服务器
-    await runner.cleanup()
+    server.should_exit = True
+    await server_task
     print("\n6. Server stopped")
 
     # 输出结果

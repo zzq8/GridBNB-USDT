@@ -20,13 +20,15 @@ if str(project_root) not in sys.path:
 
 from src.core.trader import GridTrader
 from src.utils.helpers import LogConfig, send_pushplus_message
-from src.services.web_server import start_web_server
+from functools import partial
+
 from src.core.exchange_client import ExchangeClient
 from src.config.settings import TradingConfig, SYMBOLS_LIST, settings
 from src.utils.logging_config import get_logger
 from src.services.alerting import setup_alerts, get_alert_manager, AlertLevel
 from src.services.config_watcher import setup_config_watcher, get_config_watcher
 from src.strategies.global_allocator import GlobalFundAllocator  # 🆕 导入全局资金分配器
+from src.services.fastapi_server import start_fastapi_server
 
 # 获取 structlog logger
 logger = get_logger(__name__)
@@ -243,11 +245,26 @@ async def main():
         )
         logger.info("config_watcher_started", message="配置热重载已启动")
 
-        # 如果有trader实例，启动Web服务器监控所有交易对
+        # 如果有trader实例，启动 FastAPI 服务器暴露统一前端/接口
         if traders:
-            logger.info("starting_web_server", trader_count=len(traders))
-            web_server_task = asyncio.create_task(start_web_server(traders))
-            tasks.append(web_server_task)
+            fastapi_host = getattr(settings, "FASTAPI_HOST", "0.0.0.0")
+            fastapi_port = getattr(settings, "FASTAPI_PORT", 58181)
+            logger.info(
+                "starting_fastapi_server",
+                trader_count=len(traders),
+                host=fastapi_host,
+                port=fastapi_port,
+            )
+            loop = asyncio.get_running_loop()
+            fastapi_runner = partial(
+                start_fastapi_server,
+                traders=traders,
+                trader_registry=None,
+                port=fastapi_port,
+                host=fastapi_host,
+            )
+            fastapi_future = loop.run_in_executor(None, fastapi_runner)
+            tasks.append(asyncio.wrap_future(fastapi_future))
 
         # 【新增】启动独立的全局资产监控任务
         global_status_task = asyncio.create_task(

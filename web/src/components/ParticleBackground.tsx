@@ -16,7 +16,7 @@ interface Particle {
 const ParticleBackground: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particles = useRef<Particle[]>([]);
-  const animationFrameId = useRef<number>();
+  const animationFrameId = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -110,8 +110,9 @@ const ParticleBackground: React.FC = () => {
     // 清理
     return () => {
       window.removeEventListener('resize', resizeCanvas);
-      if (animationFrameId.current) {
+      if (animationFrameId.current !== null) {
         cancelAnimationFrame(animationFrameId.current);
+        animationFrameId.current = null;
       }
     };
   }, []);

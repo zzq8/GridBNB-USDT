@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     WEB_PASSWORD: Optional[str] = None
     HTTP_PROXY: Optional[str] = None
 
+    # --- Web/API 服务配置 ---
+    FASTAPI_HOST: str = "0.0.0.0"
+    FASTAPI_PORT: int = 58181
+
     # --- 理财精度配置 (从JSON字符串解析) ---
     SAVINGS_PRECISIONS: Dict[str, int] = {'USDT': 2, 'BNB': 6, 'DEFAULT': 8}
 

@@ -48,14 +48,6 @@
 - ✅ **技术指标综合分析**: RSI, MACD, 布林带等
 - ✅ **市场情绪监测**: Fear & Greed Index
 
-📖 **详细文档**:
-- [止损机制设计](docs/STOP_LOSS_DESIGN.md)
-- [多交易所架构设计](docs/architecture/multi-exchange-design.md)
-- [多交易所快速开始](docs/architecture/QUICK_START.md)
-- [AI策略使用指南](docs/AI_STRATEGY_GUIDE.md)
-
----
-
 ## ✨ 核心特性
 
 ### 🏦 企业级多交易所支持
@@ -65,9 +57,6 @@
 - ✅ **即插即用**: 修改配置即可切换交易所，无需修改代码
 - ✅ **统一接口**: 所有交易所使用相同的API接口
 - ✅ **易于扩展**: 插件化架构，可轻松添加新交易所
-- 📖 **详细文档**:
-  - [多交易所快速开始](docs/architecture/QUICK_START.md)
-  - [多交易所架构设计](docs/architecture/multi-exchange-design.md)
 
 ### 🚀 多币种并发交易
 - ✅ **任意交易对支持**: BNB/USDT, ETH/USDT, BTC/USDT 等所有现货交易对
@@ -90,7 +79,6 @@
 - ✅ **成本控制**: 每日调用限制、置信度阈值、金额比例控制
 - ✅ **风险协同**: 与现有风控系统无缝集成，确保交易安全
 - ✅ **自定义OpenAI Base URL**: 支持国内中转服务
-- 📖 **详细文档**: [AI策略使用指南](docs/AI_STRATEGY_GUIDE.md)
 
 ### 🛡️ 多层风险管理
 - ✅ **止损机制**: 价格止损和回撤止盈双重保护，最大限度降低极端行情风险
@@ -224,6 +212,8 @@
    python src/main.py
    ```
 
+   程序启动后，FastAPI + React 统一前端将默认监听 `http://localhost:58181`，可通过 `.env` 中的 `FASTAPI_HOST` / `FASTAPI_PORT` 调整绑定地址。
+
 ---
 
 ## 🏦 多交易所配置
@@ -258,11 +248,6 @@ OKX_PASSPHRASE="your_okx_passphrase"  # OKX特有参数
 # 3. 重启程序
 ```
 
-📖 **详细指南**:
-- [多交易所快速开始](docs/architecture/QUICK_START.md)
-- [多交易所架构设计](docs/architecture/multi-exchange-design.md)
-- [迁移指南](docs/MIGRATION_GUIDE.md)
-
 ---
 
 ## 📁 项目结构
@@ -285,7 +270,7 @@ GridBNB-USDT/
 │   │   └── risk_manager.py     # 风险管理
 │   ├── services/               # 服务模块
 │   │   ├── monitor.py          # 交易监控
-│   │   └── web_server.py       # Web服务
+│   │   └── fastapi_server.py   # FastAPI + React 统一前端服务
 │   └── config/                 # 配置模块
 │       └── settings.py         # 配置管理
 ├── tests/                      # 测试目录
@@ -567,6 +552,14 @@ pre-commit install
 pre-commit run --all-files
 ```
 
+### 前端构建（web/）
+
+```bash
+cd web
+npm install
+npm run build  # 生成 web/dist，FastAPI 会自动托管
+```
+
 ### 添加新交易所
 
 只需 3 步：
@@ -594,7 +587,7 @@ pre-commit run --all-files
 
 1. Fork 本仓库
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 安装开发工具 (`pip install -r requirements-dev.txt`)
+3. 安装开发工具（参考上文“代码质量工具”中的快速开始命令）
 4. 编写代码并确保通过所有检查
 5. 提交更改 (`git commit -m 'feat: Add AmazingFeature'`)
 6. 推送到分支 (`git push origin feature/AmazingFeature`)

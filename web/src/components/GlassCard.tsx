@@ -2,7 +2,8 @@
  * 玻璃态卡片组件 - 现代化UI
  */
 
-import React, { CSSProperties, ReactNode } from 'react';
+import React from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { modernTheme } from '@/styles/modernTheme';
 
 interface GlassCardProps {

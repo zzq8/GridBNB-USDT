@@ -22,7 +22,6 @@ import {
 } from 'antd';
 import {
   HistoryOutlined,
-  SearchOutlined,
   ReloadOutlined,
   DownloadOutlined,
   FilterOutlined,

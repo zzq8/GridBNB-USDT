@@ -18,8 +18,9 @@ os.environ['BINANCE_API_SECRET'] = 'b' * 64  # 64位测试密钥
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from aiohttp import web, ClientSession
-from src.services.web_server_v2 import create_web_app
+import uvicorn
+from aiohttp import ClientSession
+from src.fastapi_app.main import create_app
 
 # 配置日志
 logging.basicConfig(
@@ -27,6 +28,49 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
+class FastAPITestServer:
+    """轻量级 FastAPI 测试服务器"""
+
+    def __init__(self, host: str = '127.0.0.1', port: int = 58182):
+        self.host = host
+        self.port = port
+        self.app = create_app(traders={})
+        self.config = uvicorn.Config(
+            self.app,
+            host=self.host,
+            port=self.port,
+            log_level="warning",
+            access_log=False,
+            loop="asyncio",
+        )
+        self.server = uvicorn.Server(self.config)
+        self.task = None
+
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.stop()
+
+    async def start(self):
+        if self.task:
+            return
+        loop = asyncio.get_running_loop()
+        self.task = loop.create_task(self.server.serve())
+        # 等待服务器就绪
+        await asyncio.sleep(0.5)
+
+    async def stop(self):
+        if self.task:
+            self.server.should_exit = True
+            await self.task
+            self.task = None
 
 
 class APITester:
@@ -144,11 +188,11 @@ class APITester:
             async with self.session.get(
                 f'{self.base_url}/api/configs'
             ) as resp:
-                if resp.status == 401:
-                    logger.info("✓ 未授权访问正确被拒绝 (401)")
+                if resp.status in (401, 403):
+                    logger.info(f"✓ 未授权访问正确被拒绝 ({resp.status})")
                     return True
                 else:
-                    logger.error(f"✗ 未授权访问应返回401，实际: {resp.status}")
+                    logger.error(f"✗ 未授权访问应返回401/403，实际: {resp.status}")
                     return False
         except Exception as e:
             logger.error(f"✗ 未授权访问测试异常: {e}")
@@ -182,32 +226,20 @@ async def run_tests():
     logger.info("API 集成测试")
     logger.info("=" * 60)
 
-    # 启动测试服务器
-    logger.info("\n启动测试服务器...")
-    app = await create_web_app(traders={})  # 空的traders字典用于测试
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 58182)
-    await site.start()
-    logger.info("✓ 测试服务器已启动在端口 58182")
-
-    # 等待服务器完全启动
-    await asyncio.sleep(1)
-
     results = {}
 
-    # 运行测试
-    async with APITester('http://localhost:58182') as tester:
-        results['login'] = await tester.test_login()
-        if results['login']:
-            results['current_user'] = await tester.test_get_current_user()
-            results['list_configs'] = await tester.test_list_configs()
-            results['list_templates'] = await tester.test_list_templates()
-            results['sse_status'] = await tester.test_sse_status()
-        results['unauthorized'] = await tester.test_unauthorized_access()
+    async with FastAPITestServer():
+        logger.info("✓ 测试服务器已启动在端口 58182")
 
-    # 关闭服务器
-    await runner.cleanup()
+        async with APITester('http://127.0.0.1:58182') as tester:
+            results['login'] = await tester.test_login()
+            if results['login']:
+                results['current_user'] = await tester.test_get_current_user()
+                results['list_configs'] = await tester.test_list_configs()
+                results['list_templates'] = await tester.test_list_templates()
+                results['sse_status'] = await tester.test_sse_status()
+            results['unauthorized'] = await tester.test_unauthorized_access()
+
     logger.info("\n测试服务器已关闭")
 
     # 汇总结果

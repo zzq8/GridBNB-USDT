@@ -23,29 +23,28 @@ import {
   Spin,
   Radio,
   Select,
-  Slider,
-  Badge,
-  Statistic,
   Tag,
-  DatePicker,
-  TimePicker,
 } from 'antd';
 import {
-  SaveOutlined,
   QuestionCircleOutlined,
-  LeftOutlined,
   InfoCircleOutlined,
   WarningOutlined,
   CloseOutlined,
   CheckOutlined,
-  UpOutlined,
-  DownOutlined,
 } from '@ant-design/icons';
-import type { GridStrategy } from '@/types';
 import dayjs from 'dayjs';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { Option } = Select;
+
+const parseNumericValue = (value?: string) => {
+  if (!value) {
+    return 0;
+  }
+  const normalized = value.replace(/[^\d.-]/g, '');
+  const result = Number(normalized);
+  return Number.isNaN(result) ? 0 : result;
+};
 
 const GridConfig: React.FC = () => {
   const navigate = useNavigate();
@@ -53,8 +52,6 @@ const GridConfig: React.FC = () => {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [gridData, setGridData] = useState<GridStrategy | null>(null);
-
   // 实时行情数据（模拟）
   const [marketData, setMarketData] = useState({
     currentPrice: 628.50,
@@ -431,7 +428,7 @@ const GridConfig: React.FC = () => {
                   label={<Text style={{ fontSize: 13, color: '#6B7280' }}>最低价(元)</Text>}
                   rules={[{ required: true, message: '请输入最低价' }]}
                 >
-                  <InputNumber
+                  <InputNumber<number>
                     placeholder="最低价"
                     min={0.01}
                     step={0.01}
@@ -450,7 +447,7 @@ const GridConfig: React.FC = () => {
                   label={<Text style={{ fontSize: 13, color: '#6B7280' }}>最高价(元)</Text>}
                   rules={[{ required: true, message: '请输入最高价' }]}
                 >
-                  <InputNumber
+                  <InputNumber<number>
                     placeholder="最高价"
                     min={0.01}
                     step={0.01}
@@ -479,7 +476,7 @@ const GridConfig: React.FC = () => {
           }}>
             <Text strong style={{ fontSize: 14, color: '#111827' }}>触发基准价</Text>
             <Form.Item name="trigger_base_price" style={{ marginTop: 12, marginBottom: 0 }}>
-              <InputNumber
+              <InputNumber<number>
                 placeholder="价格(元)"
                 min={0.01}
                 step={0.01}
@@ -543,7 +540,7 @@ const GridConfig: React.FC = () => {
                         }
                         rules={[{ required: true, message: `请输入上涨卖出${isPercent ? '百分比' : '价格差'}` }]}
                       >
-                        <InputNumber
+                        <InputNumber<number>
                           key={`rise-sell-${gridType}`}
                           placeholder={isPercent ? "百分比(%)" : "价格差(USDT)"}
                           min={0.01}
@@ -552,7 +549,7 @@ const GridConfig: React.FC = () => {
                           size="large"
                           style={{ width: '100%' }}
                           formatter={(value) => isPercent ? `${value}%` : `${value} U`}
-                          parser={(value) => value!.replace('%', '').replace(' U', '').replace('U', '').trim()}
+                          parser={(value) => parseNumericValue(value)}
                         />
                       </Form.Item>
                     );
@@ -600,7 +597,7 @@ const GridConfig: React.FC = () => {
                           }
                           rules={[{ required: true, message: `请输入回落卖出${isPercent ? '百分比' : '价格差'}` }]}
                         >
-                          <InputNumber
+                          <InputNumber<number>
                             key={`pullback-sell-${gridType}`}
                             placeholder={isPercent ? "百分比(%)" : "价格差(USDT)"}
                             min={0.01}
@@ -609,7 +606,7 @@ const GridConfig: React.FC = () => {
                             size="large"
                             style={{ width: '100%' }}
                             formatter={(value) => isPercent ? `${value}%` : `${value} U`}
-                            parser={(value) => value!.replace('%', '').replace(' U', '').replace('U', '').trim()}
+                            parser={(value) => parseNumericValue(value)}
                           />
                         </Form.Item>
                       );
@@ -641,7 +638,7 @@ const GridConfig: React.FC = () => {
                         }
                         rules={[{ required: true, message: `请输入下跌买入${isPercent ? '百分比' : '价格差'}` }]}
                       >
-                        <InputNumber
+                        <InputNumber<number>
                           key={`fall-buy-${gridType}`}
                           placeholder={isPercent ? "百分比(%)" : "价格差(USDT)"}
                           min={0.01}
@@ -650,7 +647,7 @@ const GridConfig: React.FC = () => {
                           size="large"
                           style={{ width: '100%' }}
                           formatter={(value) => isPercent ? `${value}%` : `${value} U`}
-                          parser={(value) => value!.replace('%', '').replace(' U', '').replace('U', '').trim()}
+                          parser={(value) => parseNumericValue(value)}
                         />
                       </Form.Item>
                     );
@@ -698,7 +695,7 @@ const GridConfig: React.FC = () => {
                           }
                           rules={[{ required: true, message: `请输入反弹买入${isPercent ? '百分比' : '价格差'}` }]}
                         >
-                          <InputNumber
+                          <InputNumber<number>
                             key={`rebound-buy-${gridType}`}
                             placeholder={isPercent ? "百分比(%)" : "价格差(USDT)"}
                             min={0.01}
@@ -707,7 +704,7 @@ const GridConfig: React.FC = () => {
                             size="large"
                             style={{ width: '100%' }}
                             formatter={(value) => isPercent ? `${value}%` : `${value} U`}
-                            parser={(value) => value!.replace('%', '').replace(' U', '').replace('U', '').trim()}
+                            parser={(value) => parseNumericValue(value)}
                           />
                         </Form.Item>
                       );
@@ -847,7 +844,7 @@ const GridConfig: React.FC = () => {
                         label={<Text style={{ fontSize: 14, color: '#10B981' }}>买入价格偏移</Text>}
                         tooltip="相对于参考价的偏移，负数表示更低价格"
                       >
-                        <InputNumber
+                        <InputNumber<number>
                           placeholder="价格偏移(USDT)"
                           step={0.01}
                           size="large"
@@ -887,7 +884,7 @@ const GridConfig: React.FC = () => {
                         label={<Text style={{ fontSize: 14, color: '#EF4444' }}>卖出价格偏移</Text>}
                         tooltip="相对于参考价的偏移，正数表示更高价格"
                       >
-                        <InputNumber
+                        <InputNumber<number>
                           placeholder="价格偏移(USDT)"
                           step={0.01}
                           size="large"
@@ -967,7 +964,7 @@ const GridConfig: React.FC = () => {
                       label={<Text style={{ fontSize: 14, color: '#111827' }}>每笔委托</Text>}
                       rules={[{ required: true, message: `请输入每笔委托${isPercent ? '百分比' : '金额'}` }]}
                     >
-                      <InputNumber
+                      <InputNumber<number>
                         placeholder={isPercent ? "百分比 (%)" : "金额 (USDT)"}
                         min={isPercent ? 0.1 : 1}
                         max={isPercent ? 100 : undefined}
@@ -976,7 +973,7 @@ const GridConfig: React.FC = () => {
                         style={{ width: '100%' }}
                         precision={2}
                         formatter={(value) => isPercent ? `${value}%` : `${value}`}
-                        parser={(value) => value!.replace('%', '').trim()}
+                        parser={(value) => parseNumericValue(value)}
                       />
                     </Form.Item>
                   );
@@ -990,7 +987,7 @@ const GridConfig: React.FC = () => {
                           label={<Text style={{ fontSize: 14, color: '#10B981' }}>每笔买入</Text>}
                           rules={[{ required: true, message: `请输入每笔买入${isPercent ? '百分比' : '金额'}` }]}
                         >
-                          <InputNumber
+                          <InputNumber<number>
                             placeholder={isPercent ? "百分比 (%)" : "金额 (USDT)"}
                             min={isPercent ? 0.1 : 1}
                             max={isPercent ? 100 : undefined}
@@ -999,7 +996,7 @@ const GridConfig: React.FC = () => {
                             style={{ width: '100%' }}
                             precision={2}
                             formatter={(value) => isPercent ? `${value}%` : `${value}`}
-                            parser={(value) => value!.replace('%', '').trim()}
+                            parser={(value) => parseNumericValue(value)}
                           />
                         </Form.Item>
                       </Col>
@@ -1009,7 +1006,7 @@ const GridConfig: React.FC = () => {
                           label={<Text style={{ fontSize: 14, color: '#EF4444' }}>每笔卖出</Text>}
                           rules={[{ required: true, message: `请输入每笔卖出${isPercent ? '百分比' : '金额'}` }]}
                         >
-                          <InputNumber
+                          <InputNumber<number>
                             placeholder={isPercent ? "百分比 (%)" : "金额 (USDT)"}
                             min={isPercent ? 0.1 : 1}
                             max={isPercent ? 100 : undefined}
@@ -1018,7 +1015,7 @@ const GridConfig: React.FC = () => {
                             style={{ width: '100%' }}
                             precision={2}
                             formatter={(value) => isPercent ? `${value}%` : `${value}`}
-                            parser={(value) => value!.replace('%', '').trim()}
+                            parser={(value) => parseNumericValue(value)}
                           />
                         </Form.Item>
                       </Col>
@@ -1048,7 +1045,7 @@ const GridConfig: React.FC = () => {
                         tooltip={isPercent ? "占总资金的百分比" : "USDT金额"}
                         initialValue={100}
                       >
-                        <InputNumber
+                        <InputNumber<number>
                           placeholder={isPercent ? "百分比 (%)" : "金额 (USDT)"}
                           min={isPercent ? 1 : 10}
                           max={isPercent ? 100 : undefined}
@@ -1057,7 +1054,7 @@ const GridConfig: React.FC = () => {
                           size="large"
                           style={{ width: '100%' }}
                           formatter={(value) => isPercent ? `${value}%` : `${value}`}
-                          parser={(value) => value!.replace('%', '').trim()}
+                          parser={(value) => parseNumericValue(value)}
                         />
                       </Form.Item>
                     </Col>
@@ -1067,7 +1064,7 @@ const GridConfig: React.FC = () => {
                         label={<Text style={{ fontSize: 14, color: '#111827' }}>最小底仓</Text>}
                         tooltip={isPercent ? "占总资金的百分比" : "USDT金额"}
                       >
-                        <InputNumber
+                        <InputNumber<number>
                           placeholder="选填"
                           min={0}
                           step={isPercent ? 1 : 10}
@@ -1075,7 +1072,7 @@ const GridConfig: React.FC = () => {
                           size="large"
                           style={{ width: '100%' }}
                           formatter={(value) => isPercent && value ? `${value}%` : value ? `${value}` : ''}
-                          parser={(value) => value!.replace('%', '').trim()}
+                          parser={(value) => parseNumericValue(value)}
                         />
                       </Form.Item>
                     </Col>
@@ -1318,14 +1315,14 @@ const GridConfig: React.FC = () => {
                             rules={[{ required: true, message: '请输入基础网格大小' }]}
                             style={{ marginBottom: 0 }}
                           >
-                            <InputNumber
+                            <InputNumber<number>
                               min={0.5}
                               max={10}
                               step={0.1}
                               style={{ width: '100%' }}
                               precision={1}
                               formatter={(value) => `${value}%`}
-                              parser={(value) => value!.replace('%', '')}
+                              parser={(value) => parseNumericValue(value)}
                             />
                           </Form.Item>
 
@@ -1342,7 +1339,7 @@ const GridConfig: React.FC = () => {
                             rules={[{ required: true, message: '请输入中心波动率' }]}
                             style={{ marginBottom: 0 }}
                           >
-                            <InputNumber
+                            <InputNumber<number>
                               min={0.01}
                               max={1}
                               step={0.01}
@@ -1364,7 +1361,7 @@ const GridConfig: React.FC = () => {
                             rules={[{ required: true, message: '请输入敏感度系数' }]}
                             style={{ marginBottom: 0 }}
                           >
-                            <InputNumber
+                            <InputNumber<number>
                               min={1}
                               max={50}
                               step={1}
@@ -1433,14 +1430,14 @@ const GridConfig: React.FC = () => {
                           rules={[{ required: true, message: '请输入默认交易间隔' }]}
                           style={{ marginBottom: 0 }}
                         >
-                          <InputNumber
+                          <InputNumber<number>
                             min={0.1}
                             max={24}
                             step={0.1}
                             style={{ width: '100%' }}
                             precision={1}
                             formatter={(value) => `${value} 小时`}
-                            parser={(value) => value!.replace(' 小时', '')}
+                            parser={(value) => parseNumericValue(value)}
                           />
                         </Form.Item>
 

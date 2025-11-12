@@ -7,12 +7,10 @@ import {
   Row,
   Col,
   Card,
-  Statistic,
   Tag,
   Table,
   Typography,
   Space,
-  Badge,
   Progress,
   Alert,
   Spin,
@@ -36,7 +34,6 @@ import {
   PieChartOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { ProCard } from '@ant-design/pro-components';
 import type { ColumnsType } from 'antd/es/table';
 import {
   getDashboardStatus,
@@ -52,7 +49,6 @@ import SSEStatusIndicator from '@/components/SSEStatusIndicator';
 import GlassCard from '@/components/GlassCard';
 import CountUp from '@/components/CountUp';
 import { modernTheme } from '@/styles/modernTheme';
-import { modernColors } from '@/config/theme';
 
 const { Text } = Typography;
 

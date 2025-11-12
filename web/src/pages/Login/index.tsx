@@ -7,7 +7,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Form, Input, Button, Typography, message, Checkbox } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { login } from '@/api/auth';
-import { modernColors } from '@/config/theme';
 import type { LoginRequest } from '@/types';
 import './Login.css';
 

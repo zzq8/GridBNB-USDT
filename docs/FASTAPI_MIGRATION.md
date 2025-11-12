@@ -2,7 +2,7 @@
 
 ## 📋 项目概述
 
-已成功将 GridBNB Trading System 从 **aiohttp** 迁移到 **FastAPI**，实现前后端不分离的单服务架构。
+已成功将 GridBNB Trading System 从 **aiohttp** 迁移到 **FastAPI**，实现前后端不分离的单服务架构。自 2025-11 起，旧版 `src/services/web_server*.py` 及对应测试已从仓库移除，部署仅需 FastAPI 入口。
 
 ## ✅ 完成的工作
 

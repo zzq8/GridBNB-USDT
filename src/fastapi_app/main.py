@@ -65,7 +65,17 @@ def create_app(traders: dict = None, trader_registry=None) -> FastAPI:
         }
 
     # ====== 3. 注册路由 ======
-    from src.fastapi_app.routers import auth, config, history, template, sse, dashboard, logs, trades
+    from src.fastapi_app.routers import (
+        auth,
+        config,
+        history,
+        template,
+        sse,
+        dashboard,
+        logs,
+        trades,
+        metrics,
+    )
 
     app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
     app.include_router(config.router, prefix="/api/configs", tags=["配置管理"])
@@ -75,6 +85,15 @@ def create_app(traders: dict = None, trader_registry=None) -> FastAPI:
     app.include_router(dashboard.router, prefix="/api/dashboard", tags=["运行状态"])
     app.include_router(logs.router, prefix="/api/logs", tags=["日志查看"])
     app.include_router(trades.router, prefix="/api/trades", tags=["交易历史"])
+    app.include_router(metrics.router, prefix="/api", tags=["系统监控"])
+
+    # Prometheus 公开端点（无需认证）
+    app.add_api_route(
+        "/metrics",
+        metrics.public_metrics_endpoint,
+        methods=["GET"],
+        include_in_schema=False,
+    )
 
     logger.info("✓ 所有路由已注册")
 

@@ -113,5 +113,15 @@ async def sse_events(
     )
 
 
+@router.get("/status", summary="SSE连接状态")
+async def sse_status(current_user: User = Depends(get_current_active_user)):
+    """
+    返回当前活跃的SSE连接数，供监控使用
+    """
+    return {
+        "active_connections": len(_active_connections)
+    }
+
+
 # 导出广播函数供其他模块使用
 __all__ = ['router', 'broadcast_event']

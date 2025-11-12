@@ -8,7 +8,6 @@ import {
   Card,
   Form,
   Input,
-  InputNumber,
   Button,
   Space,
   message,
@@ -360,7 +359,7 @@ const ConfigDetail: React.FC = () => {
   const [config, setConfig] = useState<Configuration | null>(null);
 
   const [currentStep, setCurrentStep] = useState(0);
-  const [configType, setConfigType] = useState<string>('');
+  const [configType, setConfigType] = useState<ConfigType | ''>('');
   const [subType, setSubType] = useState<string>('');
 
   const isNew = id === 'new';
@@ -421,7 +420,7 @@ const ConfigDetail: React.FC = () => {
   };
 
   // 选择配置类型
-  const handleSelectConfigType = (type: string) => {
+  const handleSelectConfigType = (type: ConfigType) => {
     setConfigType(type);
     setSubType('');
     setCurrentStep(1);
@@ -453,9 +452,10 @@ const ConfigDetail: React.FC = () => {
             throw new Error(`请填写${field.label}`);
           }
 
-          const typeLabel = configType === ConfigType.EXCHANGE
+          const currentType = configType || ConfigType.EXCHANGE;
+          const typeLabel = currentType === ConfigType.EXCHANGE
             ? EXCHANGE_TYPES[subType.toUpperCase() as keyof typeof EXCHANGE_TYPES]?.label
-            : configType === ConfigType.NOTIFICATION
+            : currentType === ConfigType.NOTIFICATION
             ? NOTIFICATION_TYPES[subType.toUpperCase() as keyof typeof NOTIFICATION_TYPES]?.label
             : AI_TYPES[subType.toUpperCase() as keyof typeof AI_TYPES]?.label;
 
@@ -463,11 +463,11 @@ const ConfigDetail: React.FC = () => {
             config_key: `${subType.toUpperCase()}_${field.key}`,
             display_name: `${typeLabel} - ${field.label}`,
             config_value: value || field.placeholder || '',
-            config_type: configType,
+            config_type: currentType,
             status: ConfigStatus.ACTIVE,
             is_sensitive: field.type === 'password',
             is_required: field.required,
-            requires_restart: configType === ConfigType.EXCHANGE || configType === ConfigType.AI,
+            requires_restart: currentType === ConfigType.EXCHANGE || currentType === ConfigType.AI,
           };
         });
 

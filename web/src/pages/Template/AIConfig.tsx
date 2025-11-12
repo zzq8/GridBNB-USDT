@@ -34,6 +34,15 @@ const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
+const parseNumber = (value?: string) => {
+  if (!value) {
+    return 0;
+  }
+  const normalized = value.replace(/[^\d.-]/g, '');
+  const result = Number(normalized);
+  return Number.isNaN(result) ? 0 : result;
+};
+
 const AIConfig: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -302,7 +311,7 @@ const AIConfig: React.FC = () => {
                 }
                 rules={[{ required: true, message: '请输入投资金额' }]}
               >
-                <InputNumber
+                <InputNumber<number>
                   placeholder="请输入投资金额"
                   min={10}
                   max={1000000}
@@ -310,7 +319,7 @@ const AIConfig: React.FC = () => {
                   size="large"
                   style={{ width: '100%', fontSize: 14 }}
                   formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
+                  parser={(value) => parseNumber(value)}
                 />
               </Form.Item>
 
@@ -409,7 +418,7 @@ const AIConfig: React.FC = () => {
                 }
                 rules={[{ required: true, message: '请输入分析间隔' }]}
               >
-                <InputNumber
+                <InputNumber<number>
                   placeholder="建议 30-300 秒"
                   min={10}
                   max={3600}
@@ -417,7 +426,7 @@ const AIConfig: React.FC = () => {
                   size="large"
                   style={{ width: '100%', fontSize: 14 }}
                   formatter={(value) => `${value}秒`}
-                  parser={(value) => value!.replace('秒', '')}
+                  parser={(value) => parseNumber(value)}
                 />
               </Form.Item>
 
@@ -528,7 +537,7 @@ const AIConfig: React.FC = () => {
                 }
                 rules={[{ required: true, message: '请输入最大仓位比例' }]}
               >
-                <InputNumber
+                <InputNumber<number>
                   placeholder="建议不超过 50%"
                   min={1}
                   max={100}
@@ -536,7 +545,7 @@ const AIConfig: React.FC = () => {
                   size="large"
                   style={{ width: '100%', fontSize: 14 }}
                   formatter={(value) => `${value}%`}
-                  parser={(value) => value!.replace('%', '')}
+                  parser={(value) => parseNumber(value)}
                 />
               </Form.Item>
 
@@ -569,7 +578,7 @@ const AIConfig: React.FC = () => {
                       }
                       rules={[{ required: true, message: '请输入止损比例' }]}
                     >
-                      <InputNumber
+                      <InputNumber<number>
                         placeholder="达到该亏损比例后停止策略"
                         min={1}
                         max={50}
@@ -577,7 +586,7 @@ const AIConfig: React.FC = () => {
                         size="large"
                         style={{ width: '100%', fontSize: 14 }}
                         formatter={(value) => `${value}%`}
-                        parser={(value) => value!.replace('%', '')}
+                        parser={(value) => parseNumber(value)}
                       />
                     </Form.Item>
                   ) : null

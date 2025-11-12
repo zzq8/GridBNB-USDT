@@ -52,7 +52,7 @@ export const useSSE = (options: SSEOptions): SSEState => {
   const [reconnectCount, setReconnectCount] = useState(0);
 
   const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldReconnectRef = useRef(true);
 
   // 清理连接
