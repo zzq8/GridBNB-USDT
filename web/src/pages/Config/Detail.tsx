@@ -357,6 +357,13 @@ const ConfigDetail: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<Configuration | null>(null);
+  // 网格与 AI 策略相关配置标记（这些不在此处编辑）
+  const GRID_CONFIG_KEYS = new Set<string>(['INITIAL_GRID', 'GRID_PARAMS_JSON']);
+  const AI_KEY_PREFIXES = ['AI_', 'OPENAI_', 'ANTHROPIC_'];
+  const [isGridConfig, setIsGridConfig] = useState<boolean>(false);
+  const ALLOWED_AI_KEYS = new Set<string>(['AI_API_KEY','AI_OPENAI_BASE_URL']);
+  const [isAIAllowed, setIsAIAllowed] = useState<boolean>(true);
+  const [isAIConfig, setIsAIConfig] = useState<boolean>(false);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [configType, setConfigType] = useState<ConfigType | ''>('');
@@ -379,6 +386,16 @@ const ConfigDetail: React.FC = () => {
 
       // 解析配置类型和子类型
       const configKey = data.config_key;
+      if (GRID_CONFIG_KEYS.has(configKey)) {
+        setIsGridConfig(true);
+      } else {
+        setIsGridConfig(false);
+      }
+
+      const aiType = String((data as any).config_type || '').toLowerCase() === 'ai';
+      const aiPrefix = AI_KEY_PREFIXES.some((p) => configKey.startsWith(p));
+      setIsAIConfig(aiType || aiPrefix);
+      setIsAIAllowed(ALLOWED_AI_KEYS.has(configKey));
       if (configKey.startsWith('BINANCE_')) {
         setConfigType(ConfigType.EXCHANGE);
         setSubType('binance');
@@ -1023,6 +1040,7 @@ const ConfigDetail: React.FC = () => {
                   loading={saving}
                   size="large"
                   style={{ minWidth: 120 }}
+                  disabled={isGridConfig || (isAIConfig && !isAIAllowed)}
                 >
                   {isNew ? '保存配置' : '更新配置'}
                 </Button>
@@ -1073,3 +1091,7 @@ const ConfigDetail: React.FC = () => {
 };
 
 export default ConfigDetail;
+
+
+
+

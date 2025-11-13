@@ -15,6 +15,7 @@ const ConfigDetail = lazy(() => import('@/pages/Config/Detail'));
 const TemplateList = lazy(() => import('@/pages/Template/List'));
 const GridConfig = lazy(() => import('@/pages/Template/GridConfig'));
 const AIConfig = lazy(() => import('@/pages/Template/AIConfig'));
+const GlobalSettings = lazy(() => import('@/pages/Settings/Global'));
 const UserProfile = lazy(() => import('@/pages/User/Profile'));
 const Logs = lazy(() => import('@/pages/Logs'));
 const Trades = lazy(() => import('@/pages/Trades'));
@@ -48,6 +49,10 @@ const routes: RouteObject[] = [
       {
         path: 'templates',
         element: <TemplateList />,
+      },
+      {
+        path: 'settings/global',
+        element: <GlobalSettings />,
       },
       {
         path: 'templates/grid/:id',

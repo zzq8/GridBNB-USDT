@@ -3,7 +3,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Button, Space, Tag, Modal, message, Typography, Tooltip } from 'antd';
+import { Button, Space, Tag, Modal, message, Typography, Tooltip, Alert } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
@@ -41,7 +41,10 @@ const ConfigList: React.FC = () => {
   const navigate = useNavigate();
   const actionRef = useRef<ActionType>(null);
   const [showSensitive, setShowSensitive] = useState<Record<number, boolean>>({});
-
+  // 网格策略相关配置键（从系统配置中隐藏）
+  const GRID_CONFIG_KEYS = new Set<string>(['INITIAL_GRID', 'GRID_PARAMS_JSON']);
+  const ALLOWED_AI_KEYS = new Set<string>(['AI_API_KEY','AI_OPENAI_BASE_URL']);
+  const AI_KEY_PREFIXES = ['AI_', 'OPENAI_', 'ANTHROPIC_'];
   // 表格列定义
   const columns: ProColumns<Configuration>[] = [
     {
@@ -297,10 +300,19 @@ const ConfigList: React.FC = () => {
         status: params.status,
       });
 
+      // 过滤掉网格策略相关的配置项（这些在模板页管理）
+      const filtered = (response.items || []).filter((item: any) => {
+  const key: string = item?.config_key || '';
+  const isGrid = GRID_CONFIG_KEYS.has(key);
+  const isAIType = String(item?.config_type).toLowerCase() === 'ai';
+  const isAIPrefix = AI_KEY_PREFIXES.some((p) => key.startsWith(p));
+  return !(isGrid || isAIType || isAIPrefix);
+});
+
       return {
-        data: response.items,
+        data: filtered,
         success: true,
-        total: response.total,
+        total: filtered.length,
       };
     } catch (error) {
       message.error('数据加载失败');
@@ -412,7 +424,42 @@ const ConfigList: React.FC = () => {
         </div>
       </div>
 
+      {/* 网格策略配置迁移提示 */}
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="网格策略相关配置已迁移至模板管理"
+        description={
+          <div>
+            <div>关于网格间距、价格区间等策略参数，请前往策略中心进行配置。</div>
+            <div style={{ marginTop: 8 }}>
+              <Button type="primary" onClick={() => navigate('/templates/grid/new')}>
+                去创建/编辑网格策略模板
+              </Button>
+            </div>
+          </div>
+        }
+      />
       {/* 配置列表表格 */}
+      {/* 配置列表 */}
+      {/* AI 策略配置迁移提示 */}
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="AI 相关配置已迁移至 AI 策略面板"
+        description={
+          <div>
+            <div>如 AI 开关、模型与密钥等，请在策略中心的 AI 策略中配置。</div>
+            <div style={{ marginTop: 8 }}>
+              <Button type="primary" onClick={() => navigate('/templates/ai/new')}>
+                去创建/编辑 AI 策略
+              </Button>
+            </div>
+          </div>
+        }
+      />
       <ProTable<Configuration>
         columns={columns}
         actionRef={actionRef}
@@ -447,3 +494,7 @@ const ConfigList: React.FC = () => {
 };
 
 export default ConfigList;
+
+
+
+

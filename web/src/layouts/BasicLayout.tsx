@@ -50,7 +50,7 @@ const BasicLayout: React.FC = () => {
     () => [
       {
         key: 'group-core',
-        label: '核心概览',
+        label: '核心功能',
         type: 'group',
         children: [
           {
@@ -64,15 +64,20 @@ const BasicLayout: React.FC = () => {
             label: '配置管理',
           },
           {
+            key: '/settings/global',
+            icon: <SettingOutlined />,
+            label: '全局设置',
+          },
+          {
             key: '/templates',
             icon: <AppstoreOutlined />,
-            label: '策略模板',
+            label: '策略中心',
           },
         ],
       },
       {
         key: 'group-monitor',
-        label: '监控中心',
+        label: '监控分析',
         type: 'group',
         children: [
           {
