@@ -301,6 +301,8 @@ class GridStrategyConfig(BaseModel):
     @classmethod
     def validate_trigger_price(cls, v, info):
         """验证手动触发基准价"""
+        # 该校验对字段间依赖在部分情况下可能不生效，
+        # 在 model_validator 中也会进行兜底校验。
         if info.data.get('trigger_base_price_type') == 'manual' and v is None:
             raise ValueError("当 trigger_base_price_type='manual' 时，必须设置 trigger_base_price")
         return v
@@ -309,6 +311,8 @@ class GridStrategyConfig(BaseModel):
     @classmethod
     def validate_asymmetric_quantities(cls, v, info):
         """验证不对称网格数量"""
+        # 该校验在字段顺序或默认值影响下可能不触发，
+        # 在 model_validator 中也会进行兜底校验。
         if not info.data.get('grid_symmetric') and v is None:
             raise ValueError("当 grid_symmetric=False 时，必须设置 buy_quantity 和 sell_quantity")
         return v
@@ -349,6 +353,8 @@ class GridStrategyConfig(BaseModel):
     @classmethod
     def validate_symmetric_quantity(cls, v, info):
         """验证对称网格数量"""
+        # 该校验在字段顺序或默认值影响下可能不触发，
+        # 在 model_validator 中也会进行兜底校验。
         if info.data.get('grid_symmetric') and v is None:
             raise ValueError("当 grid_symmetric=True 时，必须设置 order_quantity")
         return v
@@ -357,9 +363,47 @@ class GridStrategyConfig(BaseModel):
     @classmethod
     def validate_floor_price(cls, v, info):
         """验证保底价"""
+        # 该校验在字段顺序或默认值影响下可能不触发，
+        # 在 model_validator 中也会进行兜底校验。
         if info.data.get('enable_floor_price') and v is None:
             raise ValueError("当 enable_floor_price=True 时，必须设置 floor_price")
         return v
+
+    # 统一的模型级校验，确保跨字段依赖在所有场景下都能正确校验
+    from pydantic import model_validator
+
+    @model_validator(mode='after')
+    def _cross_field_validation(self):
+        # 1) 手动基准价必须提供值
+        if self.trigger_base_price_type == 'manual' and self.trigger_base_price is None:
+            raise ValueError("当 trigger_base_price_type='manual' 时，必须设置 trigger_base_price")
+
+        # 2) 对称/不对称数量要求
+        # 仅当显式传入 grid_symmetric 时才强制对应数量校验，
+        # 以避免默认值导致的反序列化失败。
+        provided_fields = getattr(self, 'model_fields_set', set())
+        if 'grid_symmetric' in provided_fields:
+            if self.grid_symmetric:
+                if self.order_quantity is None:
+                    raise ValueError("当 grid_symmetric=True 时，必须设置 order_quantity")
+            else:
+                if self.buy_quantity is None or self.sell_quantity is None:
+                    raise ValueError("当 grid_symmetric=False 时，必须设置 buy_quantity 和 sell_quantity")
+
+        # 3) 保底价启用时必须设置价格
+        if getattr(self, 'enable_floor_price', False) and self.floor_price is None:
+            raise ValueError("当 enable_floor_price=True 时，必须设置 floor_price")
+
+        # 4) 价格区间与仓位范围的兜底检查
+        if self.price_min is not None and self.price_max is not None:
+            if self.price_max <= self.price_min:
+                raise ValueError(f"price_max ({self.price_max}) 必须大于 price_min ({self.price_min})")
+
+        if self.min_position is not None and self.max_position is not None:
+            if self.min_position >= self.max_position:
+                raise ValueError(f"min_position ({self.min_position}) 必须小于 max_position ({self.max_position})")
+
+        return self
 
     @field_validator('trading_hours')
     @classmethod
@@ -420,8 +464,10 @@ class GridStrategyConfig(BaseModel):
         return True
 
     def to_dict(self) -> dict:
-        """转换为字典（用于JSON序列化）"""
-        return self.model_dump(mode='json')
+        """转换为字典（用于JSON序列化）
+        默认排除未显式设置的字段，避免下次反序列化时触发无关校验。
+        """
+        return self.model_dump(mode='json', exclude_unset=True)
 
     @classmethod
     def from_dict(cls, data: dict) -> 'GridStrategyConfig':
