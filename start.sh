@@ -19,11 +19,7 @@ else
 fi
 
 # 检查配置文件
-if [ ! -f "config/.env" ]; then
-    echo "[错误] 未找到配置文件 config/.env"
-    echo "[提示] 请先复制 config/.env.example 为 config/.env 并配置"
-    exit 1
-fi
+echo "[信息] 配置改由 Web 控制台管理，无需 config/.env"
 
 echo "[信息] 正在启动交易机器人..."
 echo ""

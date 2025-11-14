@@ -4,8 +4,7 @@
 实现混合配置加载策略：
 1. 启动时从数据库加载所有配置到内存缓存
 2. 提供 reload() 方法手动刷新缓存
-3. 三级优先级：数据库 > .env > 默认值
-4. API密钥不存入数据库，仅从.env读取
+3. 三级优先级：数据库 > 环境变量 > 默认值
 
 使用方式：
     from src.config.loader import config_loader
@@ -21,14 +20,10 @@ import os
 import json
 import logging
 from typing import Any, Optional, Dict
-from dotenv import load_dotenv
 
 from src.database.connection import db_manager
 from src.database.models import Configuration, ConfigStatusEnum
 from src.config.config_definitions import ALL_CONFIGS, get_config_by_key
-
-# 加载环境变量
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -36,20 +31,15 @@ logger = logging.getLogger(__name__)
 class ConfigLoader:
     """配置加载器 - 混合模式（启动时加载 + 缓存 + reload）"""
 
-    # API密钥配置列表（这些配置不从数据库读取，只从.env读取）
-    API_KEY_CONFIGS = {
-        'BINANCE_API_KEY', 'BINANCE_API_SECRET',
-        'BINANCE_TESTNET_API_KEY', 'BINANCE_TESTNET_API_SECRET',
-        'OKX_API_KEY', 'OKX_API_SECRET', 'OKX_PASSPHRASE',
-        'OKX_TESTNET_API_KEY', 'OKX_TESTNET_API_SECRET', 'OKX_TESTNET_PASSPHRASE',
-        'AI_API_KEY',
-        'WEB_USER', 'WEB_PASSWORD',  # Web认证凭据也从.env读取
-    }
-
     def __init__(self):
         self._cache: Dict[str, Any] = {}
         self._loaded = False
         self._default_values: Dict[str, str] = {}
+        self._sensitive_keys = {
+            config_def['config_key']
+            for config_def in ALL_CONFIGS
+            if config_def.get('is_sensitive')
+        }
 
         # 构建默认值字典（从 config_definitions.py）
         for config_def in ALL_CONFIGS:
@@ -71,10 +61,6 @@ class ConfigLoader:
                 ).all()
 
                 for config in configs:
-                    # 跳过API密钥配置
-                    if config.config_key in self.API_KEY_CONFIGS:
-                        continue
-
                     # 解析配置值
                     parsed_value = self._parse_value(
                         config.config_value,
@@ -100,8 +86,10 @@ class ConfigLoader:
         获取配置值（三级优先级）
 
         优先级：
-        1. API密钥配置 -> 从.env读取
-        2. 其他配置 -> 数据库缓存 > .env > 默认值 > default参数
+        1. 数据库缓存
+        2. 环境变量（用于测试或临时覆盖）
+        3. 配置默认值
+        4. 函数默认参数
 
         Args:
             key: 配置键
@@ -110,15 +98,11 @@ class ConfigLoader:
         Returns:
             配置值
         """
-        # 1. API密钥配置直接从环境变量读取
-        if key in self.API_KEY_CONFIGS:
-            return os.getenv(key, default or '')
-
-        # 2. 尝试从缓存读取（数据库配置）
+        # 1. 尝试从缓存读取（数据库配置）
         if key in self._cache:
             return self._cache[key]
 
-        # 3. 尝试从.env读取
+        # 2. 尝试从环境变量读取
         env_value = os.getenv(key)
         if env_value is not None:
             # 根据配置定义解析类型
@@ -129,7 +113,7 @@ class ConfigLoader:
                 # 配置键不在定义中，返回原始字符串
                 return env_value
 
-        # 4. 使用配置定义中的默认值
+        # 3. 使用配置定义中的默认值
         if key in self._default_values:
             default_value = self._default_values[key]
             # 解析默认值
@@ -139,29 +123,25 @@ class ConfigLoader:
             except Exception:
                 return default_value
 
-        # 5. 返回函数参数的默认值
+        # 4. 返回函数参数的默认值
         return default
 
-    def get_all(self, include_api_keys: bool = False) -> Dict[str, Any]:
+    def get_all(self, include_sensitive: bool = False) -> Dict[str, Any]:
         """
         获取所有配置（用于导出）
 
         Args:
-            include_api_keys: 是否包含API密钥配置
+            include_sensitive: 是否包含敏感配置
 
         Returns:
             配置字典
         """
-        all_configs = self._cache.copy()
-
-        if include_api_keys:
-            # 添加API密钥配置（从.env读取）
-            for key in self.API_KEY_CONFIGS:
-                value = os.getenv(key)
-                if value:
-                    all_configs[key] = value
-
-        return all_configs
+        result: Dict[str, Any] = {}
+        for key, value in self._cache.items():
+            if not include_sensitive and key in self._sensitive_keys:
+                continue
+            result[key] = value
+        return result
 
     def set(self, key: str, value: Any) -> bool:
         """
@@ -176,10 +156,6 @@ class ConfigLoader:
         Returns:
             是否成功
         """
-        if key in self.API_KEY_CONFIGS:
-            logger.warning(f"API密钥配置 {key} 不应通过ConfigLoader设置，请直接修改.env文件")
-            return False
-
         self._cache[key] = value
         return True
 
@@ -259,9 +235,9 @@ def reload_config():
     config_loader.reload()
 
 
-def get_all_configs(include_api_keys: bool = False) -> Dict[str, Any]:
+def get_all_configs(include_sensitive: bool = False) -> Dict[str, Any]:
     """便捷函数：获取所有配置"""
-    return config_loader.get_all(include_api_keys)
+    return config_loader.get_all(include_sensitive)
 
 
 if __name__ == '__main__':

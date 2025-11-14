@@ -39,14 +39,6 @@ async def list_configs(request: web.Request) -> web.Response:
         - status: 配置状态过滤（draft/active/inactive/archived）
         - requires_restart: 是否需要重启（true/false）
 
-    响应:
-        {
-            "total": 100,
-            "page": 1,
-            "page_size": 20,
-            "items": [...]
-        }
-    """
     try:
         # 解析查询参数
         page = int(request.query.get('page', 1))
@@ -161,14 +153,6 @@ async def list_configs(request: web.Request) -> web.Response:
 async def get_config(request: web.Request) -> web.Response:
     """获取单个配置详情
 
-    响应:
-        {
-            "id": 1,
-            "config_key": "SYMBOLS",
-            "config_value": "BNB/USDT",
-            ...
-        }
-    """
     try:
         config_id = int(request.match_info['config_id'])
 
@@ -498,14 +482,6 @@ async def batch_update_configs(request: web.Request) -> web.Response:
             "change_reason": "Batch update"
         }
 
-    响应:
-        {
-            "updated": 2,
-            "failed": 0,
-            "requires_restart": true,
-            "details": [...]
-        }
-    """
     try:
         user = request['user']
         data = await request.json()
@@ -620,16 +596,10 @@ async def export_configs(request: web.Request) -> web.Response:
     """导出配置到JSON文件
 
     查询参数:
-        - format: 导出格式 (json/env)，默认 json
         - type: 配置类型过滤（可选）
         - include_sensitive: 是否包含敏感信息（默认false）
 
-    响应:
-        JSON格式: 返回配置JSON对象
-        ENV格式: 返回.env文件内容
-    """
     try:
-        export_format = request.query.get('format', 'json')
         config_type = request.query.get('type', '').strip()
         include_sensitive = request.query.get('include_sensitive', 'false').lower() == 'true'
 
@@ -649,72 +619,35 @@ async def export_configs(request: web.Request) -> web.Response:
             result = await session.execute(query)
             configs = result.scalars().all()
 
-            if export_format == 'env':
-                # 导出为 .env 格式
-                lines = [
-                    "# ============================================================================",
-                    "# 配置文件 - 从数据库导出",
-                    f"# 导出时间: {datetime.utcnow().isoformat()}",
-                    "# ============================================================================\n",
-                ]
+            # 导出为 JSON 格式
+            export_data = {
+                'export_time': datetime.utcnow().isoformat(),
+                'total_configs': len(configs),
+                'include_sensitive': include_sensitive,
+                'configs': []
+            }
 
-                current_type = None
-                for config in configs:
-                    # 添加分类注释
-                    if config.config_type != current_type:
-                        current_type = config.config_type
-                        lines.append(f"\n# {current_type.value.upper()}")
-                        lines.append("# " + "-" * 60)
-
-                    # 添加描述
-                    if config.description:
-                        lines.append(f"# {config.description}")
-
-                    # 添加配置项
-                    value = config.config_value
-                    if config.is_sensitive and not include_sensitive:
-                        value = "********"
-
-                    lines.append(f"{config.config_key}={value}\n")
-
-                content = "\n".join(lines)
-                return web.Response(
-                    text=content,
-                    content_type='text/plain',
-                    headers={
-                        'Content-Disposition': f'attachment; filename="config_export_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.env"'
-                    }
-                )
-            else:
-                # 导出为 JSON 格式
-                export_data = {
-                    'export_time': datetime.utcnow().isoformat(),
-                    'total_configs': len(configs),
-                    'include_sensitive': include_sensitive,
-                    'configs': []
+            for config in configs:
+                config_data = {
+                    'config_key': config.config_key,
+                    'config_value': config.config_value if (not config.is_sensitive or include_sensitive) else '********',
+                    'config_type': config.config_type.value,
+                    'display_name': config.display_name,
+                    'description': config.description,
+                    'data_type': config.data_type,
+                    'is_required': config.is_required,
+                    'is_sensitive': config.is_sensitive,
                 }
+                export_data['configs'].append(config_data)
 
-                for config in configs:
-                    config_data = {
-                        'config_key': config.config_key,
-                        'config_value': config.config_value if (not config.is_sensitive or include_sensitive) else '********',
-                        'config_type': config.config_type.value,
-                        'display_name': config.display_name,
-                        'description': config.description,
-                        'data_type': config.data_type,
-                        'is_required': config.is_required,
-                        'is_sensitive': config.is_sensitive,
-                    }
-                    export_data['configs'].append(config_data)
-
-                import json
-                return web.Response(
-                    text=json.dumps(export_data, ensure_ascii=False, indent=2),
-                    content_type='application/json',
-                    headers={
-                        'Content-Disposition': f'attachment; filename="config_export_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.json"'
-                    }
-                )
+            import json
+            return web.Response(
+                text=json.dumps(export_data, ensure_ascii=False, indent=2),
+                content_type='application/json',
+                headers={
+                    'Content-Disposition': f'attachment; filename="config_export_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.json"'
+                }
+            )
 
     except Exception as e:
         logger.error(f"导出配置失败: {e}", exc_info=True)
@@ -742,16 +675,6 @@ async def import_configs(request: web.Request) -> web.Response:
             "change_reason": "Import from file"
         }
 
-    响应:
-        {
-            "imported": 10,
-            "updated": 5,
-            "created": 3,
-            "skipped": 2,
-            "failed": 0,
-            "details": [...]
-        }
-    """
     try:
         user = request['user']
         data = await request.json()
@@ -940,23 +863,6 @@ async def get_config_definitions(request: web.Request) -> web.Response:
         - config_type: 配置类型过滤（可选）
         - config_key: 获取特定配置的定义（可选）
 
-    响应:
-        [
-            {
-                "config_key": "EXCHANGE",
-                "display_name": "交易所选择",
-                "description": "当前使用的交易所...",
-                "config_type": "exchange",
-                "data_type": "string",
-                "default_value": "binance",
-                "validation_rules": {...},
-                "is_required": true,
-                "is_sensitive": false,
-                "requires_restart": true
-            },
-            ...
-        ]
-    """
     try:
         from src.config.config_definitions import ALL_CONFIGS, get_config_by_key, get_configs_by_type
 

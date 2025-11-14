@@ -199,11 +199,7 @@ main() {
 
     # 检查必要文件
     log_info "检查项目文件..."
-    if [ ! -f "config/.env" ]; then
-        log_error "配置文件不存在: config/.env"
-        log_info "请先复制 config/.env.example 为 config/.env 并配置"
-        exit 1
-    fi
+    log_info "配置改由 Web 控制台管理，无需 config/.env"
     if [ ! -f "docker/docker-compose.yml" ]; then
         log_error "Docker配置文件不存在: docker/docker-compose.yml"
         exit 1

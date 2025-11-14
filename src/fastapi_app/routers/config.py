@@ -10,7 +10,7 @@ from typing import Optional
 from datetime import datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
@@ -31,6 +31,7 @@ from src.database import (
     User
 )
 from src.config.loader import config_loader
+from src.config.settings import reload_settings
 
 logger = logging.getLogger(__name__)
 
@@ -431,25 +432,33 @@ async def batch_update_configs(
 
 @router.post("/reload", response_model=MessageResponse, summary="重新加载配置")
 async def reload_configs(
+    request: Request,
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    重新从数据库加载配置到内存缓存
-
-    适用场景：
-    - 修改配置后，需要立即生效但不需要重启系统
-    - 仅对标记为 requires_restart=False 的配置生效
-    - requires_restart=True 的配置仍然需要重启系统才能生效
-    """
+    """重新从数据库加载配置到内存缓存"""
     try:
         config_loader.reload()
+        reload_settings()
 
-        logger.info(f"配置重新加载成功 by user {current_user.username}")
+        traders = getattr(getattr(request.app, "state", None), "traders", {}) or {}
+        updated = 0
+        for trader in traders.values():
+            try:
+                trader.update_config()
+                updated += 1
+            except Exception as update_error:
+                logger.error(f"交易器配置更新失败: {update_error}")
+
+        logger.info(
+            "配置重新加载成功",
+            extra={"user": current_user.username, "traders_updated": updated}
+        )
 
         return {
             "message": "配置已重新加载到缓存",
             "cache_size": config_loader.get_cache_size(),
-            "warning": "标记为 requires_restart=True 的配置需要重启系统才能生效"
+            "warning": "标记为requires_restart=True 的配置需要重启系统才能生效",
+            "traders_updated": updated,
         }
 
     except Exception as e:
@@ -458,7 +467,6 @@ async def reload_configs(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"配置重新加载失败: {str(e)}"
         )
-
 
 @router.get("/export", summary="导出配置")
 async def export_configs(

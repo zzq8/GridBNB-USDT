@@ -1,14 +1,29 @@
 import os
-from dotenv import load_dotenv
 import logging
 import json
-from pydantic_settings import BaseSettings
-from typing import Optional, Dict, Union
-from pydantic import field_validator, ConfigDict
+import copy
+from typing import Optional, Dict, Union, Any
 
-load_dotenv()
+from pydantic import BaseModel, field_validator, ConfigDict
 
-class Settings(BaseSettings):
+from src.config.loader import config_loader
+
+
+def _resolve_exchange(info, fallback: str = 'binance') -> str:
+    """从当前校验上下文或环境变量获取交易所设置。"""
+    if info is not None:
+        data = getattr(info, 'data', None)
+        if isinstance(data, dict):
+            value = data.get('EXCHANGE')
+            if value:
+                return str(value).lower()
+    env_value = os.getenv('EXCHANGE')
+    if env_value:
+        return env_value.lower()
+    return fallback.lower()
+
+
+class Settings(BaseModel):
     """应用程序设置类，使用Pydantic进行类型验证和环境变量管理"""
 
     # --- 交易所选择配置 (企业级多交易所支持) ---
@@ -17,7 +32,7 @@ class Settings(BaseSettings):
     # --- 测试网/模拟盘配置 ---
     TESTNET_MODE: bool = False  # 是否使用测试网（模拟盘）
 
-    # --- 从 .env 文件读取的必需配置 ---
+    # --- 交易所凭据 ---
     # Binance API（实盘）
     BINANCE_API_KEY: str = ""  # 添加默认值以便测试
     BINANCE_API_SECRET: str = ""  # 添加默认值以便测试
@@ -36,8 +51,8 @@ class Settings(BaseSettings):
     OKX_TESTNET_API_SECRET: str = ""
     OKX_TESTNET_PASSPHRASE: str = ""
 
-    # --- 策略核心配置 (从 .env 读取) ---
-    SYMBOLS: str = "BNB/USDT"  # 从 .env 读取交易对列表字符串
+    # --- 策略核心配置 ---
+    SYMBOLS: str = "BNB/USDT"  # 默认交易对列表
 
     # 按交易对设置的初始参数 (JSON格式)
     INITIAL_PARAMS_JSON: Dict[str, Dict[str, float]] = {}
@@ -45,16 +60,16 @@ class Settings(BaseSettings):
     INITIAL_GRID: float = 2.0  # 全局默认网格大小
     MIN_TRADE_AMOUNT: float = 20.0
 
-    # --- 初始状态设置 (从 .env 读取) ---
+    # --- 初始状态设置 ---
     INITIAL_PRINCIPAL: float = 0.0
 
-    # --- 🆕 全局资金分配器配置 (从 .env 读取) ---
+    # --- 🆕 全局资金分配器配置 ---
     ALLOCATION_STRATEGY: str = "equal"  # 分配策略: equal / weighted / dynamic
     GLOBAL_MAX_USAGE: float = 0.95  # 全局最大资金使用率 (0-1之间)
     ALLOCATION_WEIGHTS: Dict[str, float] = {}  # 权重配置（仅当strategy=weighted时使用）
     REBALANCE_INTERVAL: int = 3600  # 动态重新平衡间隔（秒），默认1小时
 
-    # --- 可选配置 (从 .env 读取) ---
+    # --- 可选配置 ---
     PUSHPLUS_TOKEN: Optional[str] = None
 
     # --- 新增：告警系统配置 (阶段3优化) ---
@@ -76,7 +91,7 @@ class Settings(BaseSettings):
     # --- 理财精度配置 (从JSON字符串解析) ---
     SAVINGS_PRECISIONS: Dict[str, int] = {'USDT': 2, 'BNB': 6, 'DEFAULT': 8}
 
-    # --- 新增：从 .env 读取的高级策略配置 ---
+    # --- 新增：高级策略配置 ---
     GRID_PARAMS_JSON: Dict = {}
     GRID_CONTINUOUS_PARAMS_JSON: Dict = {}
     DYNAMIC_INTERVAL_PARAMS_JSON: Dict = {}
@@ -218,8 +233,7 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
-        exchange = os.getenv('EXCHANGE', 'binance').lower()
+        exchange = _resolve_exchange(info, 'binance')
 
         # 只在使用 Binance 交易所时进行验证
         if exchange == 'binance':
@@ -238,8 +252,7 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
-        exchange = os.getenv('EXCHANGE', 'binance').lower()
+        exchange = _resolve_exchange(info, 'binance')
 
         # 只在使用 Binance 交易所时进行验证
         if exchange == 'binance':
@@ -258,8 +271,7 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
-        exchange = os.getenv('EXCHANGE', 'binance').lower()
+        exchange = _resolve_exchange(info, 'binance')
 
         # 只在使用 OKX 交易所时进行验证
         if exchange == 'okx':
@@ -278,8 +290,7 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
-        exchange = os.getenv('EXCHANGE', 'binance').lower()
+        exchange = _resolve_exchange(info, 'binance')
 
         # 只在使用 OKX 交易所时进行验证
         if exchange == 'okx':
@@ -298,8 +309,7 @@ class Settings(BaseSettings):
         if os.getenv('PYTEST_CURRENT_TEST'):
             return v
 
-        # 从环境变量直接读取交易所配置（避免依赖字段验证顺序）
-        exchange = os.getenv('EXCHANGE', 'binance').lower()
+        exchange = _resolve_exchange(info, 'binance')
 
         # 只在使用 OKX 交易所时进行验证
         if exchange == 'okx':
@@ -525,14 +535,28 @@ class Settings(BaseSettings):
     MIN_BNB_TRANSFER: float = 0.01
 
     model_config = ConfigDict(
-        env_file="config/.env",
-        env_file_encoding='utf-8',
         case_sensitive=True,
         extra='ignore'  # 忽略额外的字段
     )
 
+
+def _merge_env_overrides(source: Dict[str, Any]) -> Dict[str, Any]:
+    """允许真实的环境变量覆盖数据库配置，方便测试/调试。"""
+    data = dict(source)
+    for field_name in Settings.model_fields.keys():
+        if field_name in os.environ:
+            data[field_name] = os.environ[field_name]
+    return data
+
+
+def _build_settings() -> Settings:
+    raw = config_loader.get_all(include_sensitive=True)
+    merged = _merge_env_overrides(raw)
+    return Settings(**merged)
+
+
 # 创建全局设置实例
-settings = Settings()
+settings = _build_settings()
 
 # 提供一个解析后的列表，方便使用
 SYMBOLS_LIST = [s.strip() for s in settings.SYMBOLS.split(',') if s.strip()]
@@ -543,7 +567,7 @@ FLIP_THRESHOLD = lambda grid_size: (grid_size / 5) / 100  # 网格大小的1/5�
 class TradingConfig:
     """
     交易配置类，现在只包含从settings派生或转换而来的复杂策略参数。
-    简单的配置项直接从全局的 settings 对象获取。
+    简单的配置项直接从全局 Settings 对象获取。
 
     这个类的职责：
     1. 将JSON格式的策略参数转换为Python字典
@@ -551,79 +575,79 @@ class TradingConfig:
     3. 进行配置验证
     """
 
-    RISK_PARAMS = {
-        'position_limit': settings.MAX_POSITION_RATIO
-    }
-
-    # 将硬编码的字典替换为从 settings 中获取，如果为空则使用默认值
-    GRID_PARAMS = settings.GRID_PARAMS_JSON if settings.GRID_PARAMS_JSON else {
-        'initial': settings.INITIAL_GRID,
-        'min': 1.0,  # 网格大小的绝对最小值
-        'max': 4.0,  # 网格大小的绝对最大值
-        'volatility_threshold': {
-            'ranges': [
-                # --- 更直接、更敏感的波动率-网格映射关系 ---
-                {'range': [0, 0.10], 'grid': 1.0},      # 波动率 0% 到 10% (不含)，网格 1.0%
-                {'range': [0.10, 0.20], 'grid': 2.0},   # 波动率 10% 到 20% (不含)，网格 2.0%
-                {'range': [0.20, 0.30], 'grid': 3.0},   # 波动率 20% 到 30% (不含)，网格 3.0%
-                {'range': [0.30, 0.40], 'grid': 4.0},   # 波动率 30% 到 40% (不含)，网格 4.0%
-                {'range': [0.40, 999], 'grid': 4.0}     # 波动率 40% 及以上，统一使用最大网格 4.0%
-            ]
-        }
-    }
-
-    # 连续网格调整参数
-    GRID_CONTINUOUS_PARAMS = settings.GRID_CONTINUOUS_PARAMS_JSON if settings.GRID_CONTINUOUS_PARAMS_JSON else {
-        'base_grid': 2.5,          # 波动率处于中心点时，我们期望的基础网格大小 (例如 2.5%)
-        'center_volatility': 0.25, # 我们定义的市场"正常"波动率水平 (例如 0.25 或 25%)
-        'sensitivity_k': 10.0      # 灵敏度系数k。k越大，网格对波动率变化的反应越剧烈。
-                                   # k=10.0 意味着波动率每变化1%(0.01)，网格大小变化 0.1% (10.0 * 0.01)
-    }
-
-    # 成交量加权波动率计算开关
-    ENABLE_VOLUME_WEIGHTING = settings.ENABLE_VOLUME_WEIGHTING
-
-    # 动态时间间隔参数（使用配置合并策略）
-    # 默认配置
+    RISK_PARAMS: Dict[str, float] = {}
+    GRID_PARAMS: Dict[str, Any] = {}
+    GRID_CONTINUOUS_PARAMS: Dict[str, Any] = {}
+    ENABLE_VOLUME_WEIGHTING: bool = True
     _DEFAULT_DYNAMIC_INTERVAL_PARAMS = {
-        'default_interval_hours': 1.0,  # 默认间隔
+        'default_interval_hours': 1.0,
         'volatility_to_interval_hours': [
-            {'range': [0, 0.10], 'interval_hours': 1.0},      # 波动率 < 10%，每 1 小时检查一次
-            {'range': [0.10, 0.20], 'interval_hours': 0.5},   # 波动率 10-20%，每 30 分钟检查一次
-            {'range': [0.20, 0.30], 'interval_hours': 0.25},  # 波动率 20-30%，每 15 分钟检查一次
-            {'range': [0.30, 999], 'interval_hours': 0.125},  # 波动率 > 30%，每 7.5 分钟检查一次
+            {'range': [0, 0.10], 'interval_hours': 1.0},
+            {'range': [0.10, 0.20], 'interval_hours': 0.5},
+            {'range': [0.20, 0.30], 'interval_hours': 0.25},
+            {'range': [0.30, 999], 'interval_hours': 0.125},
         ]
     }
-
-    # 合并用户配置（如果有）
-    DYNAMIC_INTERVAL_PARAMS = _DEFAULT_DYNAMIC_INTERVAL_PARAMS.copy()
-    if settings.DYNAMIC_INTERVAL_PARAMS_JSON:
-        DYNAMIC_INTERVAL_PARAMS.update(settings.DYNAMIC_INTERVAL_PARAMS_JSON)
-
-    # 保留的策略相关基础值
-    BASE_AMOUNT = 50.0  # 基础交易金额（可调整）
+    DYNAMIC_INTERVAL_PARAMS: Dict[str, Any] = {}
+    BASE_AMOUNT = 50.0
 
     def __init__(self):
-        # 添加配置验证
         if settings.MIN_POSITION_RATIO >= settings.MAX_POSITION_RATIO:
             raise ValueError("底仓比例不能大于或等于最大仓位比例")
 
         if self.GRID_PARAMS['min'] > self.GRID_PARAMS['max']:
             raise ValueError("网格最小值不能大于最大值")
 
-        # API密钥验证已由Pydantic在settings实例化时自动完成
-
-        # 验证数值范围
         if settings.INITIAL_PRINCIPAL < 0:
             raise ValueError("INITIAL_PRINCIPAL不能为负数")
 
-        # INITIAL_BASE_PRICE已移除，现在使用INITIAL_PARAMS_JSON中的交易对特定配置
-        
-    # Removed unused update methods (update_risk_params, update_grid_params, 
-    # update_symbol, update_initial_base_price, update_risk_check_interval, 
-    # update_max_retries, update_risk_factor, update_base_amount, 
-    # update_min_trade_amount, update_max_position_ratio, 
-    # update_min_position_ratio, update_all)
+    @classmethod
+    def refresh_from_settings(cls):
+        cls.RISK_PARAMS = {
+            'position_limit': settings.MAX_POSITION_RATIO
+        }
 
-    # Removed unused validate_config method
+        if settings.GRID_PARAMS_JSON:
+            cls.GRID_PARAMS = copy.deepcopy(settings.GRID_PARAMS_JSON)
+        else:
+            cls.GRID_PARAMS = {
+                'initial': settings.INITIAL_GRID,
+                'min': 1.0,
+                'max': 4.0,
+                'volatility_threshold': {
+                    'ranges': [
+                        {'range': [0, 0.10], 'grid': 1.0},
+                        {'range': [0.10, 0.20], 'grid': 2.0},
+                        {'range': [0.20, 0.30], 'grid': 3.0},
+                        {'range': [0.30, 0.40], 'grid': 4.0},
+                        {'range': [0.40, 999], 'grid': 4.0},
+                    ]
+                }
+            }
+
+        if settings.GRID_CONTINUOUS_PARAMS_JSON:
+            cls.GRID_CONTINUOUS_PARAMS = copy.deepcopy(settings.GRID_CONTINUOUS_PARAMS_JSON)
+        else:
+            cls.GRID_CONTINUOUS_PARAMS = {
+                'base_grid': 2.5,
+                'center_volatility': 0.25,
+                'sensitivity_k': 10.0,
+            }
+
+        cls.ENABLE_VOLUME_WEIGHTING = settings.ENABLE_VOLUME_WEIGHTING
+        cls.DYNAMIC_INTERVAL_PARAMS = copy.deepcopy(cls._DEFAULT_DYNAMIC_INTERVAL_PARAMS)
+        if settings.DYNAMIC_INTERVAL_PARAMS_JSON:
+            cls.DYNAMIC_INTERVAL_PARAMS.update(settings.DYNAMIC_INTERVAL_PARAMS_JSON)
 # End of class definition 
+
+
+TradingConfig.refresh_from_settings()
+
+
+def reload_settings() -> Settings:
+    """重新加载配置缓存并刷新辅助结构。"""
+    global settings, SYMBOLS_LIST
+    settings = _build_settings()
+    SYMBOLS_LIST = [s.strip() for s in settings.SYMBOLS.split(',') if s.strip()]
+    TradingConfig.refresh_from_settings()
+    return settings

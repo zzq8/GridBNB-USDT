@@ -5,7 +5,7 @@
 1. 创建数据库和所有表
 2. 创建默认管理员用户
 3. 插入系统预设配置模板
-4. (可选) 从 .env 迁移现有配置
+4. (可选) 导入现有配置快照
 """
 
 import os
@@ -195,30 +195,11 @@ def initialize_default_configs(session, user_id):
 
         logger.info(f"正在从配置定义导入 {len(ALL_CONFIGS)} 个配置项...")
 
-        # API密钥列表（这些配置不应存入数据库，仅在.env中管理）
-        api_key_configs = {
-            'BINANCE_API_KEY', 'BINANCE_API_SECRET',
-            'BINANCE_TESTNET_API_KEY', 'BINANCE_TESTNET_API_SECRET',
-            'OKX_API_KEY', 'OKX_API_SECRET', 'OKX_PASSPHRASE',
-            'OKX_TESTNET_API_KEY', 'OKX_TESTNET_API_SECRET', 'OKX_TESTNET_PASSPHRASE',
-            'AI_API_KEY',  # AI API密钥也应该敏感保护
-        }
-
-        # 敏感配置列表（这些配置存入数据库但标记为敏感）
-        sensitive_configs = {
-            'TELEGRAM_BOT_TOKEN', 'PUSHPLUS_TOKEN', 'WEBHOOK_URL', 'AI_API_KEY'
-        }
-
         configs_to_insert = []
         skipped_count = 0
 
         for config_def in ALL_CONFIGS:
             config_key = config_def['config_key']
-
-            # 跳过API密钥配置（仅在.env中管理）
-            if config_key in api_key_configs:
-                skipped_count += 1
-                continue
 
             # 创建配置对象
             config = Configuration(
@@ -232,7 +213,7 @@ def initialize_default_configs(session, user_id):
                 validation_rules=config_def.get('validation_rules'),
                 status=ConfigStatusEnum.ACTIVE,
                 is_required=config_def.get('is_required', False),
-                is_sensitive=config_key in sensitive_configs or config_def.get('is_sensitive', False),
+                is_sensitive=config_def.get('is_sensitive', False),
                 requires_restart=config_def.get('requires_restart', False),
                 created_by=user_id,
                 updated_by=user_id,
@@ -264,7 +245,7 @@ def initialize_default_configs(session, user_id):
         session.commit()
 
         logger.info(f"✓ 成功导入 {len(configs_to_insert)} 个配置项")
-        logger.info(f"  跳过 {skipped_count} 个API密钥配置（仅在.env中管理）")
+        logger.info(f"  跳过 {skipped_count} 个已存在的配置")
 
         # 按类型统计
         from collections import Counter
@@ -314,20 +295,22 @@ def initialize_database():
             logger.error("✗ 数据库健康检查失败")
             return False
 
-        logger.info("\n" + "=" * 60)
-        logger.info("✓ 数据库初始化完成！")
+        logger.info("
+" + "=" * 60)
+        logger.info("✅ 数据库初始化完成！")
         logger.info("=" * 60)
-        logger.info("\n下一步:")
-        logger.info("1. 配置.env文件中的API密钥:")
-        logger.info("   - BINANCE_API_KEY 和 BINANCE_API_SECRET")
-        logger.info("   - (可选) OKX_API_KEY, OKX_API_SECRET, OKX_PASSPHRASE")
-        logger.info("2. 启动Web服务器: python -m src.services.fastapi_server")
-        logger.info("3. 访问配置页面: http://localhost:8000")
-        logger.info("4. 使用默认账号登录: admin / admin123")
-        logger.info("5. ⚠️  立即修改默认密码！")
-        logger.info("6. 在Web界面中调整策略配置")
-        logger.info("7. 启动交易系统\n")
+        logger.info("
+下一步")
+        logger.info("1. 启动 Web 服务： python -m src.services.fastapi_server")
+        logger.info("2. 访问配置页面: http://localhost:8000")
+        logger.info("3. 使用默认账号登录: admin / admin123")
+        logger.info("4. ⚠️  立即修改默认密码！")
+        logger.info("5. 在 Web 控制台中填写交易所 API 密钥和策略参数")
+        logger.info("6. 使用 /api/configs/reload 热更新配置")
+        logger.info("7. 启动交易系统
+")
 
+        
         return True
 
     except Exception as e:

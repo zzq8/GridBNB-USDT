@@ -26,7 +26,6 @@ from src.core.exchange_client import ExchangeClient
 from src.config.settings import TradingConfig, SYMBOLS_LIST, settings
 from src.utils.logging_config import get_logger
 from src.services.alerting import setup_alerts, get_alert_manager, AlertLevel
-from src.services.config_watcher import setup_config_watcher, get_config_watcher
 from src.strategies.global_allocator import GlobalFundAllocator  # 🆕 导入全局资金分配器
 from src.services.fastapi_server import start_fastapi_server
 
@@ -133,7 +132,6 @@ async def run_trader_for_symbol(symbol: str, exchange_client: ExchangeClient):
 
 async def main():
     shared_exchange_client = None  # 在try块外部定义
-    config_watcher = None  # 配置监听器
     try:
         LogConfig.setup_logger()
         logger.info("trading_system_started")
@@ -228,22 +226,7 @@ async def main():
             # 创建运行任务
             tasks.append(trader_instance.main_loop())
 
-        # 【阶段4新增】设置配置热重载
-        def on_config_change():
-            """配置文件变更时的回调函数"""
-            logger.info("config_file_changed", message="检测到配置文件变更，开始更新所有交易器配置")
-            for symbol, trader in traders.items():
-                try:
-                    trader.update_config()
-                    logger.info("trader_config_updated", symbol=symbol)
-                except Exception as e:
-                    logger.error("trader_config_update_failed", symbol=symbol, error=str(e))
-
-        config_watcher = setup_config_watcher(
-            config_file="config/.env",
-            callbacks={"traders": on_config_change}
-        )
-        logger.info("config_watcher_started", message="配置热重载已启动")
+        logger.info("config_reload_hint", message="配置变更请通过 /api/configs/reload 触发热更新")
 
         # 如果有trader实例，启动 FastAPI 服务器暴露统一前端/接口
         if traders:
@@ -281,14 +264,13 @@ async def main():
         )
         tasks.append(allocator_monitor_task)
 
-        # 并发运行所有任务
+        # Run trading tasks concurrently
         logger.info("starting_concurrent_tasks", symbol_count=len(SYMBOLS_LIST), total_tasks=len(tasks))
 
-        # 【阶段3新增】发送系统启动通知
         await alert_manager.send_alert(
             AlertLevel.WARNING,
-            "交易系统启动",
-            f"GridBNB 交易系统已成功启动\n交易对: {', '.join(SYMBOLS_LIST)}\n实例数量: {len(traders)}"
+            "Trading system started",
+            f"GridBNB trading system active\nSymbols: {', '.join(SYMBOLS_LIST)}\nTraders: {len(traders)}"
         )
 
         await asyncio.gather(*tasks)
@@ -296,36 +278,26 @@ async def main():
     except Exception as e:
         logger.critical("main_program_error", error=str(e), traceback=traceback.format_exc())
 
-        # 【阶段3新增】发送严重错误告警
         alert_manager = get_alert_manager()
         await alert_manager.send_alert(
             AlertLevel.CRITICAL,
-            "主程序严重错误",
-            f"交易系统发生未知严重错误\n错误信息: {str(e)}",
+            "Fatal error",
+            f"Unhandled exception: {str(e)}",
             error=str(e),
-            traceback=traceback.format_exc()[:500]  # 限制长度
+            traceback=traceback.format_exc()[:500]
         )
 
     finally:
-        # 【阶段4新增】停止配置监听器
-        if config_watcher and config_watcher.is_running():
-            try:
-                config_watcher.stop()
-                logger.info("config_watcher_stopped", message="配置监听器已停止")
-            except Exception as e:
-                logger.error("config_watcher_stop_error", error=str(e))
-
-        # 统一在此处关闭共享的客户端
         if shared_exchange_client:
             try:
-                # 【新增】在关闭连接前，先停止时间同步任务
                 await shared_exchange_client.stop_periodic_time_sync()
                 await shared_exchange_client.close()
-                logger.info("shared_client_closed", message="共享的交易所连接已安全关闭")
+                logger.info("shared_client_closed", message="Shared exchange client closed cleanly")
             except Exception as e:
                 logger.error("client_close_error", error=str(e))
 
-        logger.info("program_exiting", message="所有交易任务已结束，程序即将退出")
+        logger.info("program_exiting", message="All trading tasks finished; shutting down")
+
 
 if __name__ == "__main__":
     asyncio.run(main()) 

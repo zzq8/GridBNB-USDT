@@ -99,6 +99,156 @@ EXCHANGE_CONFIGS: List[ConfigDefinition] = [
         "is_sensitive": False,
         "requires_restart": False,
     },
+    {
+        "config_key": "BINANCE_API_KEY",
+        "display_name": "Binance API Key",
+        "description": "Binance 现货交易 API Key（仅当使用 Binance 时必填）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": True,
+    },
+    {
+        "config_key": "BINANCE_API_SECRET",
+        "display_name": "Binance API Secret",
+        "description": "Binance 现货交易 API Secret（仅当使用 Binance 时必填）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": True,
+    },
+    {
+        "config_key": "BINANCE_TESTNET_API_KEY",
+        "display_name": "Binance 测试网 API Key",
+        "description": "Binance 测试网/模拟盘 API Key（TESTNET_MODE=true 时生效）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": False,
+    },
+    {
+        "config_key": "BINANCE_TESTNET_API_SECRET",
+        "display_name": "Binance 测试网 API Secret",
+        "description": "Binance 测试网/模拟盘 API Secret（TESTNET_MODE=true 时生效）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": False,
+    },
+    {
+        "config_key": "OKX_API_KEY",
+        "display_name": "OKX API Key",
+        "description": "OKX 现货交易 API Key（仅当使用 OKX 时必填）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": True,
+    },
+    {
+        "config_key": "OKX_API_SECRET",
+        "display_name": "OKX API Secret",
+        "description": "OKX 现货交易 API Secret（仅当使用 OKX 时必填）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": True,
+    },
+    {
+        "config_key": "OKX_PASSPHRASE",
+        "display_name": "OKX API Passphrase",
+        "description": "OKX API Passphrase（仅当使用 OKX 时必填）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": True,
+    },
+    {
+        "config_key": "OKX_TESTNET_API_KEY",
+        "display_name": "OKX 测试网 API Key",
+        "description": "OKX Demo/测试网 API Key（TESTNET_MODE=true 时生效）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": False,
+    },
+    {
+        "config_key": "OKX_TESTNET_API_SECRET",
+        "display_name": "OKX 测试网 API Secret",
+        "description": "OKX Demo/测试网 API Secret（TESTNET_MODE=true 时生效）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": False,
+    },
+    {
+        "config_key": "OKX_TESTNET_PASSPHRASE",
+        "display_name": "OKX 测试网 Passphrase",
+        "description": "OKX Demo/测试网 Passphrase（TESTNET_MODE=true 时生效）",
+        "config_type": ConfigTypeEnum.EXCHANGE,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": False,
+    },
 ]
 
 
@@ -540,6 +690,21 @@ AI_CONFIGS: List[ConfigDefinition] = [
         "requires_restart": False,
     },
     {
+        "config_key": "AI_API_KEY",
+        "display_name": "AI API Key",
+        "description": "AI服务提供商的API密钥（OpenAI/Anthropic等）",
+        "config_type": ConfigTypeEnum.AI,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
+        "requires_restart": False,
+    },
+    {
         "config_key": "AI_MODEL",
         "display_name": "AI模型",
         "description": "使用的AI模型名称（如 gpt-4-turbo, claude-3-opus-20240229）",
@@ -706,6 +871,37 @@ NOTIFICATION_CONFIGS: List[ConfigDefinition] = [
 # ============================================================================
 SYSTEM_CONFIGS: List[ConfigDefinition] = [
     {
+        "config_key": "FASTAPI_HOST",
+        "display_name": "FastAPI 服务地址",
+        "description": "FastAPI/前端服务监听地址，默认 0.0.0.0",
+        "config_type": ConfigTypeEnum.SYSTEM,
+        "data_type": "string",
+        "default_value": "0.0.0.0",
+        "validation_rules": {
+            "type": "string",
+            "pattern": r"^\d+\.\d+\.\d+\.\d+$|^localhost$|^0\.0\.0\.0$"
+        },
+        "is_required": False,
+        "is_sensitive": False,
+        "requires_restart": True,
+    },
+    {
+        "config_key": "FASTAPI_PORT",
+        "display_name": "FastAPI 服务端口",
+        "description": "FastAPI/前端服务监听端口，默认 58181",
+        "config_type": ConfigTypeEnum.SYSTEM,
+        "data_type": "number",
+        "default_value": "58181",
+        "validation_rules": {
+            "type": "integer",
+            "min": 1024,
+            "max": 65535
+        },
+        "is_required": False,
+        "is_sensitive": False,
+        "requires_restart": True,
+    },
+    {
         "config_key": "LOG_LEVEL",
         "display_name": "日志级别",
         "description": "系统日志级别：DEBUG/INFO/WARNING/ERROR/CRITICAL",
@@ -745,6 +941,36 @@ SYSTEM_CONFIGS: List[ConfigDefinition] = [
         },
         "is_required": False,
         "is_sensitive": False,
+        "requires_restart": False,
+    },
+    {
+        "config_key": "WEB_USER",
+        "display_name": "Web 管理员用户名",
+        "description": "访问前端/接口所需的用户名（可选）",
+        "config_type": ConfigTypeEnum.SYSTEM,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": False,
+        "requires_restart": False,
+    },
+    {
+        "config_key": "WEB_PASSWORD",
+        "display_name": "Web 管理员密码",
+        "description": "访问前端/接口所需的密码（可选）",
+        "config_type": ConfigTypeEnum.SYSTEM,
+        "data_type": "string",
+        "default_value": "",
+        "validation_rules": {
+            "type": "string",
+            "optional": True
+        },
+        "is_required": False,
+        "is_sensitive": True,
         "requires_restart": False,
     },
 ]

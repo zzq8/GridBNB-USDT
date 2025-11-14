@@ -56,6 +56,14 @@ const EXCHANGE_TYPES = {
     description: '知名的加密货币交易平台',
     helpLink: 'https://www.okx.com/zh-hans/help/iii-create-an-api-key',
   },
+  PROXY: {
+    value: 'proxy',
+    label: '网络代理',
+    fullName: '网络代理',
+    icon: '🌐',
+    description: '配置 HTTP/SOCKS5 代理，提升交易所连接稳定性',
+    helpLink: '',
+  },
 };
 
 // 通知类型定义 - 添加详细说明
@@ -115,7 +123,18 @@ const AI_TYPES = {
 };
 
 // 交易所配置字段模板 - 添加详细帮助信息
-const EXCHANGE_CONFIG_FIELDS = {
+type DynamicConfigField = {
+  key: string;
+  label: string;
+  type: 'input' | 'password';
+  required: boolean;
+  placeholder?: string;
+  help?: string;
+  example?: string;
+  fullKey?: string;
+};
+
+const EXCHANGE_CONFIG_FIELDS: Record<string, DynamicConfigField[]> = {
   binance: [
     {
       key: 'API_KEY',
@@ -183,10 +202,22 @@ const EXCHANGE_CONFIG_FIELDS = {
       example: '',
     },
   ],
+  proxy: [
+    {
+      key: 'HTTP_PROXY',
+      label: '代理地址',
+      type: 'input',
+      required: true,
+      placeholder: 'http://127.0.0.1:10809',
+      help: '填写 HTTP 或 SOCKS5 代理地址，帮助系统访问受限的交易所 API',
+      example: 'http://127.0.0.1:10809',
+      fullKey: 'HTTP_PROXY',
+    },
+  ],
 };
 
 // 通知配置字段模板
-const NOTIFICATION_CONFIG_FIELDS = {
+const NOTIFICATION_CONFIG_FIELDS: Record<string, DynamicConfigField[]> = {
   pushplus: [
     {
       key: 'TOKEN',
@@ -306,7 +337,7 @@ const NOTIFICATION_CONFIG_FIELDS = {
 };
 
 // AI配置字段模板
-const AI_CONFIG_FIELDS = {
+const AI_CONFIG_FIELDS: Record<string, DynamicConfigField[]> = {
   openai: [
     {
       key: 'API_KEY',
@@ -369,6 +400,10 @@ const ConfigDetail: React.FC = () => {
   const [configType, setConfigType] = useState<ConfigType | ''>('');
   const [subType, setSubType] = useState<string>('');
 
+  const exchangeInfo = subType
+    ? EXCHANGE_TYPES[subType.toUpperCase() as keyof typeof EXCHANGE_TYPES]
+    : undefined;
+
   const isNew = id === 'new';
 
   // 加载配置详情
@@ -402,6 +437,9 @@ const ConfigDetail: React.FC = () => {
       } else if (configKey.startsWith('OKX_')) {
         setConfigType(ConfigType.EXCHANGE);
         setSubType('okx');
+      } else if (configKey === 'HTTP_PROXY') {
+        setConfigType(ConfigType.EXCHANGE);
+        setSubType('proxy');
       } else if (configKey.startsWith('PUSHPLUS_')) {
         setConfigType(ConfigType.NOTIFICATION);
         setSubType('pushplus');
@@ -449,6 +487,15 @@ const ConfigDetail: React.FC = () => {
     setCurrentStep(2);
   };
 
+  const handleSelectProxyConfig = () => {
+    setConfigType(ConfigType.EXCHANGE);
+    setSubType('proxy');
+    setCurrentStep(2);
+    form.setFieldsValue({
+      dynamic_HTTP_PROXY: 'http://127.0.0.1:10809',
+    });
+  };
+
   // 保存配置
   const handleSave = async () => {
     try {
@@ -469,15 +516,17 @@ const ConfigDetail: React.FC = () => {
             throw new Error(`请填写${field.label}`);
           }
 
+          const subTypeKey = subType.toUpperCase();
           const currentType = configType || ConfigType.EXCHANGE;
           const typeLabel = currentType === ConfigType.EXCHANGE
-            ? EXCHANGE_TYPES[subType.toUpperCase() as keyof typeof EXCHANGE_TYPES]?.label
+            ? EXCHANGE_TYPES[subTypeKey as keyof typeof EXCHANGE_TYPES]?.label || '交易所配置'
             : currentType === ConfigType.NOTIFICATION
             ? NOTIFICATION_TYPES[subType.toUpperCase() as keyof typeof NOTIFICATION_TYPES]?.label
             : AI_TYPES[subType.toUpperCase() as keyof typeof AI_TYPES]?.label;
+          const configKey = field.fullKey || `${subType.toUpperCase()}_${field.key}`;
 
           return {
-            config_key: `${subType.toUpperCase()}_${field.key}`,
+            config_key: configKey,
             display_name: `${typeLabel} - ${field.label}`,
             config_value: value || field.placeholder || '',
             config_type: currentType,
@@ -667,6 +716,37 @@ const ConfigDetail: React.FC = () => {
               </Paragraph>
             </Card>
           </Col>
+          <Col span={8}>
+            <Card
+              hoverable
+              onClick={handleSelectProxyConfig}
+              style={{
+                height: 240,
+                borderRadius: 12,
+                border: '2px solid #E5E7EB',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+              }}
+              styles={{
+                body: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  padding: 32,
+                },
+              }}
+            >
+              <span style={{ fontSize: 64, marginBottom: 24 }}>🌐</span>
+              <Title level={3} style={{ marginBottom: 12, color: '#111827' }}>
+                网络代理
+              </Title>
+              <Paragraph style={{ textAlign: 'center', color: '#6B7280', marginBottom: 0 }}>
+                配置 HTTP/SOCKS5 代理，提高交易所 API 访问的稳定性
+              </Paragraph>
+            </Card>
+          </Col>
         </Row>
       )}
 
@@ -811,17 +891,17 @@ const ConfigDetail: React.FC = () => {
                 <div>
                   <div style={{ fontWeight: 500, marginBottom: 4 }}>
                     {configType === ConfigType.EXCHANGE
-                      ? `配置 ${EXCHANGE_TYPES[subType.toUpperCase() as keyof typeof EXCHANGE_TYPES]?.fullName}`
+                      ? `配置 ${exchangeInfo?.fullName ?? '交易所配置'}`
                       : configType === ConfigType.NOTIFICATION
                       ? `配置 ${NOTIFICATION_TYPES[subType.toUpperCase() as keyof typeof NOTIFICATION_TYPES]?.fullName}`
                       : `配置 ${AI_TYPES[subType.toUpperCase() as keyof typeof AI_TYPES]?.fullName}`}
                   </div>
                   <div style={{ fontSize: 13, color: '#6B7280' }}>
                     请仔细填写以下信息，确保信息准确无误
-                    {configType === ConfigType.EXCHANGE && (
+                    {configType === ConfigType.EXCHANGE && exchangeInfo?.helpLink && (
                       <>
                         {' '}· <a
-                          href={EXCHANGE_TYPES[subType.toUpperCase() as keyof typeof EXCHANGE_TYPES]?.helpLink}
+                          href={exchangeInfo.helpLink}
                           target="_blank"
                           rel="noopener noreferrer"
                         >

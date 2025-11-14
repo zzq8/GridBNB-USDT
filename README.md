@@ -33,7 +33,7 @@
 - ✅ **回撤止盈**: 从最高盈利回撤超过阈值时锁定利润
 - ✅ **紧急平仓**: 市价单快速清仓，5次重试确保成功
 - ✅ **17个单元测试**: 完整的测试覆盖
-- ✅ **配置简单**: `.env` 文件中一键启用/禁用
+- ✅ **配置简单**: Web 控制台中一键启用/禁用
 
 ### 🏦 企业级多交易所架构
 - ✅ **Binance & OKX 完整支持**: 现货交易 + 理财功能
@@ -159,15 +159,13 @@
    cd GridBNB-USDT
    ```
 
-2. **配置环境变量**
+2. **初始化配置数据库**
    ```bash
-   # 复制配置文件模板
-   cp config/.env.example config/.env
-
-   # 编辑 config/.env 文件
-   # 选择交易所: EXCHANGE=binance 或 EXCHANGE=okx
-   # 填入对应的 API 密钥
+   # 仅首次需要执行
+   python scripts/init_database.py
    ```
+
+   启动容器后，访问 Web 控制台填写所有 API 密钥和策略参数，无需 config/.env 文件。
 
 3. **启动服务**
    ```bash
@@ -204,15 +202,16 @@
 
 2. **配置和运行**
    ```bash
-   # 配置 config/.env 文件
-   cp config/.env.example config/.env
-   # 编辑 config/.env 文件，填入 API 密钥
+   # 初始化配置数据库（仅首次）
+   python scripts/init_database.py
 
    # 运行程序
    python src/main.py
    ```
 
-   程序启动后，FastAPI + React 统一前端将默认监听 `http://localhost:58181`，可通过 `.env` 中的 `FASTAPI_HOST` / `FASTAPI_PORT` 调整绑定地址。
+   启动后访问 `http://localhost:58181`，使用默认账号 `admin/admin123` 登录 Web 控制台，在界面中填写交易所 API 密钥和策略参数，再通过“配置管理 → 重新加载”按钮让新配置立即生效。
+
+
 
 ---
 
@@ -220,8 +219,9 @@
 
 ### 使用 Binance (币安)
 
+在 Web 控制台的“配置管理”中设置：
+
 ```bash
-# .env 配置
 EXCHANGE=binance
 BINANCE_API_KEY="your_binance_api_key"
 BINANCE_API_SECRET="your_binance_api_secret"
@@ -229,8 +229,9 @@ BINANCE_API_SECRET="your_binance_api_secret"
 
 ### 使用 OKX (欧易)
 
+在 Web 控制台中填写：
+
 ```bash
-# .env 配置
 EXCHANGE=okx
 OKX_API_KEY="your_okx_api_key"
 OKX_API_SECRET="your_okx_api_secret"
@@ -243,9 +244,9 @@ OKX_PASSPHRASE="your_okx_passphrase"  # OKX特有参数
 
 ```bash
 # 从 Binance 切换到 OKX
-# 1. 修改 .env 中的 EXCHANGE=okx
+# 1. 在 Web 控制台中将 EXCHANGE 设置为 okx
 # 2. 填写 OKX API 配置
-# 3. 重启程序
+# 3. 使用配置管理的“重新加载”按钮或重启程序
 ```
 
 ---
@@ -297,7 +298,6 @@ GridBNB-USDT/
 │   ├── Dockerfile
 │   └── docker-compose.yml
 └── config/                     # 配置文件
-│   ├── .env.example            # 环境变量配置模板
     ├── .pre-commit-config.yaml # Pre-commit钩子配置
     └── pytest.ini              # Pytest配置
 ```
@@ -306,7 +306,7 @@ GridBNB-USDT/
 
 ## ⚙️ 配置说明
 
-### 核心配置 (.env 文件)
+### 核心配置 (Web 控制台)
 
 ```bash
 # ========== 交易所选择 ==========

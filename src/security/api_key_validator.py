@@ -365,31 +365,24 @@ async def validate_api_key(api_key: str, api_secret: str, verbose: bool = True) 
 
 
 if __name__ == "__main__":
-    import os
+    import argparse
     import sys
-
-    from dotenv import load_dotenv
 
     logging.basicConfig(level=logging.INFO)
 
-    # 从环境变量加载 API 密钥
-    load_dotenv()
-
-    api_key = os.getenv("BINANCE_API_KEY")
-    api_secret = os.getenv("BINANCE_API_SECRET")
-
-    if not api_key or not api_secret:
-        print("错误: 请在 .env 文件中配置 BINANCE_API_KEY 和 BINANCE_API_SECRET")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="校验 Binance API 权限配置")
+    parser.add_argument("--api-key", required=True, help="Binance API Key")
+    parser.add_argument("--api-secret", required=True, help="Binance API Secret")
+    args = parser.parse_args()
 
     print("=== Binance API 密钥权限验证 ===\n")
 
     # 运行验证
-    is_valid = asyncio.run(validate_api_key(api_key, api_secret, verbose=True))
+    is_valid = asyncio.run(validate_api_key(args.api_key, args.api_secret, verbose=True))
 
     if is_valid:
-        print("\n✓ 验证通过,可以安全使用")
+        print("\n✅ 验证通过,可以安全使用")
         sys.exit(0)
     else:
-        print("\n✗ 验证失败,请检查并修正权限配置")
+        print("\n❌ 验证失败,请检查并修正权限配置")
         sys.exit(1)
