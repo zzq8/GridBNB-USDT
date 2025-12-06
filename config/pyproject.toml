@@ -30,13 +30,11 @@ dependencies = [
     "aiofiles>=23.2.1",
     "ccxt>=4.1.0",
     "numpy>=1.26.0",
-    "python-dotenv>=1.0.0",
     "requests>=2.31.0",
     "tenacity>=8.2.3",
     "psutil>=5.9.6",
     "websockets>=12.0.0",
     "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
     "pandas>=2.2.0",
     "loguru>=0.7.2",
 ]

@@ -4,18 +4,36 @@
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Exchanges](https://img.shields.io/badge/Exchanges-Binance%20%7C%20OKX-green.svg)](https://www.binance.com/)
-[![Version](https://img.shields.io/badge/Version-v3.0.0-brightgreen.svg)](https://github.com/EBOLABOY/GridBNB-USDT/releases)
+[![Version](https://img.shields.io/badge/Version-v3.2.0-brightgreen.svg)](https://github.com/EBOLABOY/GridBNB-USDT/releases)
 
 一个基于 Python 的**企业级**自动化交易程序，支持 **Binance (币安)** 和 **OKX (欧易)** 等多个交易所。采用先进的网格交易策略，结合动态波动率分析和多层风险管理，旨在稳定捕捉市场波动收益。
 
-## 🎉 最新更新 (v3.1.0 - 2025-10-24)
+## 🎉 最新更新 (v3.2.0 - 2025-10-28)
+
+### 🧪 测试网/模拟盘支持 (新增)
+- ✅ **Binance 测试网**: 支持 Binance 官方测试网环境，使用测试币无风险测试
+- ✅ **OKX 模拟盘**: 支持 OKX Demo Trading 模拟交易
+- ✅ **一键切换**: 通过 `TESTNET_MODE=true` 轻松切换到测试环境
+- ✅ **完全隔离**: 测试网与实盘环境完全独立，保证资金安全
+- ✅ **新手友好**: 在测试网中学习和验证策略，零风险
+- 📖 **详细文档**: [CLAUDE.md - 测试网使用指南](docs/CLAUDE.md#-测试网模拟盘使用指南)
+
+### 💰 智能配置优化
+- ✅ **INITIAL_PRINCIPAL 自动检测**: 设置为0时自动检测账户总资产，无需手动配置
+- ✅ **LOG_LEVEL 字符串支持**: 支持 `LOG_LEVEL=INFO` 等直观的字符串配置
+- ✅ **配置合并优化**: 修复 DYNAMIC_INTERVAL_PARAMS 配置合并逻辑
+- ✅ **更友好的错误提示**: 增强配置验证和错误信息
+
+---
+
+## 🎉 历史更新 (v3.1.0 - 2025-10-24)
 
 ### 🛡️ 止损机制 (新增)
 - ✅ **价格止损**: 当价格跌破基准价特定比例时自动平仓
 - ✅ **回撤止盈**: 从最高盈利回撤超过阈值时锁定利润
 - ✅ **紧急平仓**: 市价单快速清仓，5次重试确保成功
 - ✅ **17个单元测试**: 完整的测试覆盖
-- ✅ **配置简单**: `.env` 文件中一键启用/禁用
+- ✅ **配置简单**: Web 控制台中一键启用/禁用
 
 ### 🏦 企业级多交易所架构
 - ✅ **Binance & OKX 完整支持**: 现货交易 + 理财功能
@@ -30,14 +48,6 @@
 - ✅ **技术指标综合分析**: RSI, MACD, 布林带等
 - ✅ **市场情绪监测**: Fear & Greed Index
 
-📖 **详细文档**:
-- [止损机制设计](docs/STOP_LOSS_DESIGN.md)
-- [多交易所架构设计](docs/architecture/multi-exchange-design.md)
-- [多交易所快速开始](docs/architecture/QUICK_START.md)
-- [AI策略使用指南](docs/AI_STRATEGY_GUIDE.md)
-
----
-
 ## ✨ 核心特性
 
 ### 🏦 企业级多交易所支持
@@ -47,9 +57,6 @@
 - ✅ **即插即用**: 修改配置即可切换交易所，无需修改代码
 - ✅ **统一接口**: 所有交易所使用相同的API接口
 - ✅ **易于扩展**: 插件化架构，可轻松添加新交易所
-- 📖 **详细文档**:
-  - [多交易所快速开始](docs/architecture/QUICK_START.md)
-  - [多交易所架构设计](docs/architecture/multi-exchange-design.md)
 
 ### 🚀 多币种并发交易
 - ✅ **任意交易对支持**: BNB/USDT, ETH/USDT, BTC/USDT 等所有现货交易对
@@ -72,7 +79,6 @@
 - ✅ **成本控制**: 每日调用限制、置信度阈值、金额比例控制
 - ✅ **风险协同**: 与现有风控系统无缝集成，确保交易安全
 - ✅ **自定义OpenAI Base URL**: 支持国内中转服务
-- 📖 **详细文档**: [AI策略使用指南](docs/AI_STRATEGY_GUIDE.md)
 
 ### 🛡️ 多层风险管理
 - ✅ **止损机制**: 价格止损和回撤止盈双重保护，最大限度降低极端行情风险
@@ -153,15 +159,13 @@
    cd GridBNB-USDT
    ```
 
-2. **配置环境变量**
+2. **初始化配置数据库**
    ```bash
-   # 复制配置文件模板
-   cp .env.example .env
-
-   # 编辑 .env 文件
-   # 选择交易所: EXCHANGE=binance 或 EXCHANGE=okx
-   # 填入对应的 API 密钥
+   # 仅首次需要执行
+   python scripts/init_database.py
    ```
+
+   启动容器后，访问 Web 控制台填写所有 API 密钥和策略参数，无需 config/.env 文件。
 
 3. **启动服务**
    ```bash
@@ -198,13 +202,16 @@
 
 2. **配置和运行**
    ```bash
-   # 配置 .env 文件
-   cp .env.example .env
-   # 编辑 .env 文件，填入 API 密钥
+   # 初始化配置数据库（仅首次）
+   python scripts/init_database.py
 
    # 运行程序
    python src/main.py
    ```
+
+   启动后访问 `http://localhost:58181`，使用默认账号 `admin/admin123` 登录 Web 控制台，在界面中填写交易所 API 密钥和策略参数，再通过“配置管理 → 重新加载”按钮让新配置立即生效。
+
+
 
 ---
 
@@ -212,8 +219,9 @@
 
 ### 使用 Binance (币安)
 
+在 Web 控制台的“配置管理”中设置：
+
 ```bash
-# .env 配置
 EXCHANGE=binance
 BINANCE_API_KEY="your_binance_api_key"
 BINANCE_API_SECRET="your_binance_api_secret"
@@ -221,8 +229,9 @@ BINANCE_API_SECRET="your_binance_api_secret"
 
 ### 使用 OKX (欧易)
 
+在 Web 控制台中填写：
+
 ```bash
-# .env 配置
 EXCHANGE=okx
 OKX_API_KEY="your_okx_api_key"
 OKX_API_SECRET="your_okx_api_secret"
@@ -235,15 +244,10 @@ OKX_PASSPHRASE="your_okx_passphrase"  # OKX特有参数
 
 ```bash
 # 从 Binance 切换到 OKX
-# 1. 修改 .env 中的 EXCHANGE=okx
+# 1. 在 Web 控制台中将 EXCHANGE 设置为 okx
 # 2. 填写 OKX API 配置
-# 3. 重启程序
+# 3. 使用配置管理的“重新加载”按钮或重启程序
 ```
-
-📖 **详细指南**:
-- [多交易所快速开始](docs/architecture/QUICK_START.md)
-- [多交易所架构设计](docs/architecture/multi-exchange-design.md)
-- [迁移指南](docs/MIGRATION_GUIDE.md)
 
 ---
 
@@ -267,7 +271,7 @@ GridBNB-USDT/
 │   │   └── risk_manager.py     # 风险管理
 │   ├── services/               # 服务模块
 │   │   ├── monitor.py          # 交易监控
-│   │   └── web_server.py       # Web服务
+│   │   └── fastapi_server.py   # FastAPI + React 统一前端服务
 │   └── config/                 # 配置模块
 │       └── settings.py         # 配置管理
 ├── tests/                      # 测试目录
@@ -293,7 +297,6 @@ GridBNB-USDT/
 ├── docker/                     # Docker配置
 │   ├── Dockerfile
 │   └── docker-compose.yml
-├── .env.example                # 环境变量配置模板
 └── config/                     # 配置文件
     ├── .pre-commit-config.yaml # Pre-commit钩子配置
     └── pytest.ini              # Pytest配置
@@ -303,17 +306,27 @@ GridBNB-USDT/
 
 ## ⚙️ 配置说明
 
-### 核心配置 (.env 文件)
+### 核心配置 (Web 控制台)
 
 ```bash
 # ========== 交易所选择 ==========
 # 选择要使用的交易所: binance / okx
 EXCHANGE=binance
 
+# ========== 测试网/模拟盘配置 🆕 ==========
+# 是否使用测试网（true=模拟盘测试, false=实盘交易）
+# 测试网使用测试币，不会影响真实资金，适合调试和学习
+TESTNET_MODE=false
+
 # ========== Binance API ==========
 # 如果使用币安交易所，必填
 BINANCE_API_KEY="your_binance_api_key_here"
 BINANCE_API_SECRET="your_binance_api_secret_here"
+
+# Binance 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）🆕
+# 测试网申请地址: https://testnet.binance.vision/
+# BINANCE_TESTNET_API_KEY="your_testnet_api_key_here"
+# BINANCE_TESTNET_API_SECRET="your_testnet_api_secret_here"
 
 # ========== OKX API ==========
 # 如果使用OKX交易所，必填
@@ -321,6 +334,13 @@ BINANCE_API_SECRET="your_binance_api_secret_here"
 OKX_API_KEY="your_okx_api_key_here"
 OKX_API_SECRET="your_okx_api_secret_here"
 OKX_PASSPHRASE="your_okx_passphrase_here"
+
+# OKX 测试网 API（可选，仅在 TESTNET_MODE=true 时使用）🆕
+# OKX Demo环境需要单独申请API密钥
+# 申请地址: https://www.okx.com/account/my-api (选择"Demo Trading"模式)
+# OKX_TESTNET_API_KEY="your_okx_demo_api_key_here"
+# OKX_TESTNET_API_SECRET="your_okx_demo_api_secret_here"
+# OKX_TESTNET_PASSPHRASE="your_okx_demo_passphrase_here"
 
 # ========== 策略核心配置 ==========
 # 要运行的交易对列表，用英文逗号分隔
@@ -340,11 +360,19 @@ INITIAL_GRID=2.0
 MIN_TRADE_AMOUNT=20.0
 
 # ========== 初始状态设置 ==========
-# 初始本金 (USDT)，用于计算总盈亏和盈亏率。如果不知道，可以留空或设为0。
-INITIAL_PRINCIPAL=1000.0
+# 🆕 初始本金（用于计算总盈亏和盈亏率，单位: USDT）
+# 设置为0或不设置时，系统会在启动时自动检测账户总资产
+# 建议：首次运行设置为0自动检测，之后可固定为启动时的总资产以便准确计算盈亏
+INITIAL_PRINCIPAL=0
+
+# ========== 日志配置 🆕 ==========
+# 日志级别（可选值: DEBUG, INFO, WARNING, ERROR, CRITICAL）
+# 支持字符串或对应的整数值（10=DEBUG, 20=INFO, 30=WARNING, 40=ERROR, 50=CRITICAL）
+# 建议生产环境使用 INFO，调试时使用 DEBUG
+LOG_LEVEL=INFO
 
 # ========== 可选配置 ==========
-# 🆕 AI策略配置
+# AI策略配置
 ENABLE_AI_STRATEGY=false
 AI_PROVIDER=openai  # openai 或 claude
 OPENAI_API_KEY="your_openai_key"
@@ -524,6 +552,14 @@ pre-commit install
 pre-commit run --all-files
 ```
 
+### 前端构建（web/）
+
+```bash
+cd web
+npm install
+npm run build  # 生成 web/dist，FastAPI 会自动托管
+```
+
 ### 添加新交易所
 
 只需 3 步：
@@ -551,7 +587,7 @@ pre-commit run --all-files
 
 1. Fork 本仓库
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 安装开发工具 (`pip install -r requirements-dev.txt`)
+3. 安装开发工具（参考上文“代码质量工具”中的快速开始命令）
 4. 编写代码并确保通过所有检查
 5. 提交更改 (`git commit -m 'feat: Add AmazingFeature'`)
 6. 推送到分支 (`git push origin feature/AmazingFeature`)

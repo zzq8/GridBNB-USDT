@@ -2,10 +2,12 @@ from src.config.settings import TradingConfig, FLIP_THRESHOLD, settings
 from src.core.exchange_client import ExchangeClient
 from src.core.order_tracker import OrderTracker, OrderThrottler
 from src.strategies.risk_manager import AdvancedRiskManager, RiskState
+from src.strategies.trend_detector import TrendDetector, TrendSignal  # 🆕 趋势识别
 import logging
 import asyncio
 import numpy as np
 from datetime import datetime
+from typing import Optional  # 🆕 类型注解
 import time
 import math
 from src.utils.helpers import send_pushplus_message, format_trade_message
@@ -137,6 +139,26 @@ class GridTrader:
         self.max_profit = 0.0  # 历史最高盈利（USDT）
         self.stop_loss_triggered = False  # 止损是否已触发
         self.stop_loss_price = None  # 止损价格缓存
+
+        # 🆕 趋势识别器初始化
+        self.trend_detector = None
+        self.current_trend: Optional[TrendSignal] = None  # 当前趋势信号
+        if settings.ENABLE_TREND_DETECTION:
+            try:
+                self.trend_detector = TrendDetector(
+                    symbol=self.symbol,
+                    ema_short=settings.TREND_EMA_SHORT,
+                    ema_long=settings.TREND_EMA_LONG,
+                    adx_period=settings.TREND_ADX_PERIOD,
+                    strong_trend_threshold=settings.TREND_STRONG_THRESHOLD,
+                    cache_ttl=settings.TREND_DETECTION_INTERVAL
+                )
+                self.logger.info("趋势识别器已启用")
+            except Exception as e:
+                self.logger.error(f"趋势识别器初始化失败: {e}", exc_info=True)
+                self.trend_detector = None
+        elif not settings.ENABLE_TREND_DETECTION:
+            self.logger.info("趋势识别器已禁用（ENABLE_TREND_DETECTION=false）")
 
         # 资金锁：防止并发交易的资金竞态条件
         self._balance_lock = asyncio.Lock()
@@ -709,6 +731,70 @@ class GridTrader:
                         await self._emergency_liquidate(reason)
                         # 止损后停止该交易对的运行
                         break
+
+                # ------------------------------------------------------------------
+                # 🆕 阶段一：趋势识别 (在风控检查之前，提供趋势风控)
+                # ------------------------------------------------------------------
+                if self.trend_detector:
+                    try:
+                        # 检测当前市场趋势（带缓存，默认5分钟更新一次）
+                        self.current_trend = await self.trend_detector.detect_trend(self.exchange)
+
+                        # 根据趋势获取建议的风控状态
+                        trend_risk_state = self.trend_detector.get_risk_state(self.current_trend)
+
+                        # 如果趋势建议限制交易，覆盖仓位风控
+                        if trend_risk_state != RiskState.ALLOW_ALL:
+                            # 趋势风控优先级高于仓位风控
+                            self.risk_manager.override_risk_state(trend_risk_state)
+
+                            self.logger.warning(
+                                f"⚠️ 趋势风控触发 | "
+                                f"趋势: {self.current_trend.direction.value} | "
+                                f"强度: {self.current_trend.strength:.1f} | "
+                                f"置信度: {self.current_trend.confidence:.2f} | "
+                                f"风控状态: {trend_risk_state.value} | "
+                                f"原因: {self.current_trend.reason}"
+                            )
+
+                            # 发送通知（仅在趋势变化时）
+                            if (not hasattr(self, '_last_trend_direction') or
+                                self._last_trend_direction != self.current_trend.direction):
+
+                                pause_buy = self.trend_detector.should_pause_buy(self.current_trend)
+                                pause_sell = self.trend_detector.should_pause_sell(self.current_trend)
+
+                                action_msg = ""
+                                if pause_buy:
+                                    action_msg = "已暂停买入操作，避免熊市接刀"
+                                elif pause_sell:
+                                    action_msg = "已暂停卖出操作，避免牛市踏空"
+
+                                alert_msg = f"""
+🔔 趋势变化通知
+━━━━━━━━━━━━━━━━━━━━
+交易对: {self.symbol}
+趋势方向: {self.current_trend.direction.value}
+趋势强度: {self.current_trend.strength:.1f}/100
+置信度: {self.current_trend.confidence:.1%}
+━━━━━━━━━━━━━━━━━━━━
+判断依据: {self.current_trend.reason}
+策略调整: {action_msg}
+━━━━━━━━━━━━━━━━━━━━
+"""
+                                send_pushplus_message(alert_msg, "趋势识别通知")
+                                self._last_trend_direction = self.current_trend.direction
+                        else:
+                            # 趋势正常，不需要限制
+                            self.logger.debug(
+                                f"趋势检测: {self.current_trend.direction.value} | "
+                                f"强度: {self.current_trend.strength:.1f} | "
+                                f"正常交易"
+                            )
+
+                    except Exception as e:
+                        self.logger.error(f"趋势检测失败: {e}", exc_info=True)
+                        # 趋势检测失败不影响正常交易，继续执行
 
                 # ------------------------------------------------------------------
                 # 阶段二：周期性维护模块 (始终运行，保证机器人认知更新)

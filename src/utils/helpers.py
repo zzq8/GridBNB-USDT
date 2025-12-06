@@ -3,6 +3,7 @@ import os
 import time
 from functools import wraps
 from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from typing import Any, Callable, Coroutine, Optional, Tuple, TypeVar
 
 import psutil
@@ -164,7 +165,7 @@ class LogConfig:
 
     SINGLE_LOG: bool = True  # 强制单文件模式
     BACKUP_DAYS: int = 2  # 保留2天日志
-    LOG_DIR: str = os.path.dirname(__file__)  # 与main.py相同目录
+    LOG_DIR: str = str(Path(__file__).resolve().parents[2] / "logs")
     LOG_LEVEL: int = logging.INFO
 
     @staticmethod
