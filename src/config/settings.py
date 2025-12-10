@@ -4,10 +4,13 @@ import json
 import copy
 from typing import Optional, Dict, Union, Any
 
+from dotenv import load_dotenv
 from pydantic import BaseModel, field_validator, ConfigDict
 
 from src.config.loader import config_loader
 
+# 把 .env 文件中的 KEY=VALUE 加载进当前 Python 进程的环境变量中（os.environ）
+load_dotenv(dotenv_path="config/.env")
 
 def _resolve_exchange(info, fallback: str = 'binance') -> str:
     """从当前校验上下文或环境变量获取交易所设置。"""

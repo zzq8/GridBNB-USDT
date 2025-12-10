@@ -188,7 +188,7 @@
    cd GridBNB-USDT
 
    # 创建虚拟环境
-   python -m venv .venv
+   python3 -m venv .venv
 
    # 激活虚拟环境
    # Windows:
@@ -197,7 +197,7 @@
    source .venv/bin/activate
 
    # 安装依赖
-   pip install -r requirements.txt
+   pip3 install -r requirements.txt
    ```
 
 2. **配置和运行**
@@ -206,7 +206,7 @@
    python scripts/init_database.py
 
    # 运行程序
-   python src/main.py
+   python3 src/main.py
    ```
 
    启动后访问 `http://localhost:58181`，使用默认账号 `admin/admin123` 登录 Web 控制台，在界面中填写交易所 API 密钥和策略参数，再通过“配置管理 → 重新加载”按钮让新配置立即生效。
