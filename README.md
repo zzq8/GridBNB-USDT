@@ -207,6 +207,9 @@
 
    # 运行程序
    python3 src/main.py
+   
+   nohup python3 src/main.py > logs/run.log 2>&1 &
+   tail -f logs/run.log
    ```
 
    启动后访问 `http://localhost:58181`，使用默认账号 `admin/admin123` 登录 Web 控制台，在界面中填写交易所 API 密钥和策略参数，再通过“配置管理 → 重新加载”按钮让新配置立即生效。
